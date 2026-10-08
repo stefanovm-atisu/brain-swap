@@ -103,7 +103,7 @@ Known keys match ignoring case (`Column: Doing` is `column`). An indented line, 
 
 ### 4.3 board.md
 
-Keys: `letter` (default the board name's first letter, upper-cased; one character `A` to `Z`, lower case is upper-cased, any other value warns and the derived letter is used), `columns` (comma-separated; default `Todo, Doing, Done`), `next` (floor: highest existing number plus one). Text below is the user's. brain-swap writes only `next:`, creating the file at the first card. A `board.md` created by brain-swap is exactly `---`, `next: <n>`, `---`; letter and columns stay derived until the user adds them (an R4 fixture). If `board.md` has no frontmatter (for example only `# work`), writing `next:` prepends `---`, `next: <n>`, `---`. If its frontmatter is invalid, `new` fails with exit 1, code `invalid_input`, message `board.md:<line>: <problem>`; `context` and the TUI show the same text as a warning.
+Keys: `letter` (default the board name's first letter, upper-cased; one character `A` to `Z`, lower case is upper-cased, any other value warns and the derived letter is used), `columns` (comma-separated; default `Todo, Doing, Done`), `next` (floor: highest existing number plus one). Text below is the user's. brain-swap writes only `next:`, creating the file at the first card. A `board.md` created by brain-swap is exactly `---`, `next: <n>`, `---`; letter and columns stay derived until the user adds them (an R4 fixture). If `board.md` has no frontmatter (for example only `# work`), writing `next:` prepends `---`, `next: <n>`, `---`. If its frontmatter is invalid, `new` fails with exit 1, code `unreadable` (as for any file with invalid frontmatter, 6.2), message `board.md:<line>: <problem>`; `context` and the TUI show the same text as a warning.
 
 ### 4.4 Card file grammar
 
@@ -662,13 +662,13 @@ Outside herdr no herdr command runs and only the jump differs (FR-62, NFR-05). L
 
 ### 12.1 Test layers
 
-Tests are hermetic: the author runs them inside a herdr pane and a Claude session, whose variables a child would inherit. Every process a test spawns goes through one helper. It calls `env_clear()`, then sets only `PATH`, `HOME`, `XDG_*`, `TZ=UTC`, `BRAIN_SWAP_NOW` and the scenario's `HERDR_*`, with `HERDR_BIN_PATH` always the fake script. Core tests never read the process environment.
+Tests are hermetic: the author runs them inside a herdr pane and a Claude session, whose variables a child would inherit. Every process a test spawns goes through one helper. It calls `env_clear()`, then sets only `PATH`, `HOME`, `XDG_*`, `TZ=UTC`, `BRAIN_SWAP_NOW`, the scenario's `HERDR_*` (with `HERDR_BIN_PATH` always the fake script) and, when the scenario sets them, `FAKE_HERDR_SCENARIO`, `BRAIN_SWAP_FAILPOINT`, `BRAIN_SWAP_SESSION`, `BRAIN_SWAP_LOG`, `VISUAL` and `EDITOR`. Core tests never read the process environment.
 
 - **Core unit tests** per module, with `Env` injected (fixed `now`).
 - **Round trip**: fixtures in `tests/fixtures/cards/` (hand-edited, CRLF, no frontmatter, unknown keys, fenced `##`, bad stamps, quoted places, non-UTF-8); per fixture and splice an insta snapshot plus R2, R3 and R7. Parsing never panics.
 - **CLI**: `assert_cmd` with `HOME` and `XDG_*` in `tempfile` folders, a fixed `BRAIN_SWAP_NOW` and per-test `HERDR_*`; text and JSON snapshots per subcommand and exit code; `context` pinned in every state (no or broken config, missing folder, no reference, deleted card, empty or placeholder session, with and without notes), always exit 0. `new --session ""` inside a fake herdr pane sets the reference under the herdr session.
-- **Crash**: with feature `failpoints`, `BRAIN_SWAP_FAILPOINT` aborts at `create:after_next`, `create:after_tmp`, `create:after_link`, `park:after_tmp` or `edit:after_tmp`; a reload then asserts I1 to I4, that every file parses, and that no number is reused.
-- **Concurrency**: 20 parallel `park` and 5 `move` on two cards, then 10 parallel `new`: all files parse, 20 notes, 10 distinct IDs.
+- **Crash**: with feature `failpoints`, a failpoint named `create:after_next`, `create:after_tmp`, `create:after_link`, `park:after_tmp` or `edit:after_tmp` stops `core::store` right there; a reload then asserts I1 to I4, that every file parses, and that no number is reused. Two layers: in-process store tests (E1-F6) set the failpoint on `Env` and the store returns `Error::Io` at that point, leaving the files as a crash would; process-level tests (E2-F3 for `create:*` and `park:*` through `new` and `park`, E4-F5 for `edit:after_tmp` through the editor merge) set `BRAIN_SWAP_FAILPOINT`, which `main` reads into `Env` (6.1), and the store aborts the process.
+- **Concurrency**: 20 parallel parks and 5 moves on two cards, then 10 parallel creations: all files parse, 20 notes, 10 distinct IDs. Run twice: as threads calling `core::store` in one process (E1-F6) and as `park`, `move` and `new` processes (E2-F3).
 - **TUI**: `update` tests per transition; `TestBackend` snapshots at 80x24 and 120x40; runtime tests for polling and for the editor merge, with a scripted `editor` that parks on the card before exiting. The scripted editor starts with `env -i` and the scenario's variables and passes `--session test`; the runtime takes its editor launcher and terminal guard as injectable parts so the test needs no tty.
 - **herdr**: `FakeRunner` tests for every `PaneStatus` and focus path, a failing focus, a hang during the moved search (`NotResponding`) and the 3 second budget; CLI tests with `HERDR_BIN_PATH` pointing at a fake script that answers canned JSON per `FAKE_HERDR_SCENARIO` and logs argv.
 - **Pack** (`tests/pack.rs`): frontmatter checks; each inline command run with `sh -c` in every `context` state (exit 0, header line); every `brain-swap ...` command of each SKILL.md, substituted, parses with `Cli::try_parse_from`; each heredoc command runs with sample text.
@@ -747,15 +747,15 @@ Each feature: scope; Covers; Dep; DoD beyond 12.2.
 - **E1-F3 Config and keys.** Defaults, first run, registry, key syntax, conflicts. Covers FR-02, FR-42 to FR-45, FR-66. Dep: E1-F1. DoD: a bad binding warns and keeps its default; a swap of two keys is accepted; a user binding colliding with another action's default reverts only the user-set action; a broken file reports line and column; each 5.2 validation case (unknown `default_board`, empty `[boards]`, bad board name, wrong type, relative path) is a config error; boards keep file order.
 - **E1-F4 Templates.** Built-ins, user folder, hotkeys. Covers FR-11 to FR-13. Dep: E1-F1. DoD: user files override and add; a file without frontmatter, one without `key` and an unreadable one load as 5.4 says.
 - **E1-F5 Board loading.** `board.md`, discovery, unknown columns, order, lookup. Covers FR-01, FR-03, FR-04, FR-08 to FR-10. Dep: E1-F2, E1-F3. DoD: 4.9 and AS-7 load as described.
-- **E1-F6 Store.** Lock, verify, atomic write, create, move, park, merge, cleanup. Covers FR-04 to FR-06, FR-13, FR-16, NFR-06, NFR-08. Dep: E1-F4, E1-F5. DoD: 12.1 crash and concurrency tests pass; a lock wait over 100 ms is appended to the log file.
+- **E1-F6 Store.** Lock, verify, atomic write, create, move, park, merge, cleanup. Covers FR-04 to FR-06, FR-13, FR-16, NFR-06, NFR-08. Dep: E1-F4, E1-F5. DoD: the in-process 12.1 crash and concurrency tests pass; a lock wait over 100 ms is appended to the log file.
 - **E1-F7 Session store.** References, pane hints, pruning, 6.4 steps 1, 2, 4. Covers FR-05, FR-41, FR-57. Dep: E1-F1. DoD: empty, placeholder and invalid IDs warn and fall through.
 - **E1-F8 Best guess.** The tiers of 6.6. Covers FR-38. Dep: E1-F5, E1-F7. DoD: a test per tier and tie, including recovery by pane hint.
 
 ### E2 CLI (M1)
 
 - **E2-F1 Skeleton.** clap, flags, JSON envelope, errors, `templates`. Covers FR-11, FR-33, FR-35, FR-36. Dep: E1-F3, E1-F4. DoD: exit codes 0, 1 and 2 and the JSON error envelope on stdout produced by tests; every other code is tested by the feature that produces it (3 in E2-F2, 4 and 5 in E2-F3, 6 in E5-F2).
-- **E2-F2 new, move, ls, show.** Creation, moves, listings. Covers FR-13, FR-38, FR-39. Dep: E2-F1, E1-F6, E1-F8. DoD: text and JSON snapshots; `new --body -` snapshots with and without a positional title; unknown names exit 3.
-- **E2-F3 park, link, context.** Stdin and prompts, capture, references, the context format. Covers FR-15, FR-16, FR-18, FR-34, FR-37, FR-41, FR-56, FR-57. Dep: E2-F2, E1-F7, E5-F1. DoD: `context` pinned in every 12.1 state; the CLI steps of AS-6 (`park --card` from a terminal and from stdin, no `auto`) and the CLI half of AS-8 (two parallel parks on different cards and on one card) pass.
+- **E2-F2 new, move, ls, show.** Creation (its session resolution and reference setting arrive with E2-F3), moves, listings. Covers FR-13, FR-38, FR-39. Dep: E2-F1, E1-F6, E1-F8. DoD: text and JSON snapshots; `new --body -` snapshots with and without a positional title; unknown names exit 3.
+- **E2-F3 park, link, context.** Stdin and prompts, capture, session resolution (6.4) and reference setting for `new`, `park`, `link` and `context`, the context format. Covers FR-15, FR-16, FR-18, FR-34, FR-37, FR-41, FR-56, FR-57. Dep: E2-F2, E1-F7, E5-F1. DoD: `context` pinned in every 12.1 state; `new --session ""` inside a fake herdr pane sets the reference under the herdr session; the process-level 12.1 crash (`create:*`, `park:*`) and concurrency tests pass; the CLI steps of AS-6 (`park --card` from a terminal and from stdin, no `auto`) and the CLI half of AS-8 (two parallel parks on different cards and on one card) pass.
 
 ### E3 Claude pack (M2)
 
@@ -768,7 +768,7 @@ Each feature: scope; Covers; Dep; DoD beyond 12.2.
 - **E4-F2 Board view.** Columns, cards, preview panel, ages, moves. Covers FR-20 to FR-22, FR-29. Dep: E4-F1, E1-F6. DoD: 4.9 snapshots at both sizes; no panel at 80x19.
 - **E4-F3 Detail view.** Notes, place, body scroll. Covers FR-26, FR-27. Dep: E4-F1. DoD: first, middle, last note snapshots.
 - **E4-F4 Pickers.** Template and board pickers, title input (5.2). Covers FR-24, FR-30. Dep: E4-F1, E1-F6. DoD: AS-6 creation emits one `Create`; `j` and `k` type into a title.
-- **E4-F5 Editor.** The 7.6 merge. Covers FR-31. Dep: E4-F1, E1-F6, E2-F3. DoD: a note parked mid-edit survives; AS-8 with the TUI editor passes.
+- **E4-F5 Editor.** The 7.6 merge. Covers FR-31. Dep: E4-F1, E1-F6, E2-F3. DoD: a note parked mid-edit survives; the `edit:after_tmp` crash test passes; AS-8 with the TUI editor passes.
 
 ### E5 herdr adapter (M1, M4)
 

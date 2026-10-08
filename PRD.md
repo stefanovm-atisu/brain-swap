@@ -262,7 +262,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 - **NFR-03** No daemon. Nothing runs between invocations: no background process, service or installed hook.
 - **NFR-04** No network. The binary opens no network socket; herdr is reached only through its CLI.
 - **NFR-05** Optional adapters. Without herdr and Claude Code, every Core requirement but the pack and the pane switch behaves identically.
-- **NFR-06** Hand-friendly files. Plain UTF-8 markdown where a note renders as its three parts; a park only appends to one timeline; a move changes or adds one line (or adds a three-line frontmatter to a card that has none); a new card adds one file and changes or adds the `next:` line of `board.md` (creating `board.md` at the first card).
+- **NFR-06** Hand-friendly files. Plain UTF-8 markdown where a note renders as its three parts; a park only appends to one timeline; a move changes or adds one line (or adds a three-line frontmatter to a card that has none); a new card adds one file and changes or adds the `next:` line of `board.md` (creating `board.md` at the first card, or prepending a three-line frontmatter to a `board.md` that has none).
 - **NFR-07** Byte preservation. Bytes outside the edited line or appended block stay identical, including unknown keys, comments and line endings.
 - **NFR-08** Data safety. Concurrent brain-swap processes (CLI and TUI, including the TUI's `e` editor) never lose a note or a move, no reader sees a half-written file, and a crash leaves every file parseable and no ID reused. An external editor that saves a stale buffer can drop a note parked meanwhile.
 - **NFR-09** Platforms. Linux first; macOS should build and pass the tests; Windows is not targeted.
