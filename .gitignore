@@ -11,3 +11,6 @@
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Serena MCP project data
+.serena/
