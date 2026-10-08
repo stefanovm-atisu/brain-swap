@@ -7,7 +7,7 @@
 - Date: 2026-10-08.
 - Derived from idea.md (2026-10-08 snapshot); where this document and idea.md disagree, this document wins and the disagreement is resolved by the next distillation.
 - Companion: TECHSPEC.md implements these FR and NFR IDs.
-- Tags: Core ships in v0.1, Later is deferred. Traces: `F1.3` is idea.md Flow 1 step 3, `F2.1` Flow 2 case 1, `AS-n` section 6, `P1` to `P4` the principles, `B` the idea.md Boundaries.
+- Tags: Core ships in v0.1, Later is deferred. Traces: `F1.3` is idea.md Flow 1 step 3, `F2.1` Flow 2 case 1, `AS-n` section 6, `P1` to `P4` the principles, `B` the idea.md Boundaries, `G1` to `G5` the goals, `Stack` the idea.md Stack section, `A-nn` an assumption and `Q-nn` an open question in section 11.
 
 ## 2. Problem, goals and non-goals
 
@@ -78,7 +78,7 @@ Setup unless stated: herdr runs, the pack and the herdr key binding (default `pr
 2. (F1.2) The user presses `L` on W-12 in the TUI, or asks Claude, which runs `brain-swap move W-12 Doing`. Only the `column:` line of `W-12.md` changes. Earlier in the session the user already ran `/bs-park` once, so W-12's timeline holds one older note.
 3. (F1.3) The user types `/bs-park`, or `/bs-park next: rerun migration test, watch timeout`. Claude asks nothing and runs one `brain-swap park`. W-12's timeline gains a note (three parts, time, `auto`, place); the column is unchanged. Claude replies exactly `parked to W-12: migrate invoices to v13`.
 4. (F1.4) In pane `w4V:p11`, session B runs `/bs-card ...` or `/bs-link W-7` (replies `linked to W-7: <title>` and W-7's latest note). Session A's reference is untouched.
-5. (F1.5) The herdr board key opens the work board in a popup. In Doing, W-12 reads `W-12 migrate invoices to v13` over `12 min  rerun migration test`; the preview panel shows its whole latest note.
+5. (F1.5) The herdr board key opens the work board in a popup. In Doing, W-12 reads `W-12 migrate invoices to v13` over `12 min  rerun migration test`; the preview panel shows its latest note, one line per part.
 6. (F1.6) The user presses `o` on W-12. The detail view shows the newest note, `note 2/2`; `j` shows the older one, `k` the newest again.
 7. (F1.7) The user presses Enter. The popup closes and herdr focuses pane `w4V:p9`, where that note was written.
 8. (F1.8) Alternatively, the user switches to `w4V:p9` with herdr and types `/bs-back`. Claude prints, without running a tool, `W-12 migrate invoices to v13 (note 12 min old)` and the three parts.
@@ -127,7 +127,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 
 ### 7.1 Boards and files
 
-- **FR-01** Core. A board is a folder holding one file per card, `<letter>-<number>.md`, in its root; brain-swap never modifies other files or subfolders. (P3)
+- **FR-01** Core. A board is a folder holding one file per card, `<letter>-<number>.md`, in its root; brain-swap modifies no file there but card files, `board.md` and its own transient temp files (FR-05), and no subfolder. (P3)
 - **FR-02** Core. The config maps board names to folders; `default_board` (initially `work`) applies when a command names none. (B)
 - **FR-03** Core. An optional `board.md` stores the letter, columns and next number, defaulting to the name's first letter upper-cased, Todo, Doing, Done, and the highest number plus one. (P3)
 - **FR-04** Core. A missing board folder reads as an empty board; the first write creates it. (AS-9)
@@ -157,10 +157,10 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 
 ### 7.5 TUI board view
 
-- **FR-19** Core. `brain-swap` without a subcommand opens the TUI on the default board, or on `--board <name>`. (F1.5)
+- **FR-19** Core. `brain-swap` without a subcommand opens the TUI on the default board, or on `--board <name>`. It opens with the open card of newest activity (FR-09) selected and its column focused; with no open card, the first column is focused. (F1.5, A-27)
 - **FR-20** Core. Columns sit side by side; a card shows ID and title, then the latest note's age and a one-line preview of its Next part (else Doing), or `no note`. (F1.5)
-- **FR-21** Core. Ages read `now` (under a minute, or future), `N min`, `N h` or `N d`, refreshed at least every 30 seconds. (F1.5)
-- **FR-22** Core. A preview panel under the columns shows the selected card's whole latest note with age, `auto`, pane and working directory. (P1)
+- **FR-21** Core. Ages read `now` (under a minute, or future), `N min`, `N h` or `N d`, refreshed at least every 30 seconds; N is the elapsed time truncated to whole units (floor). (F1.5)
+- **FR-22** Core. A preview panel under the columns shows the first line of each part of the selected card's latest note, with age, `auto`, pane and working directory. (P1)
 - **FR-23** Core. External changes to the board appear within 2 seconds without a key press, keeping the selection. (AS-7, AS-8)
 - **FR-24** Core. The switch-board key lists the configured boards and opens the chosen one. (B)
 - **FR-25** Core. Enter on a card jumps to the place of its newest note that has one (FR-59 to FR-63). (F1.7, F2.3)
@@ -193,8 +193,8 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 ### 7.9 Configuration and key bindings
 
 - **FR-42** Core. Configuration is one TOML file at the XDG config location: default board, board registry, editor, key map. (P4)
-- **FR-43** Core. Every TUI action has a configurable key list: characters, named keys or combinations such as `ctrl+d`. (P4)
-- **FR-44** Core. An invalid or conflicting binding only warns: the action keeps its defaults and the status line names the problem. (P2, P4)
+- **FR-43** Core. Every TUI action has a configurable key list: characters, named keys or combinations such as `ctrl+d`. Template hotkeys are set by the `key` field of a template file; placing a file of that name in the template folder (FR-12) changes one. (P4, A-28)
+- **FR-44** Core. An invalid or conflicting binding only warns: the action keeps its defaults and the status line names the problem. Keys swapped between two actions are not a conflict. (P2, P4)
 - **FR-45** Core. An unparseable config blocks writes: commands that read it fail naming file, line and column, the TUI shows the error, and `context` reports it with exit 0. (P2)
 
 ### 7.10 Claude Code pack
@@ -206,12 +206,12 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 
 #### 7.10.2 `/bs-card`
 
-- **FR-48** Core. `/bs-card <words>` asks nothing, picks a template, fills its fields from the words and conversation, creates the card in the first column of the default (or named) board, links the session, and replies with one line. (F1.1)
+- **FR-48** Core. `/bs-card <words>` asks nothing, picks a template, fills its fields from the words and conversation, creates the card in the first column of the default (or named) board, links the session, and replies with one line. The title is the user's words when they are short (at most 8 words). (F1.1)
 
 #### 7.10.3 `/bs-park`
 
 - **FR-49** Core. With a reference, `/bs-park` saves a note without asking anything and replies exactly `parked to <ID>: <title>`. (F1.3, P2)
-- **FR-50** Core. `/bs-park <words>` keeps the user's words verbatim for the parts they cover, drafts the rest, and marks the note `auto` unless every part is the user's. A part starts at a label word `doing`, `next`, `watch` or `watch out`, with or without a colon: `next: rerun migration test, watch timeout` gives Next `rerun migration test` and Watch out `timeout`, and Doing is drafted. (F1.3)
+- **FR-50** Core. `/bs-park <words>` keeps the user's words verbatim for the parts they cover, drafts the rest, and marks the note `auto` unless every part is the user's. The labels are `doing`, `next`, `watch` and `watch out`. A label followed by a colon starts a part anywhere. A label word without a colon starts a part only at the start of the text or right after a comma. Unlabelled leading words are Doing. `next: rerun migration test, watch timeout` gives Next `rerun migration test` and Watch out `timeout`, and Doing is drafted; `rerun the next test` is all Doing. (F1.3)
 
 #### 7.10.4 `/bs-back` and catch-up
 
@@ -227,7 +227,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 #### 7.10.6 No-reference picker and reference lifetime
 
 - **FR-56** Core. Without a reference, `/bs-park` and `/bs-back` list the default board's open cards numbered by best guess, `o. other board: <names>` last; the pick becomes the reference, then the command continues. (F2.2)
-- **FR-57** Core. A reference lasts as long as the session ID; a new ID (`/clear`, a new session, maybe compaction) starts unlinked, and FR-56 restores it with one pick. (F2.2)
+- **FR-57** Core. A reference lasts as long as the session ID; a new ID (`/clear`, a new session, maybe compaction) starts unlinked, and FR-56 restores it with one pick for a card on the default board, and through `o. other board` otherwise. (F2.2)
 
 ### 7.11 herdr adapter
 
@@ -238,7 +238,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 - **FR-62** Core. Outside herdr, or for a note without a pane, the jump shows `not in herdr` or `no pane recorded` and the directory. (F2.4)
 - **FR-63** Core. If herdr does not answer within 2 seconds, the jump shows `herdr not responding` and the working directory; the TUI stays usable. (G3)
 - **FR-64** Core. `brain-swap install herdr` prints a herdr key binding that opens the board in a popup by absolute path; it never edits herdr's config. (F1.5)
-- **FR-65** Later. The pane border shows the card ID through herdr pane metadata.
+- **FR-65** Later. The pane border shows the card ID through herdr pane metadata. (B, optional nicety)
 
 ### 7.12 First run and installation
 
@@ -250,10 +250,10 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 
 - **FR-69** Later. A WIP limit on active cards. (idea.md Later)
 - **FR-70** Later. Packs for other agents (Codex, Aider and others) on the same CLI. (idea.md Later)
-- **FR-71** Later. Archiving done cards out of the board view.
-- **FR-72** Later. Manual card order within a column.
-- **FR-73** Later. Writing a note from inside the TUI.
-- **FR-74** Later. Copying the working directory to the clipboard when the jump falls back.
+- **FR-71** Later. Archiving done cards out of the board view. (A-10)
+- **FR-72** Later. Manual card order within a column. (A-01)
+- **FR-73** Later. Writing a note from inside the TUI. (A-16)
+- **FR-74** Later. Copying the working directory to the clipboard when the jump falls back. (Q-02)
 
 ## 8. Non-functional requirements
 
@@ -317,6 +317,8 @@ Decisions made where idea.md is silent: yes keeps one, no reopens it.
 - **A-24** Do `doctor`, `check`, an event log with `stats`, delete, rename and column commands stay out of v0.1? (section 10)
 - **A-25** Does a card created in the TUI enter the focused column, while `/bs-card` uses the first? (FR-30, FR-48)
 - **A-26** Does `install claude --force` replace a foreign `~/.claude/skills/<name>`? If not, `--force` is dropped. (FR-67)
+- **A-27** Does the TUI open with the open card of newest activity selected and its column focused (the first column when no card is open), also after a board switch? (FR-19)
+- **A-28** Is setting a template's hotkey through the `key` field of a template file in the template folder enough? If not, a `[template_keys]` table in config.toml (for example `feature = "f"`) overrides a template's key without copying the file. (FR-43)
 
 Open questions:
 
