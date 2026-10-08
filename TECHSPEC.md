@@ -31,7 +31,7 @@ templates/{feature,bug,research,chore}.md
 ### 2.2 Layering and the public CLI rule
 
 - `core` imports neither `cli`, `tui` nor `adapters`, and uses neither `std::process` nor `std::env` (only `failpoint.rs` may): the environment arrives as an `Env` value, so core code is deterministic; `tests/layering.rs` enforces this. `adapters` import only `core`. The core stores a place as opaque strings (T-02).
-- The pack calls only section 6 subcommands; the herdr key runs only `brain-swap`; the herdr adapter runs only `herdr pane get`, `pane list`, `workspace list`, `agent focus`, `workspace focus` and `tab focus`, never the socket. Nothing reads Claude transcripts, settings, hooks or `CLAUDE_*` variables (bar `CLAUDE_CONFIG_DIR` in `install claude`).
+- The pack calls only section 6 subcommands; the herdr key runs only `brain-swap`; the herdr adapter runs only `herdr pane get`, `pane list`, `workspace list`, `agent focus`, `workspace focus` and `tab focus`, never the socket. Nothing reads Claude transcripts, settings, hooks or `CLAUDE_*` variables (bar `CLAUDE_CONFIG_DIR` in `install claude`, SP-6).
 - Board data lives in board folders; references, pane hints, locks, editor copies and the log in `$XDG_STATE_HOME/brain-swap/`.
 
 ## 3. Domain model
@@ -44,7 +44,7 @@ pub struct Board { pub name: String, pub path: PathBuf, pub meta: BoardMeta,
 pub struct Card { pub id: CardId, pub path: PathBuf, pub title: String, pub column: String,
                   pub template: Option<String>, pub created: Option<Stamp>,
                   pub body: String, pub notes: Vec<Note>, pub writable: bool }
-pub struct Note { pub heading: String,               // raw "### ..." line, merge identity
+pub struct Note { pub heading: String,               // raw "### ..." line
                   pub at: Option<Stamp>, pub auto: bool,
                   pub doing: String, pub next: String, pub watch_out: String,
                   pub place: Place, pub extra: Vec<String> }
@@ -52,7 +52,7 @@ pub struct Place { pub cwd: Option<PathBuf>, pub herdr: Option<HerdrPlace>, pub 
 pub struct HerdrPlace { pub pane: String, pub tab: Option<String>, pub workspace: Option<String> }
 pub struct SessionRef { pub card: CardId, pub board: String, pub pane: Option<String>,
                         pub cwd: Option<PathBuf>, pub set_at: Stamp }
-pub type Stamp = jiff::Zoned;                          // offset as written in the file
+pub type Stamp = jiff::Zoned;                          // fixed offset as written in the file
 // adapters::herdr
 pub struct LivePane { pub pane: String, pub tab: String, pub workspace: String, pub agent: bool }
 pub enum PaneStatus { Live(LivePane), Moved(LivePane), Closed, OutsideHerdr, NoPane,
@@ -63,7 +63,7 @@ Invariants:
 
 - I1. `letter` is `A` to `Z`, equal to the board letter; `number >= 1`.
 - I2. A card's file name is exactly `<id>.md`; the ID is not repeated inside.
-- I3. `columns` is non-empty and unique ignoring case; new cards enter the first, the last is done.
+- I3. `columns` is non-empty and unique ignoring case; a new card enters the first column unless one is given (`new --column`, the TUI's focused column); the last column is done.
 - I4. After any write, `next` exceeds every existing card number.
 - I5. A `column` matching no column shows in an extra column and counts as open.
 - I6. A note brain-swap writes has `at`, `place.cwd` and a non-empty part.
@@ -72,6 +72,8 @@ Invariants:
 - I9. A reference resolves only if its board is configured and its card file exists.
 
 Derived: `jump_note()` is the last note with a `cwd` or `herdr` (FR-25); `activity()` is the latest note's stamp, else `created`, else mtime, ordering a column newest first, ties to the higher number (FR-09); `is_open()` means not in the last column (FR-08).
+
+Stamps are parsed into `jiff::fmt::temporal::Pieces` (or a `Timestamp` plus the parsed offset) and stored as `Zoned` in `TimeZone::fixed(offset)`. They are written with `strftime("%Y-%m-%dT%H:%M:%S%:z")`, never with `Display`, which appends a bracketed zone. `Env` carries the local `TimeZone`, resolved in `main`, for new stamps and offset-less stamps (4.4).
 
 ## 4. On-disk format
 
@@ -92,15 +94,16 @@ Card files with another letter are ignored with a warning; subfolders are not sc
 Machine fields need a fixed place that a one-line splice can change without touching prose (NFR-06, NFR-07), and forges render frontmatter as a table. A flat subset is parsed by hand (T-03):
 
 ```
-frontmatter := "---" NL { key ":" [" " value] NL | "#" text NL | NL } "---" NL     at byte 0 only
-key := [a-z_]+        value := rest of line, one pair of surrounding quotes stripped
+frontmatter := "---" NL { key ":" [" " value] NL | fm_cont NL | "#" text NL | NL } "---" NL     at byte 0 only
+key := [A-Za-z0-9_-]+   value := rest of line, one pair of surrounding quotes stripped
+fm_cont := an indented line, continuing the previous key
 ```
 
-Unknown keys, comments and blank lines are kept; setting a key replaces its line or inserts one before the closing `---`. An invalid block reads as none, with a warning, and blocks writes to that file.
+Known keys match ignoring case (`Column: Doing` is `column`). An indented line continues the previous key and is kept verbatim, so a hand-added YAML list survives. Unknown keys, comments and blank lines are kept; setting a key replaces its line or inserts one before the closing `---`. Only a line that matches none of these rules invalidates the block: an invalid block reads as none, with a warning, and blocks writes to that file.
 
 ### 4.3 board.md
 
-Keys: `letter` (default the board name's first letter, upper-cased), `columns` (comma-separated; default `Todo, Doing, Done`), `next` (floor: highest existing number plus one). Text below is the user's. brain-swap writes only `next:`, creating the file at the first card.
+Keys: `letter` (default the board name's first letter, upper-cased), `columns` (comma-separated; default `Todo, Doing, Done`), `next` (floor: highest existing number plus one). Text below is the user's. brain-swap writes only `next:`, creating the file at the first card. A `board.md` created by brain-swap is exactly `---`, `next: <n>`, `---`; letter and columns stay derived until the user adds them (an R4 fixture). If `board.md` has no frontmatter (for example only `# work`), writing `next:` prepends `---`, `next: <n>`, `---`. If its frontmatter is invalid, `new` fails with exit 1, code `invalid_input`, message `board.md:<line>: <problem>`; `context` and the TUI show the same text as a warning.
 
 ### 4.4 Card file grammar
 
@@ -129,14 +132,14 @@ Columns live in `board.md`, each card's column in its frontmatter; order is deri
 Inside the board lock (section 10):
 
 1. Re-read `board.md` and list card files; `n = max(next, highest number + 1)`.
-2. Write `board.md` with `next: n + 1` atomically (creating it if absent).
+2. Write `board.md` with `next: n + 1` atomically (creating it if absent, 4.3).
 3. Write the card to a temp file, fsync, `std::fs::hard_link(temp, "<L>-<n>.md")`, remove the temp. If linking fails because the name exists (made by hand meanwhile), `n = n + 1` and repeat from (2), at most 100 times.
 
 A crash after (2) only skips `n` (FR-06 allows gaps); one inside (3) leaves a dot-prefixed temp, ignored and removed after an hour. Linking never overwrites, even for a writer that skips the lock; without hard-link support, (3) uses `create_new`. Deleting cards never lowers `next`. Offline creation on two machines can collide (T-05).
 
 ### 4.7 Hand edits
 
-Changed text shows on the next poll, never rewritten. Without frontmatter a card is in the first column. An unknown column (`Doign`) gets an extra column `Doign (unknown)` and a warning. A hand-made card is discovered and the next ID skips past it. A note without place or with a bad stamp shows age `?` and is no jump target. A removed `## Timeline` is re-added by the next park, before any later section. CRLF is kept. Non-UTF-8 files (`unreadable`) and conflict markers (`<<<<<<<` at line start) show with a warning and refuse writes.
+Changed text shows on the next poll, never rewritten. Without frontmatter a card is in the first column. An unknown column (`Doign`) gets an extra column `Doign (unknown)` and a warning. Extra columns render after the last configured column, in order of first appearance, and count as open (I5). `H` or `L` on a card in an extra column moves it to the first configured column; no move ever targets an extra column. A hand-made card is discovered and the next ID skips past it. A note without place or with a bad stamp shows age `?` and is no jump target. A removed `## Timeline` is re-added by the next park, before any later section. CRLF is kept. Non-UTF-8 files (`unreadable`) and conflict markers (`<<<<<<<` at line start) show with a warning and refuse writes.
 
 ### 4.8 Round-trip guarantees
 
@@ -272,7 +275,9 @@ confirm = "enter"
 cancel = "esc"
 ```
 
-No other keys exist (T-17); unknown keys warn. Board uses every action but `scroll_*`, `confirm`, `cancel`; Detail uses `up` (newer), `down` (older), `scroll_*`, `jump`, `edit`, `help`, `quit` (back); pickers use `up`, `down`, `confirm`, `cancel` and template hotkeys.
+No other keys exist (T-17); unknown keys warn. Board uses every action but `scroll_*`, `confirm`, `cancel`; Detail uses `up` (newer), `down` (older), `scroll_*`, `jump`, `edit`, `help`, `quit` (back); pickers use `up`, `down`, `confirm`, `cancel` and template hotkeys. TitleInput is a text field, not a picker: every printable character and space is inserted, `backspace` deletes the last character, `confirm` creates (ignored while the trimmed title is empty) and `cancel` returns to Board; no other action applies there, and a binding of `confirm` or `cancel` to a printable character is ignored there with a warning. Template hotkeys take part in TemplatePick's conflict check (5.3): a hotkey colliding with `up`, `down`, `confirm` or `cancel` is dropped with a warning.
+
+A config that parses but has `default_board` not in `[boards]`, an empty `[boards]`, a board name outside `[a-z0-9_-]+` or a value of the wrong type is a config error, handled exactly as FR-45 (file, line and column of the offending key). A leading `~/` in a board path expands to `HOME`; any other relative path is a config error. `[boards]` keeps file order (13).
 
 ### 5.3 Key binding syntax
 
@@ -283,7 +288,7 @@ key      := one printable character (case-sensitive, "H" is shift+h)
           | home | end | pageup | pagedown | f1 ... f12
 ```
 
-An unparseable binding, or one colliding within a mode, is dropped with `key config: <action>: <problem>` in the status line, and the action keeps its defaults (FR-44). A test keeps the defaults conflict-free.
+An unparseable binding, or one colliding within a mode, is dropped with `key config: <action>: <problem>` in the status line, and the action keeps its defaults (FR-44). When matching, SHIFT is ignored for printable characters (crossterm reports `H` as `H` with SHIFT set); `shift+h` in the config normalises to `H`; `ctrl` and `alt` must match exactly. A test keeps the defaults conflict-free, and a `keys.rs` test matches `H` with and without SHIFT.
 
 ### 5.4 Templates
 
@@ -293,19 +298,21 @@ Built-ins are embedded; a user file of the same name (ignoring case) replaces on
 
 ### 6.1 Global
 
-`brain-swap [--board <name>] [--json] [<subcommand>]`, both flags global. `--board` names the board for commands without a card ID (default `default_board`); card IDs are case-insensitive and resolve by letter (FR-10). `--json` prints one object, first key `"v": 1`, bumped when a field is removed or renamed (FR-35). `main` reads into `Env`: cwd, `HOME`, `XDG_*`, `VISUAL`, `EDITOR`, `HERDR_*`, `BRAIN_SWAP_SESSION`, `BRAIN_SWAP_LOG`, and now from `BRAIN_SWAP_NOW` (RFC 3339, for tests) or the clock; `BRAIN_SWAP_FAILPOINT` only with feature `failpoints`.
+`brain-swap [--board <name>] [--json] [<subcommand>]`, both flags global. `--board` names the board for commands without a card ID (default `default_board`); card IDs are case-insensitive and resolve by letter (FR-10). `--json` prints one object, first key `"v": 1`, bumped when a field is removed or renamed (FR-35). `main` reads into `Env`: cwd, `HOME`, `XDG_*`, `VISUAL`, `EDITOR`, `HERDR_*`, `BRAIN_SWAP_SESSION`, `BRAIN_SWAP_LOG`, `CLAUDE_CONFIG_DIR` (for `install claude` only), the process id, the local time zone (section 3), and now from `BRAIN_SWAP_NOW` (RFC 3339, for tests) or the clock; `BRAIN_SWAP_FAILPOINT` only with feature `failpoints`.
 
 ### 6.2 Exit codes
 
-0 success (also `context` in every state, `locate` for every status); 1 runtime error (I/O, unreadable file, invalid input such as an empty note or no session, config, `verify_failed`); 2 usage, or the TUI without a terminal; 3 not found; 4 no reference (`park` without `--card`); 5 busy (no lock in 2 seconds); 6 jump not performed.
+0 success (also `context` in every state, `locate` for every status, `move` to the card's current column, which writes nothing); 1 runtime error (I/O, unreadable file, invalid input such as an empty note or no session, config, `verify_failed`); 2 usage, or the TUI without a terminal; 3 not found (card, board, template or column); 4 no reference (`park` without `--card`); 5 busy (no lock in 2 seconds); 6 jump not performed.
 
-Errors go to stderr as `brain-swap: <message>`, or as `{"v":1,"error":{"code","message"}}` with `--json`. Codes: `io`, `invalid_input`, `config`, `verify_failed`, `usage`, `not_found`, `no_reference`, `busy`, and for exit 6 `pane_closed`, `not_in_herdr`, `no_pane`, `herdr_not_responding`, `herdr_error`. Warnings go to stderr as `warning: <text>`.
+Errors go to stderr as `brain-swap: <message>`. With `--json`, stdout always carries exactly one object: the result on success, or `{"v":1,"error":{"code","message"}}` on failure; stderr then carries only warnings. Codes: `io`, `invalid_input`, `config`, `verify_failed`, `usage`, `not_found`, `no_reference`, `busy`. Exit 6 has no error object: `jump` prints the 6.7 status object with `focused: false`, and its `status` names the reason. Warnings go to stderr as `warning: <text>`.
+
+An unknown board, template or column name exits 3 (`not_found`) and lists the valid names: `brain-swap: unknown column 'Doign' on work (Todo, Doing, Done)`, likewise `unknown template 'epic' (Feature, Bug, Research, Chore)` and `unknown board 'work2' (work, home, personal)`. The TUI with an unknown `--board` exits 3 before entering the alternate screen. Board, template and column names match ignoring case.
 
 ### 6.3 Subcommands
 
 **`brain-swap`** opens the TUI (FR-19); exit 2 without a terminal.
 
-**`new [--template <name>] [--column <name>] [--session <id>] [--body -] [<title>...]`** (FR-13, FR-48). Defaults: `feature`, first column. `--body -` reads the body from stdin instead of the skeleton, its leading `# ` line serving as title when none is given; no title: exit 1. Prints `created W-12: migrate invoices to v13 (Todo, work)`.
+**`new [--template <name>] [--column <name>] [--session <id>] [--body -] [<title>...]`** (FR-13, FR-48). Defaults: `feature`, first column. `--body -` reads the body from stdin instead of the skeleton. A first non-blank line starting with `# ` is removed from it and becomes the title; a positional title, when given, wins and the line is still removed. A `## Timeline` heading in a supplied body is dropped with a warning, as for templates (5.4), so a created card holds exactly one `# ` title line and one timeline (R4). No title: exit 1. Prints `created W-12: migrate invoices to v13 (Todo, work)`.
 
 **`park [--card <ID>] [--session <id>] [--auto]`** (FR-14 to FR-18, FR-34, FR-49). Card: `--card`, else the session's reference, else exit 4. The note comes from stdin (6.5) or terminal prompts; the place is captured (cwd, herdr `capture`, session) and the note appended to the timeline. Prints `parked to W-12: migrate invoices to v13`.
 
@@ -349,7 +356,7 @@ Problems become lines: `warning: session id not substituted` (with `session: non
 
 **`locate <ID> [--note <n>]`** (FR-40): 9.3 without focus, on the jump note or note `n` (1 is the oldest); prints `live w4V:p9`, `moved w7Q:p2`, `closed w4V:p9`, `not in herdr`, `no pane recorded`, `herdr not responding` or `herdr: <message>`, then `Where: <cwd>`; exit 0.
 
-**`jump <ID> [--note <n>]`** (FR-59 to FR-63): `locate`, then `focus` a live or moved pane: `jumped to W-12 (pane w4V:p9)` or `pane moved: now w7Q:p2`, exit 0; otherwise the `locate` lines, exit 6.
+**`jump <ID> [--note <n>]`** (FR-59 to FR-63): `locate`, then `focus` a live or moved pane: `jumped to W-12 (pane w4V:p9)` when the pane was focused, `jumped to W-12 (tab w4V:t1; pane not focusable)` when only its tab was (no agent runs in it), or `pane moved: now w7Q:p2`, exit 0. If focus fails: `focus failed: w4V:p9` and `Where: <cwd>`, exit 6, JSON `status` unchanged with `focused: false`. Otherwise the `locate` lines, exit 6.
 
 **`templates`** (FR-11, FR-12): per template `template: Feature (key f)` and the skeleton. It never parses the config, so it always exits 0.
 
@@ -357,7 +364,7 @@ Problems become lines: `warning: session id not substituted` (with `session: non
 
 ### 6.4 Session identity and reference store
 
-A command resolves its session (FR-41) from (1) `--session` when valid (I8), (2) `BRAIN_SWAP_SESSION` when valid, (3) only for `context`, `link` and `park` without `--card`, and only inside herdr, `pane_session` (9.2), else (4) none. An empty or placeholder value warns `session id not substituted`, another invalid one `invalid session id`; neither fails the command. A failed `${CLAUDE_SESSION_ID}` substitution (SP-1) thus degrades to herdr, and outside herdr to the picker.
+A command resolves its session (FR-41) from (1) `--session` when valid (I8), (2) `BRAIN_SWAP_SESSION` when valid, (3) when (1) and (2) give no valid ID, and only inside herdr, `pane_session` (9.2), for every command that takes `--session` (`new`, `park`, `link`, `context`), else (4) none. A valid `--session` never calls herdr (T-15). An empty or placeholder value warns `session id not substituted`, another invalid one `invalid session id`; neither fails the command. A failed `${CLAUDE_SESSION_ID}` substitution (SP-1) thus degrades to herdr, and outside herdr to the picker.
 
 References live in `$XDG_STATE_HOME/brain-swap/sessions/<id>.toml` (FR-05) with `card`, `board`, `pane`, `cwd`, `set_at`; writes are atomic, files older than 30 days are pruned, an unparsable file reads as none. A reference set inside herdr also writes the pane hint `panes/<pane>` (card and session), which the best guess reads as `linked here`: it recovers the card after `/clear` even when the old session never parked.
 
@@ -367,11 +374,11 @@ A line matching `^\s*-?\s*(\*\*)?(doing|next|watch out|watch)\s*:\s*(\*\*)?\s*(.
 
 ### 6.6 Best guess
 
-A pure function of the open cards, the current pane (when `HERDR_ENV=1`), the cwd and the pane hint (FR-38). Each card takes its best tier: 0 `linked here` (the hint's card); 1 `same pane` (latest note with a pane is from this pane); 2 `same folder` (that note's cwd equals, contains or lies in the cwd); 3 a middle column; 4 the rest. Within a tier: newest activity, then higher number.
+A pure function of the open cards, the current pane (when `HERDR_ENV=1`), the cwd and the pane hint (FR-38). Each card takes its best tier: 0 `linked here` (the hint's card); 1 `same pane` (latest note with a pane is from this pane); 2 `same folder` (the card's latest note that has a `cwd` has one equal to the current cwd or lying inside it, or the current cwd lies inside that note's cwd and that cwd is neither `/` nor `$HOME`); 3 a middle column; 4 the rest. Within a tier: newest activity, then higher number.
 
 ### 6.7 JSON objects
 
-A Card has `id`, `board`, `title`, `column`, `open`, `path`, `latest_note`; a note has `at`, `age_min`, `auto`, `doing`, `next`, `watch_out`, `by_this_session`, `place` (`cwd`, `session`, `herdr` with `pane`, `tab`, `workspace`). A Candidate adds `rank` and `reason`. Absent values are `null`. `new`, `park`, `move`, `link` return `card`; `ls` returns `board` and `cards`; `context` returns `session`, `reference`, `card`, `candidates`, `other_boards`, `error`, `hint`, `warnings`; `locate` and `jump` return `status` (`live`, `moved`, `closed`, `outside`, `none`, `not_responding`, `herdr_error`), `pane`, `cwd`, and for `jump` `focused`.
+A Card has `id`, `board`, `title`, `column`, `open`, `path`, `latest_note`; a note has `at`, `age_min`, `auto`, `doing`, `next`, `watch_out`, `by_this_session`, `place` (`cwd`, `session`, `herdr` with `pane`, `tab`, `workspace`). A Candidate adds `rank` and `reason`. Absent values are `null`. `new`, `park`, `move`, `link` return `card`; `show` returns `card` and `notes` (every note newest first with `--all`, else the latest only); `ls` returns `board` and `cards`, and with `--guess` `cards` as Candidates plus `other_boards`; `templates` returns `templates` (each `name`, `key`, `skeleton`); `install claude` returns `linked` and `removed` (path lists); `install herdr` returns `snippet`; `context` returns `session`, `reference`, `card`, `candidates`, `other_boards`, `error`, `hint`, `warnings`; `locate` and `jump` return `status` (`live`, `moved`, `closed`, `outside`, `none`, `not_responding`, `herdr_error`), `pane`, `cwd`, and for `jump` `focused` (`"pane"`, `"tab"` or `false`).
 
 ## 7. TUI specification
 
@@ -387,6 +394,10 @@ pub enum Mode { Board, Detail { card: CardId, note: usize, scroll: u16 },
                 BoardPick { sel: usize }, Message { text: String, back: Box<Mode> },
                 Help { back: Box<Mode> }, ConfigError(String) }
 pub enum Input { Key(KeyEvent), Tick(Stamp), Reloaded(Board), Done(Outcome) }
+pub enum Outcome { Moved(CardId), Created(CardId), Edited(CardId), Jumped,
+                   NotJumped(PaneStatus, Option<PathBuf>),          // status, cwd
+                   FocusFailed(String, Option<PathBuf>),            // pane, cwd
+                   Failed(String) }
 pub enum Effect { Move(CardId, String), Create { template: String, title: String, column: String },
                   Edit(CardId), Jump(CardId, usize), LoadBoard(String), Quit }
 pub fn update(app: &mut App, input: Input) -> Vec<Effect>      // pure, no I/O
@@ -394,11 +405,11 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect>      // pure, no I/O
 
 `runtime.rs` draws, polls input every 250 ms, fingerprints the folder every second (7.4), runs effects through `core::store`, `tui::editor` and `adapters::herdr`, and returns results as `Input::Done`.
 
-Transitions (5.2 actions): Board `move_*` emits `Move` (FR-29), `open` shows Detail on the newest note (FR-26), `jump` emits `Jump` on `jump_note()` (FR-25), `new` opens TemplatePick (FR-30), `edit` emits `Edit`, `switch_board` opens BoardPick (FR-24), `help` opens Help (FR-32), `quit` emits `Quit`. Detail `down`/`up` move the note index, clamped; `jump` targets the note shown (FR-28). A template hotkey opens TitleInput, whose `confirm` emits `Create` in the focused column; BoardPick `confirm` emits `LoadBoard`; `cancel` and any key in Message or Help return. `Done(Jumped)` emits `Quit` (FR-59); other outcomes open Message (7.7). A broken config starts in ConfigError; any key exits 1 (FR-45).
+Transitions (5.2 actions): Board `move_*` emits `Move` (FR-29), `open` shows Detail on the newest note (FR-26), `jump` emits `Jump` on `jump_note()` (FR-25), `new` opens TemplatePick (FR-30), `edit` emits `Edit`, `switch_board` opens BoardPick (FR-24), `help` opens Help (FR-32), `quit` emits `Quit`. Detail `down`/`up` move the note index, clamped; `jump` targets the note shown (FR-28). A template hotkey opens TitleInput, whose `confirm` emits `Create` in the focused column; BoardPick `confirm` emits `LoadBoard`; `cancel` and any key in Message or Help return. Outcomes: `Moved`, `Created` and `Edited` reload the board and select that card, with no Message (FR-29, FR-30); `Failed` (including `board busy, try again`, `verify_failed` and a non-zero editor exit) sets the status line; `NotJumped` and `FocusFailed` open the 7.7 Message; `Jumped` emits `Quit` (FR-59). A broken config starts in ConfigError; any key exits 1 (FR-45).
 
 ### 7.2 Screens
 
-Board: header, columns, preview panel, status line (4.9). Detail: `W-12 migrate invoices to v13` with column and board; `note 2/2`, stamp and age; the three parts; `Where: <cwd> (pane <pane>)`; a separator; the scrollable body; a key hint line. Also the template, title and board pickers, Message, Help (every action with its keys, then all warnings) and ConfigError.
+Board: header, columns, preview panel, status line (4.9). Detail: `W-12 migrate invoices to v13` with column and board; `note 2/2`, stamp and age; the three parts; `Where: <cwd> (pane <pane>)`; a separator; the scrollable body; a key hint line. Also the template and board pickers, the title input, Message, Help (every action with its keys, then all warnings) and ConfigError.
 
 ### 7.3 Card rendering, preview panel and age
 
@@ -417,11 +428,11 @@ Alternate screen and raw mode, restored on exit, around the editor and on panic.
 
 ### 7.6 Editing through the editor
 
-The card bytes `C0` are copied to `$XDG_STATE_HOME/brain-swap/edit/<board>-<ID>.md` and opened in the editor (`editor`, `$VISUAL`, `$EDITOR`, `vi`). On a zero exit with changes `E`, inside the lock: if the file still equals `C0`, write `E`; else write `E` plus the file's notes whose headings `C0` lacks, keeping the file's column if only it changed. A non-zero exit writes nothing and keeps the copy. This is the only path writing user-edited bytes (R6, FR-31, AS-8).
+The card bytes `C0` are copied to `$XDG_STATE_HOME/brain-swap/edit/<board>-<ID>.md` and opened in the editor (`editor`, `$VISUAL`, `$EDITOR`, `vi`). On a zero exit with changes `E`, inside the lock: if the file still equals `C0`, write `E`; else write `E` plus the file's notes whose block `C0` lacks (a note's merge identity is its whole block, heading, parts and place line, since two notes parked in one second share a heading), keeping the file's column if only it changed. A non-zero exit writes nothing and keeps the copy. This is the only path writing user-edited bytes (R6, FR-31, AS-8).
 
 ### 7.7 Jump from the TUI
 
-Target: `jump_note()` on the board, the shown note in Detail (none: `no note yet`). Showing `jumping...`, the runtime calls `locate` (9.3), then on `Live` or `Moved` restores the terminal, focuses and exits 0, closing the popup (FR-59, FR-60); SP-2 may swap the order. Other outcomes open a Message with the working directory: `pane closed` plus `open a session there and run /bs-link W-12` (FR-61), `not in herdr`, `no pane recorded` (FR-62), `herdr not responding`, `herdr: <message>` (FR-63).
+Target: `jump_note()` on the board, the shown note in Detail (none: `no note yet`). Showing `jumping...`, the runtime calls `locate` (9.3). On `Live` or `Moved` it focuses first: on `Ok` it restores the terminal and exits 0 through `Done(Jumped)` and `Quit`, closing the popup (FR-59, FR-60); on `Err` it stays in the TUI and opens a Message `focus failed: <pane>` with the working directory. SP-2 may move the restore before the focus; a failed focus then re-enters the alternate screen and shows the same Message. Other outcomes open a Message with the working directory: `pane closed` plus `open a session there and run /bs-link W-12` (FR-61), `not in herdr`, `no pane recorded` (FR-62), `herdr not responding`, `herdr: <message>` (FR-63).
 
 ## 8. Claude Code pack
 
@@ -482,7 +493,7 @@ The user's own words (may be empty): $ARGUMENTS
 
 1. If the state has an `error:` line, reply with it and its `hint:` line, and stop.
 2. The card is the `reference:` ID. If that is `none`, show the numbered list exactly as printed and ask "Park to which card?". Accept a number, an ID, or `o` (then ask which board and show `brain-swap ls --open --guess --board <name>` the same way). Ask nothing else.
-3. Write the note for yourself returning cold in an hour, one short concrete line per part: Doing (in progress now), Next (the very next action), Watch out (the trap, or "nothing"). Use the user's words verbatim for the parts they gave ("next:", "watch:"; plain words mean Doing) and draft the rest from this conversation.
+3. Write the note for yourself returning cold in an hour, one short concrete line per part: Doing (in progress now), Next (the very next action), Watch out (the trap, or "nothing"). Use the user's words verbatim for the parts they gave. A part starts at a label word, with or without a colon: `doing`, `next`, `watch` or `watch out`. It runs to the next label (a comma before a label ends it). Unlabelled leading words are Doing. Draft the rest from this conversation. Example: `next: rerun migration test, watch timeout` gives Next `rerun migration test` and Watch out `timeout`, and Doing is drafted from this conversation.
 4. Save it with one command; drop `--auto` only if all three parts are the user's words:
 
 ```
@@ -525,7 +536,7 @@ Next: ...
 Watch out: ...
 ```
 
-5. If missing or stale, write `no note since <age> ago on <ID>` or `no note yet on <ID>`, draft a catch-up note from this conversation (one short concrete line per part), save it, and print it as in step 4 with age `now`:
+5. If missing or stale, write `no note since <age> ago on <ID>` or `no note yet on <ID>`, draft a catch-up note from this conversation (one short concrete line per part), save it, and print it as in step 4, with the first line `<ID> <title> (note just saved)`:
 
 ```
 brain-swap park --card <ID> --session "${CLAUDE_SESSION_ID}" --auto <<'BS_EOF'
@@ -571,7 +582,7 @@ Set by `/bs-card`, every park, `/bs-link` and the `/bs-back` pick; read through 
 
 ### 8.8 Install
 
-`brain-swap install claude` writes the embedded skills to `$XDG_DATA_HOME/brain-swap/pack/<version>/skills/<name>/` and symlinks `~/.claude/skills/<name>` (or `$CLAUDE_CONFIG_DIR/skills`) to each, atomically: no checkout is needed, and the links follow the verified skills-dir install (T-12). `--link <repo>` links a checkout's `pack/claude/skills/<name>` instead. Anything at those paths that is not our link is refused (exit 1) unless `--force`; `--remove` deletes our links and copies. If SP-3 finds `brain-swap` off the inline shell's `PATH`, the copies get its absolute path. It prints `run /reload-skills in sessions already open` when it created `~/.claude/skills/`, and suggests the allow rule `Bash(brain-swap:*)` so moves need no prompt; it never edits settings or hooks (FR-67).
+`brain-swap install claude` writes the embedded skills to `$XDG_DATA_HOME/brain-swap/pack/<version>/skills/<name>/` and symlinks `~/.claude/skills/<name>` (or `$CLAUDE_CONFIG_DIR/skills`, SP-6) to each, atomically: no checkout is needed, and the links follow the verified skills-dir install (T-12). `--link <repo>` links a checkout's `pack/claude/skills/<name>` instead. Anything at those paths that is not our link is refused (exit 1) unless `--force`; `--remove` deletes our links and copies. If SP-3 finds `brain-swap` off the inline shell's `PATH`, the copies get its absolute path in every command and in `allowed-tools: Bash(<absolute path>:*)`; with `--link`, install warns that the checkout's skills need `brain-swap` on the inline shell's `PATH`. It prints `run /reload-skills in sessions already open` when it created `~/.claude/skills/`, and suggests the allow rule `Bash(brain-swap:*)` so moves need no prompt; it never edits settings or hooks (FR-67).
 
 ## 9. herdr adapter
 
@@ -579,9 +590,11 @@ Set by `/bs-card`, every park, `/bs-link` and the `/bs-back` pick; read through 
 
 Active when `HERDR_ENV` is `1` (FR-58); the binary is `HERDR_BIN_PATH`, else `herdr` on `PATH`. At park time `capture` builds `HerdrPlace` from `HERDR_PANE_ID`, `HERDR_TAB_ID` and `HERDR_WORKSPACE_ID` and runs no herdr command (FR-15). Inheritance into Claude's Bash tool is SP-4.
 
+A process keeps the `HERDR_PANE_ID`, `HERDR_TAB_ID` and `HERDR_WORKSPACE_ID` it started with, so after its pane moves to another workspace (and gets a new ID) they name a dead pane. If SP-4 finds that `herdr pane current --current` resolves the caller's new pane, `capture` and `pane_session` use it when `herdr pane get $HERDR_PANE_ID` reports `pane_not_found` (T-15 then allows that check). Otherwise notes from a moved pane keep the old ID, each jump resolves them through the moved search (9.3), and AS-10 states this limitation.
+
 ### 9.2 Session of the current pane
 
-`pane_session` runs `herdr pane get <HERDR_PANE_ID>` and returns `result.pane.agent_session.value`, or none; only 6.4 step 3 uses it.
+`pane_session` runs `herdr pane get <HERDR_PANE_ID>` and returns `result.pane.agent_session.value`, or none; only 6.4 step 3 (and the 9.1 moved-pane case) uses it.
 
 ### 9.3 Locate and focus
 
@@ -606,7 +619,7 @@ focus(p, runner) -> Result:
   return Err("focus failed")
 ```
 
-Existence comes first, so a closed pane yields `pane closed` (FR-61); live IDs win over stored ones (T-16). The moved search (FR-60) stops at the first match, and a failing list call ends it as `Closed`; SP-4 confirms the list JSON, read with tolerant `serde_json::Value` lookups. The tab fallback is best effort. Every call goes through `Runner` with a 2 second timeout that kills the child (T-15).
+Existence comes first, so a closed pane yields `pane closed` (FR-61); live IDs win over stored ones (T-16). The moved search (FR-60) stops at the first match; a timed-out list call returns `NotResponding`, and a list call that fails otherwise ends the search as `Closed`. The whole `locate` has a 3 second budget, after which it returns `NotResponding` (FR-63, AS-11); SP-4 confirms the list JSON, read with tolerant `serde_json::Value` lookups. The tab fallback is best effort. Every call goes through `Runner` with a timeout of 2 seconds or the rest of the budget, whichever is less, that kills the child (T-15).
 
 ### 9.4 Key binding
 
@@ -630,13 +643,13 @@ Outside herdr no herdr command runs and only the jump differs (FR-62, NFR-05). L
 
 ## 10. Concurrency and robustness
 
-- **Board lock**: `$XDG_STATE_HOME/brain-swap/locks/<path>.lock` (`<path>` the canonical folder path, `/` as `%`), an exclusive std `File::try_lock` retried every 10 ms for 2 seconds, then `Busy` (exit 5; TUI: `board busy, try again`). Held for one read-modify-write, never across an editor or herdr call; readers take none (T-07).
+- **Board lock**: `$XDG_STATE_HOME/brain-swap/locks/<path>.lock`. A writer first runs `create_dir_all` on the board folder, then canonicalizes it, then locks; readers never create it. In the lock name `<path>`, `%` becomes `%25` and `/` becomes `%2F`. The lock is an exclusive std `File::try_lock` retried every 10 ms for 2 seconds, then `Busy` (exit 5; TUI status line: `board busy, try again`). Held for one read-modify-write, never across an editor or herdr call; readers take none (T-07).
 - **Fresh reads**: a write re-reads its file inside the lock and splices the bytes on disk, never the TUI's copy, so a TUI move and a CLI park on one card both land (NFR-08).
-- **Atomic writes**: temp file `.<name>.bs-tmp-<pid>` beside the target, verify (R7), `sync_all`, `rename`, folder fsync; new cards are hard-linked (4.6).
+- **Atomic writes**: temp file `.<name>.bs-tmp-<pid>` beside the target (`pid` from `Env`, so core needs no `std::process`), verify (R7), `sync_all`, `rename`, folder fsync; new cards are hard-linked (4.6).
 - **External editors** are not coordinated: a racing save can drop a note; only the TUI's `e` merges (7.6).
 - **Bad files** (4.7) never stop a board from loading; a **missing folder** reads as empty (FR-04).
 - **Config**: missing means first run (FR-66); unparseable means exit 1 with `file:line:col`, ConfigError in the TUI, an `error:` line in `context` (FR-45), never defaults that could write into wrong folders.
-- **Duplicate board letters** warn; the first board in config order wins. **Clock skew**: future stamps render `now`; order never depends on stamps alone. **Network filesystems** are unsupported (T-13).
+- **Duplicate board letters** warn; the first board in config file order wins (kept by `toml`'s `preserve_order`, 13). **Clock skew**: future stamps render `now`; order never depends on stamps alone. **Network filesystems** are unsupported (T-13).
 
 ## 11. Error handling and logging
 
@@ -646,13 +659,15 @@ Outside herdr no herdr command runs and only the jump differs (FR-62, NFR-05). L
 
 ### 12.1 Test layers
 
+Tests are hermetic: the author runs them inside a herdr pane and a Claude session, whose variables a child would inherit. Every process a test spawns goes through one helper. It calls `env_clear()`, then sets only `PATH`, `HOME`, `XDG_*`, `TZ=UTC`, `BRAIN_SWAP_NOW` and the scenario's `HERDR_*`, with `HERDR_BIN_PATH` always the fake script. Core tests never read the process environment.
+
 - **Core unit tests** per module, with `Env` injected (fixed `now`).
 - **Round trip**: fixtures in `tests/fixtures/cards/` (hand-edited, CRLF, no frontmatter, unknown keys, fenced `##`, bad stamps, quoted places, non-UTF-8); per fixture and splice an insta snapshot plus R2, R3 and R7. Parsing never panics.
-- **CLI**: `assert_cmd` with `HOME` and `XDG_*` in `tempfile` folders, a fixed `BRAIN_SWAP_NOW` and per-test `HERDR_*`; text and JSON snapshots per subcommand and exit code; `context` pinned in every state (no or broken config, missing folder, no reference, deleted card, empty or placeholder session, with and without notes), always exit 0.
+- **CLI**: `assert_cmd` with `HOME` and `XDG_*` in `tempfile` folders, a fixed `BRAIN_SWAP_NOW` and per-test `HERDR_*`; text and JSON snapshots per subcommand and exit code; `context` pinned in every state (no or broken config, missing folder, no reference, deleted card, empty or placeholder session, with and without notes), always exit 0. `new --session ""` inside a fake herdr pane sets the reference under the herdr session.
 - **Crash**: with feature `failpoints`, `BRAIN_SWAP_FAILPOINT` aborts at `create:after_next`, `create:after_tmp`, `create:after_link`, `park:after_tmp` or `edit:after_tmp`; a reload then asserts I1 to I4, that every file parses, and that no number is reused.
 - **Concurrency**: 20 parallel `park` and 5 `move` on two cards, then 10 parallel `new`: all files parse, 20 notes, 10 distinct IDs.
 - **TUI**: `update` tests per transition; `TestBackend` snapshots at 80x24 and 120x40; runtime tests for polling and for the editor merge, with a scripted `editor` that parks on the card before exiting.
-- **herdr**: `FakeRunner` tests for every `PaneStatus` and focus path; CLI tests with `HERDR_BIN_PATH` pointing at a fake script that answers canned JSON per `FAKE_HERDR_SCENARIO` and logs argv.
+- **herdr**: `FakeRunner` tests for every `PaneStatus` and focus path, a failing focus, a hang during the moved search (`NotResponding`) and the 3 second budget; CLI tests with `HERDR_BIN_PATH` pointing at a fake script that answers canned JSON per `FAKE_HERDR_SCENARIO` and logs argv.
 - **Pack** (`tests/pack.rs`): frontmatter checks; each inline command run with `sh -c` in every `context` state (exit 0, header line); every `brain-swap ...` command of each SKILL.md, substituted, parses with `Cli::try_parse_from`; each heredoc command runs with sample text.
 - **Docs**: no U+2014 or U+2013 in any repository markdown file. **Performance**: an `#[ignore]` release test on 300 cards with 20 notes, plus `hyperfine` (NFR-01, NFR-02). **Manual**: AS-1 to AS-11 in real herdr and Claude Code before release.
 
@@ -681,7 +696,7 @@ failpoints = []          # crash tests only
 ratatui = "0.30"                                    # the TUI; re-exports crossterm
 clap = { version = "4.6", features = ["derive"] }   # subcommands, help, usage errors
 serde = { version = "1", features = ["derive"] }    # config, references, JSON
-toml = "1.1"                                        # config and session files
+toml = { version = "1.1", features = ["preserve_order"] }   # config and session files; keeps [boards] order
 serde_json = "1"                                    # --json output, herdr JSON
 jiff = "0.2"                                        # stamps with offsets, time zones
 
@@ -700,9 +715,9 @@ Each spike: two hours at most, no product code, the answer recorded in section 1
 - **SP-1 Session ID.** Does `${CLAUDE_SESSION_ID}` expand in a user skill's inline commands and body, equal herdr's `agent_session.value`, and survive auto-compaction? Fallback: the 6.4 chain.
 - **SP-2 Jump from a popup.** Does a `popup` command see `HERDR_*` and the user's `PATH`, and does `herdr agent focus` from it hold after the popup exits? Fallback: exit first, then a detached `brain-swap jump <ID>`.
 - **SP-3 Permissions and PATH in Claude.** Does `Bash(brain-swap:*)` pre-approve inline commands and heredoc calls, and is `~/.cargo/bin` on the inline shell's `PATH`? Fallbacks: a documented allow rule; absolute paths in the copies.
-- **SP-4 herdr from Claude.** Does Claude's Bash tool inherit `HERDR_*`, and what do `herdr workspace list` and `pane list --workspace` print? Fallback: `capture` finds the pane by session through those lists.
+- **SP-4 herdr from Claude.** Does Claude's Bash tool inherit `HERDR_*`, and what do `herdr workspace list` and `pane list --workspace` print? After a pane moves, does `herdr pane current --current` resolve the caller's new pane, or only echo `HERDR_PANE_ID` (9.1)? Fallback: `capture` finds the pane by session through those lists.
 - **SP-5 Focus.** What does `agent focus` do without an agent; do `workspace focus` and `tab focus` cross workspaces?
-- **SP-6 Skill install.** Does a symlinked `~/.claude/skills/bs-park/` give a bare `/bs-park` without restart that Claude cannot invoke? Fallback: copies.
+- **SP-6 Skill install.** Does a symlinked `~/.claude/skills/bs-park/` give a bare `/bs-park` without restart that Claude cannot invoke? Does Claude Code load skills from `$CLAUDE_CONFIG_DIR/skills` when it is set? Fallback: copies.
 - **SP-7 Key.** Is `prefix+alt+b` free in herdr 0.8.2 and the author's config?
 - **SP-8 Staleness accuracy.** In 10 scripted sessions (5 stale, 5 fresh), does `/bs-back` judge 9 or more right? Fallback: the stricter rule of 8.6.
 
@@ -710,11 +725,11 @@ Unspiked risk: chatter despite "ask nothing" (manual AS-1, AS-3).
 
 ## 15. Work breakdown
 
-Milestones follow principle 1: the cue (files, CLI, pack) ships before the board; order sets priority, not a gate. **M0** E0; **M1** E1, E2, E5-F1; **M2** E3; **M3** E4; **M4** E5-F2 to E5-F4; **M5** E6.
+Milestones follow principle 1: the cue (files, CLI, pack) ships before the board; order sets priority, not a gate. **M0** E0-F1, E0-F2; **M1** E1, E2, E5-F1; **M2** E3, E0-F3; **M3** E4; **M4** E5-F2 to E5-F4; **M5** E6.
 
 Each feature: scope; Covers; Dep; DoD beyond 12.2.
 
-### E0 Spikes (M0)
+### E0 Spikes (M0; E0-F3 in M2)
 
 - **E0-F1 Claude spike.** SP-1, SP-3, SP-4, SP-6 in a herdr pane. Covers FR-41, FR-46, FR-57, FR-67. Dep: none. DoD: answers in 16; 6.4, 8, 9.1 updated if a fallback is taken.
 - **E0-F2 herdr spike.** SP-2, SP-5, SP-7. Covers FR-59, FR-60, FR-64. Dep: none. DoD: answers in 16; 7.7, 9.3, 9.4 updated.
@@ -722,9 +737,9 @@ Each feature: scope; Covers; Dep; DoD beyond 12.2.
 
 ### E1 Core (M1)
 
-- **E1-F1 Foundations.** Layout, `Env`, `Error`, exit codes, XDG paths, ages, failpoints, layering and docs tests. Covers FR-36, NFR-03, NFR-04, NFR-09, NFR-11. Dep: none. DoD: a planted `std::process` fails the layering test; every age boundary tested.
+- **E1-F1 Foundations.** Layout, `Env`, `Error`, exit codes, XDG paths, ages, stamps (section 3), failpoints, log sink (`BRAIN_SWAP_LOG`, section 11), the hermetic spawn helper (12.1), layering and docs tests. Covers FR-36, NFR-03, NFR-04, NFR-09, NFR-11. Dep: none. DoD: a planted `std::process` fails the layering test; every age boundary tested; stamps round-trip byte for byte; a lock wait over 100 ms and a Runner call are appended to the log file in tests.
 - **E1-F2 Card grammar.** Frontmatter, card file, place line, R1 to R5. Covers FR-01, FR-07, FR-14, FR-16 to FR-18, NFR-06, NFR-07. Dep: E1-F1. DoD: every fixture round-trips byte for byte.
-- **E1-F3 Config and keys.** Defaults, first run, registry, key syntax, conflicts. Covers FR-02, FR-42 to FR-45, FR-66. Dep: E1-F1. DoD: a bad binding warns and keeps its default; a broken file reports line and column.
+- **E1-F3 Config and keys.** Defaults, first run, registry, key syntax, conflicts. Covers FR-02, FR-42 to FR-45, FR-66. Dep: E1-F1. DoD: a bad binding warns and keeps its default; a broken file reports line and column; each 5.2 validation case (unknown `default_board`, empty `[boards]`, bad board name, wrong type, relative path) is a config error; boards keep file order.
 - **E1-F4 Templates.** Built-ins, user folder, hotkeys. Covers FR-11 to FR-13. Dep: E1-F1. DoD: user files override and add.
 - **E1-F5 Board loading.** `board.md`, discovery, unknown columns, order, lookup. Covers FR-01, FR-03, FR-04, FR-08 to FR-10. Dep: E1-F2, E1-F3. DoD: 4.9 and AS-7 load as described.
 - **E1-F6 Store.** Lock, verify, atomic write, create, move, park, merge, cleanup. Covers FR-04 to FR-06, FR-13, FR-16, NFR-06, NFR-08. Dep: E1-F4, E1-F5. DoD: 12.1 crash and concurrency tests pass.
@@ -733,28 +748,28 @@ Each feature: scope; Covers; Dep; DoD beyond 12.2.
 
 ### E2 CLI (M1)
 
-- **E2-F1 Skeleton.** clap, flags, JSON envelope, errors, `templates`. Covers FR-11, FR-33, FR-35, FR-36. Dep: E1-F3, E1-F4. DoD: every 6.2 code produced by a test.
-- **E2-F2 new, move, ls, show.** Creation, moves, listings. Covers FR-13, FR-38, FR-39. Dep: E2-F1, E1-F6, E1-F8. DoD: text and JSON snapshots.
-- **E2-F3 park, link, context.** Stdin and prompts, capture, references, the context format. Covers FR-15, FR-16, FR-18, FR-34, FR-37, FR-41, FR-56, FR-57. Dep: E2-F2, E1-F7, E5-F1. DoD: `context` pinned in every 12.1 state; AS-6 and AS-8 pass.
+- **E2-F1 Skeleton.** clap, flags, JSON envelope, errors, `templates`. Covers FR-11, FR-33, FR-35, FR-36. Dep: E1-F3, E1-F4. DoD: exit codes 0, 1 and 2 and the JSON error envelope on stdout produced by tests; every other code is tested by the feature that produces it (3 in E2-F2, 4 and 5 in E2-F3, 6 in E5-F2).
+- **E2-F2 new, move, ls, show.** Creation, moves, listings. Covers FR-13, FR-38, FR-39. Dep: E2-F1, E1-F6, E1-F8. DoD: text and JSON snapshots; `new --body -` snapshots with and without a positional title; unknown names exit 3.
+- **E2-F3 park, link, context.** Stdin and prompts, capture, references, the context format. Covers FR-15, FR-16, FR-18, FR-34, FR-37, FR-41, FR-56, FR-57. Dep: E2-F2, E1-F7, E5-F1. DoD: `context` pinned in every 12.1 state; the CLI steps of AS-6 (`park --card` from a terminal and from stdin, no `auto`) and the CLI half of AS-8 (two parallel parks on different cards and on one card) pass.
 
 ### E3 Claude pack (M2)
 
 - **E3-F1 Skills.** Section 8 files, embedding, pack tests. Covers FR-46 to FR-57. Dep: E2-F3, E0-F1. DoD: manual AS-1 (steps 1, 3, 4, 8), AS-2, AS-3 recorded.
-- **E3-F2 install claude.** Versioned copy, symlinks, `--link`, `--force`, `--remove`. Covers FR-67. Dep: E3-F1. DoD: temp `HOME` tests: install, upgrade, foreign folder refused, removal.
+- **E3-F2 install claude.** Versioned copy, symlinks, `--link`, `--force`, `--remove`. Covers FR-67. Dep: E3-F1. DoD: temp `HOME` tests: install, upgrade, foreign folder refused without `--force` and replaced with it, removal.
 
 ### E4 TUI (M3)
 
 - **E4-F1 Shell.** `update`, runtime, terminal, poll, status line, Help, ConfigError. Covers FR-19, FR-23, FR-32, FR-44, FR-45, NFR-02, NFR-10. Dep: E1-F3, E1-F5. DoD: a file change shows after one `Tick`.
 - **E4-F2 Board view.** Columns, cards, preview panel, ages, moves. Covers FR-20 to FR-22, FR-29. Dep: E4-F1, E1-F6. DoD: 4.9 snapshots at both sizes; no panel at 80x19.
 - **E4-F3 Detail view.** Notes, place, body scroll. Covers FR-26, FR-27. Dep: E4-F1. DoD: first, middle, last note snapshots.
-- **E4-F4 Pickers.** Template, title and board. Covers FR-24, FR-30. Dep: E4-F1, E1-F6. DoD: AS-6 creation emits one `Create`.
-- **E4-F5 Editor.** The 7.6 merge. Covers FR-31. Dep: E4-F1, E1-F6. DoD: a note parked mid-edit survives.
+- **E4-F4 Pickers.** Template and board pickers, title input (5.2). Covers FR-24, FR-30. Dep: E4-F1, E1-F6. DoD: AS-6 creation emits one `Create`; `j` and `k` type into a title.
+- **E4-F5 Editor.** The 7.6 merge. Covers FR-31. Dep: E4-F1, E1-F6, E2-F3. DoD: a note parked mid-edit survives; AS-8 with the TUI editor passes.
 
 ### E5 herdr adapter (M1, M4)
 
 - **E5-F1 Runner, capture, pane session.** `Runner` with timeout, `FakeRunner`, fake herdr script, 9.1, 9.2. Covers FR-15, FR-41, FR-58. Dep: E1-F1. DoD: a hung child is killed at 2 s; no capture outside herdr.
-- **E5-F2 Locate and jump.** 9.3, `locate`, `jump`. Covers FR-40, FR-59 to FR-63, NFR-05. Dep: E5-F1, E2-F1, E1-F5, E0-F2. DoD: every `PaneStatus` and focus path, argv sequences asserted.
-- **E5-F3 TUI jump.** Enter in Board and Detail, exit, messages (7.7). Covers FR-25, FR-28, FR-59 to FR-63. Dep: E5-F2, E4-F2, E4-F3. DoD: a state test per outcome; manual AS-1 step 7, AS-4, AS-5, AS-10, AS-11.
+- **E5-F2 Locate and jump.** 9.3, `locate`, `jump`. Covers FR-40, FR-59 to FR-63, NFR-05. Dep: E5-F1, E2-F1, E1-F5, E0-F2. DoD: every `PaneStatus` and focus path, a failing focus (exit 6), a hang in the moved search and the 3 second budget, argv sequences asserted.
+- **E5-F3 TUI jump.** Enter in Board and Detail, exit, messages (7.7). Covers FR-25, FR-28, FR-59 to FR-63. Dep: E5-F2, E4-F2, E4-F3, E4-F4, E2-F3. DoD: a state test per outcome, including a failed focus; AS-6 end to end; manual AS-1 step 7, AS-4, AS-5, AS-10, AS-11.
 - **E5-F4 install herdr.** The 9.4 snippet and a README section. Covers FR-64. Dep: E2-F1, E0-F2. DoD: snippet snapshot.
 
 ### E6 Release (M5)
@@ -767,7 +782,7 @@ E7-F1 pane metadata (FR-65), E7-F2 WIP limit (FR-69), E7-F3 other packs (FR-70),
 
 ### 15.1 Parallel lanes
 
-After E1-F1: E1-F2, E1-F3, E1-F4, E1-F7, E5-F1. After E1-F5: E1-F6, E1-F8, E4-F1. After E1-F6: E2-F2, E4-F2 to E4-F5. After E2-F3: E3-F1 then E3-F2, with E5-F2 alongside. E0-F1 gates E3-F1; E0-F2 gates E5-F2 and E5-F4.
+After E1-F1: E1-F2, E1-F3, E1-F4, E1-F7, E5-F1. After E1-F5: E1-F6, E1-F8, E4-F1. After E1-F6: E2-F2, E4-F2 to E4-F5. After E1-F3 and E1-F4: E2-F1. After E2-F1 and E0-F2: E5-F4. After E2-F3: E3-F1 then E3-F2, with E5-F2 alongside. After E3-F1: E0-F3. E0-F1 gates E3-F1; E0-F2 gates E5-F2 and E5-F4.
 
 ### 15.2 Traceability matrix
 
@@ -798,7 +813,7 @@ Choices made where the PRD and the environment leave room, as yes/no questions f
 - **T-06** One-second polling, no file watcher?
 - **T-07** One std file lock per board per transaction, in the state folder?
 - **T-08** Hand-computed XDG paths, also on macOS?
-- **T-09** Session from `--session`, `BRAIN_SWAP_SESSION` or herdr, never `CLAUDE_*`?
+- **T-09** Session from `--session`, `BRAIN_SWAP_SESSION` or herdr; never `CLAUDE_*`, except `CLAUDE_CONFIG_DIR` in `install claude` (SP-6)?
 - **T-10** Staleness judged by the model, scored by SP-8, no transcripts?
 - **T-11** Notes and bodies via a quoted heredoc?
 - **T-12** Skills as symlinks to a versioned copy, or a checkout with `--link`?

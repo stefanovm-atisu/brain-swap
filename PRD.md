@@ -56,6 +56,7 @@ Priority disputes are settled by these, in this order.
 
 - **Board**: a named folder of card files, typically a git repo: `work` (default), `home`, `personal`. The config maps names to folders; an optional `board.md` holds the letter, columns and next number.
 - **Column**: a free-form stage, default Todo, Doing, Done. The last is the done column; an **open card** is in any other.
+- **Move**: a change of a card's column (`H`/`L`, `brain-swap move`). The position inside a column is derived from activity (FR-09) and is not a move.
 - **Card**: one task in one markdown file: title, column, template name, creation time, body, timeline.
 - **Card ID**: board letter, hyphen, number (`W-12`, `H-3`, `P-7`); monotonic per board, never reused. The file name is the ID.
 - **Template**: a markdown skeleton whose `##` headings are its fields: Feature, Bug, Research, Chore.
@@ -63,7 +64,7 @@ Priority disputes are settled by these, in this order.
 - **Place**: where a note was written: working directory, herdr pane, tab and workspace, session ID. The pane ID is the **pane reference**, the jump target.
 - **Timeline**: a card's notes in written order at the end of its file; the last is the newest.
 - **Session reference**: the card a session (one agent conversation, opaque ID) works on, stored outside the boards.
-- **Jump**: Enter on a card or note: focus the pane of its place, or show its working directory.
+- **Jump**: Enter on a card or note: focus the pane of its place (or that pane's tab when no agent runs in it), or show its working directory.
 - **Picker** and **best guess**: the numbered list of open cards shown when a session has no reference, likeliest first (FR-38).
 - **Adapter**: optional integration through public CLIs only: the herdr adapter and the Claude Code **pack** (`/bs-card`, `/bs-park`, `/bs-back`, `/bs-link`).
 
@@ -74,7 +75,7 @@ Setup unless stated: herdr runs, the pack and the herdr key binding (default `pr
 ### AS-1: start, park, switch, return (Flow 1)
 
 1. (F1.1) In pane `w4V:p9` the user types `/bs-card migrate invoices to v13`. Claude asks nothing, picks Feature, fills its fields and runs one `brain-swap new`. `W-12.md` appears in Todo; Claude replies `created W-12: migrate invoices to v13 (Todo, work)`. The session references W-12.
-2. (F1.2) The user presses `L` on W-12 in the TUI, or asks Claude, which runs `brain-swap move W-12 Doing`. Only the `column:` line of `W-12.md` changes.
+2. (F1.2) The user presses `L` on W-12 in the TUI, or asks Claude, which runs `brain-swap move W-12 Doing`. Only the `column:` line of `W-12.md` changes. Earlier in the session the user already ran `/bs-park` once, so W-12's timeline holds one older note.
 3. (F1.3) The user types `/bs-park`, or `/bs-park next: rerun migration test, watch timeout`. Claude asks nothing and runs one `brain-swap park`. W-12's timeline gains a note (three parts, time, `auto`, place); the column is unchanged. Claude replies exactly `parked to W-12: migrate invoices to v13`.
 4. (F1.4) In pane `w4V:p11`, session B runs `/bs-card ...` or `/bs-link W-7` (replies `linked to W-7: <title>` and W-7's latest note). Session A's reference is untouched.
 5. (F1.5) The herdr board key opens the work board in a popup. In Doing, W-12 reads `W-12 migrate invoices to v13` over `12 min  rerun migration test`; the preview panel shows its whole latest note.
@@ -84,7 +85,7 @@ Setup unless stated: herdr runs, the pack and the herdr key binding (default `pr
 
 ### AS-2: forgot to park (F2.1)
 
-W-12's latest note is 40 minutes old and the conversation shows later work. On `/bs-back`, Claude replies `no note since 40 min ago on W-12`, drafts a catch-up note from the conversation, saves it marked `auto`, and prints it as in AS-1 step 8. With no note at all, the first line is `no note yet on W-12`.
+W-12's latest note is 40 minutes old and the conversation shows later work. On `/bs-back`, Claude replies `no note since 40 min ago on W-12`, drafts a catch-up note from the conversation, saves it marked `auto`, and prints it as in AS-1 step 8, headed `(note just saved)`. With no note at all, the first line is `no note yet on W-12`.
 
 ### AS-3: reference lost (F2.2)
 
@@ -100,7 +101,7 @@ In a plain terminal all behaves as in AS-1 except the jump: Enter shows `not in 
 
 ### AS-6: TUI and CLI only, no Claude
 
-In the TUI the user presses `n`, `f` (Feature), types a title and Enter: W-14 appears in the focused column, selected; `L` moves it to Doing. In the work's shell pane, `brain-swap park --card W-14` prompts for the three parts and replies `parked to W-14: <title>` (no `auto`). Enter on W-14 jumps to that pane.
+In the TUI the user presses `n`, `f` (Feature), types a title and Enter: the next card (W-12 on the setup board) appears in the focused column, selected; `L` moves it to Doing. In a herdr pane running a plain shell (no Claude), `brain-swap park --card W-12` prompts for the three parts and replies `parked to W-12: <title>` (no `auto`). Enter on W-12 focuses the herdr tab that holds that pane.
 
 ### AS-7: hand-editing the markdown
 
@@ -174,7 +175,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 
 - **FR-29** Core. `H` and `L` move the selected card one column left or right, keeping it selected. (F1.2)
 - **FR-30** Core. The new-card key asks for a template (one key each) and a title, then creates and selects the card in the focused column. (B)
-- **FR-31** Core. The edit key opens the card in `$EDITOR` and saves it on close, keeping notes appended meanwhile. (AS-8)
+- **FR-31** Core. The edit key opens the card in the configured editor (`editor`, else `$VISUAL`, else `$EDITOR`, else `vi`) and saves it on close, keeping notes appended meanwhile. (AS-8)
 - **FR-32** Core. The help key lists every action with its current keys. (P4)
 
 ### 7.8 CLI
@@ -187,7 +188,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 - **FR-38** Core. `ls --open --guess` orders open cards by best guess: last linked from this herdr pane, latest note from this pane, then from this directory, middle columns, the rest; newest activity first within each. (F2.2)
 - **FR-39** Core. `move <ID> <column>` changes only the card's column. (F1.2)
 - **FR-40** Core. `locate <ID>` reports, without changing focus, whether the target pane is live, moved, closed, outside herdr or unrecorded, with its directory; `jump <ID>` locates, then focuses. (F1.7, F2.3)
-- **FR-41** Core. A session is an opaque ID the caller passes; an empty or unsubstituted one falls back to `BRAIN_SWAP_SESSION`, then herdr's agent session for the current pane, then none, with a warning, not a failure. (F2.2, P3)
+- **FR-41** Core. A session is an opaque ID the caller passes; an empty or unsubstituted one falls back to `BRAIN_SWAP_SESSION`, then herdr's agent session for the current pane, then none, with a warning, not a failure; only `link` fails (exit 1) when no session resolves, since setting a reference is its whole job. (F2.2, P3)
 
 ### 7.9 Configuration and key bindings
 
@@ -210,7 +211,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 #### 7.10.3 `/bs-park`
 
 - **FR-49** Core. With a reference, `/bs-park` saves a note without asking anything and replies exactly `parked to <ID>: <title>`. (F1.3, P2)
-- **FR-50** Core. `/bs-park <words>` keeps the user's words verbatim for the parts they cover, drafts the rest, and marks the note `auto` unless every part is the user's. (F1.3)
+- **FR-50** Core. `/bs-park <words>` keeps the user's words verbatim for the parts they cover, drafts the rest, and marks the note `auto` unless every part is the user's. A part starts at a label word `doing`, `next`, `watch` or `watch out`, with or without a colon: `next: rerun migration test, watch timeout` gives Next `rerun migration test` and Watch out `timeout`, and Doing is drafted. (F1.3)
 
 #### 7.10.4 `/bs-back` and catch-up
 
@@ -231,7 +232,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 ### 7.11 herdr adapter
 
 - **FR-58** Core. The herdr adapter is active only when `HERDR_ENV=1`; outside herdr only the jump differs (FR-62). (P3, F2.4)
-- **FR-59** Core. The jump focuses the herdr pane of the target place; on success the TUI exits. (F1.7)
+- **FR-59** Core. The jump focuses the target pane with `herdr agent focus` when an agent runs in it; otherwise it focuses that pane's workspace and tab (herdr 0.8.2 cannot focus a pane by ID). On success the TUI exits. (F1.7)
 - **FR-60** Core. If the pane ID is gone but a live pane runs the note's agent session (a moved pane gets a new ID), the jump focuses it and reports `pane moved: now <pane>`. (F1.7)
 - **FR-61** Core. If the pane is gone, the TUI stays open and shows `pane closed`, the working directory and `open a session there and run /bs-link <ID>`. (F2.3)
 - **FR-62** Core. Outside herdr, or for a note without a pane, the jump shows `not in herdr` or `no pane recorded` and the directory. (F2.4)
@@ -242,7 +243,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 ### 7.12 First run and installation
 
 - **FR-66** Core. Without a config file, any invocation writes the default config, says so in one line, and continues. (AS-9, P2)
-- **FR-67** Core. `brain-swap install claude` symlinks the four skills into `~/.claude/skills/` (to a versioned copy it writes, or a checkout with `--link`), never replaces what it did not create, has `--remove`, and never edits Claude settings. (P3)
+- **FR-67** Core. `brain-swap install claude` symlinks the four skills into `~/.claude/skills/` (to a versioned copy it writes, or a checkout with `--link`), never replaces what it did not create unless `--force` is given, has `--remove`, and never edits Claude settings. (P3)
 - **FR-68** Core. `cargo install` yields the whole product; nothing else is needed at runtime. (Stack)
 
 ### 7.13 Deferred
@@ -261,9 +262,9 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 - **NFR-03** No daemon. Nothing runs between invocations: no background process, service or installed hook.
 - **NFR-04** No network. The binary opens no network socket; herdr is reached only through its CLI.
 - **NFR-05** Optional adapters. Without herdr and Claude Code, every Core requirement but the pack and the pane switch behaves identically.
-- **NFR-06** Hand-friendly files. Plain UTF-8 markdown where a note renders as its three parts; a park only appends to one timeline, a move changes one line, a new card adds one file and changes one line of `board.md`.
+- **NFR-06** Hand-friendly files. Plain UTF-8 markdown where a note renders as its three parts; a park only appends to one timeline; a move changes or adds one line (or adds a three-line frontmatter to a card that has none); a new card adds one file and changes or adds the `next:` line of `board.md` (creating `board.md` at the first card).
 - **NFR-07** Byte preservation. Bytes outside the edited line or appended block stay identical, including unknown keys, comments and line endings.
-- **NFR-08** Data safety. Concurrent writers never lose a note or a move, no reader sees a half-written file, and a crash leaves every file parseable and no ID reused.
+- **NFR-08** Data safety. Concurrent brain-swap processes (CLI and TUI, including the TUI's `e` editor) never lose a note or a move, no reader sees a half-written file, and a crash leaves every file parseable and no ID reused. An external editor that saves a stale buffer can drop a note parked meanwhile.
 - **NFR-09** Platforms. Linux first; macOS should build and pass the tests; Windows is not targeted.
 - **NFR-10** Keyboard accessibility. Every action is keyboard-reachable; defaults need no modifier beyond Shift except body scrolling; nothing is conveyed by colour alone; usable at 80x24.
 - **NFR-11** Footprint. At most six runtime crate dependencies, each justified in TECHSPEC.md.
@@ -282,7 +283,7 @@ Measured by the author over two weeks of daily use after v0.1.
 
 v0.1 ships every Core requirement (FR-01 to FR-64, FR-66 to FR-68) and every NFR, in milestones ordered by principle 1: core files and CLI, the Claude pack, the TUI, the herdr jump. The pack and the TUI may be built in parallel.
 
-Deferred: every Later requirement (FR-65, FR-69 to FR-74), the A-24 commands, and an opt-in Claude hook.
+Deferred: every Later requirement (FR-65, FR-69 to FR-74) and the A-24 commands.
 
 Out: section 2 "Non-goals".
 
@@ -290,7 +291,7 @@ Out: section 2 "Non-goals".
 
 Decisions made where idea.md is silent: yes keeps one, no reopens it.
 
-- **A-01** Is column order derived from note recency (a park lifts its card to the top), with no manual order, rather than a taskell-like `board.md` listing each column's cards? (FR-09, FR-72)
+- **A-01** Is order inside a column derived from note recency (a park lifts its card to the top of its column, which is not a move in the idea.md sense), with no manual order, rather than a taskell-like `board.md` listing each column's cards? (FR-09, FR-16, FR-72)
 - **A-02** Does a custom board's last column act as Done, so open means any other? (FR-08)
 - **A-03** Do letter, columns and next number live in `board.md`, travelling with the board's repo, while the config only maps names to folders? (FR-03)
 - **A-04** Does the first run write a config without asking, boards under `~/.local/share/brain-swap/`? (FR-66)
@@ -298,7 +299,7 @@ Decisions made where idea.md is silent: yes keeps one, no reopens it.
 - **A-06** Does Enter on the board jump to the newest placed note, with `o` opening the detail view, where Enter targets the note shown? (FR-25, FR-26, FR-28)
 - **A-07** Does a successful jump close the TUI and with it the herdr popup? (FR-59)
 - **A-08** Is a note `auto` unless all three parts are the user's own words? (FR-50)
-- **A-09** Is card content edited only in `$EDITOR`? (FR-31)
+- **A-09** Is card content edited only in an external editor? (FR-31)
 - **A-10** Is there no delete or archive command, so a card is removed by deleting its file and the done column keeps growing? (FR-06, FR-71)
 - **A-11** Does `/bs-link` print the latest note, making linking a return? (FR-54)
 - **A-12** Can only the user, never Claude on its own, invoke the pack commands? (FR-46)
@@ -314,6 +315,8 @@ Decisions made where idea.md is silent: yes keeps one, no reopens it.
 - **A-22** Is the pack installed as symlinks to a versioned copy the binary writes, needing no checkout? (FR-67)
 - **A-23** Does a broken config stop the TUI with the error, rather than run on defaults that may write to wrong folders? (FR-45)
 - **A-24** Do `doctor`, `check`, an event log with `stats`, delete, rename and column commands stay out of v0.1? (section 10)
+- **A-25** Does a card created in the TUI enter the focused column, while `/bs-card` uses the first? (FR-30, FR-48)
+- **A-26** Does `install claude --force` replace a foreign `~/.claude/skills/<name>`? If not, `--force` is dropped. (FR-67)
 
 Open questions:
 
