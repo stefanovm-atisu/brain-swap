@@ -1,0 +1,4 @@
+#!/bin/sh
+# Placeholder until the scenarios of E5-F1 replace it.
+echo "fake herdr: no scenario" >&2
+exit 1

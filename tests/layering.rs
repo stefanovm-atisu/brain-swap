@@ -47,6 +47,18 @@ const RULES: &[(&str, &str, &[&str], &str)] = &[
         &[],
         "one code path for Linux and macOS (NFR-09)",
     ),
+    (
+        "tests/",
+        "Command::new",
+        &["tests/common/spawn.rs", "tests/layering.rs"],
+        "tests spawn only through tests/common/spawn.rs (12.1)",
+    ),
+    (
+        "tests/",
+        "cargo_bin",
+        &["tests/common/spawn.rs", "tests/layering.rs"],
+        "tests spawn only through tests/common/spawn.rs (12.1)",
+    ),
 ];
 
 /// Expands brace groups so `use std::{env, process};` also reads as `std::env` and `std::process`.
@@ -80,13 +92,17 @@ fn expand(s: &str) -> Vec<String> {
     vec![s.to_string()]
 }
 
-/// Plain-text scan of every `.rs` file under `root/src`, one violation per offending line.
+/// Plain-text scan of every `.rs` file under `root/src` and `root/tests`, one violation per offending line.
 /// A `use` without its `;` on the same line is joined with the following lines up to the `;`
 /// and reported at the line where it starts.
 /// ponytail: text, not tokens, so `use` in a comment or string is read as an import; tokenize if that bites.
 pub fn scan(root: &Path) -> Vec<Violation> {
     let mut out = Vec::new();
-    let mut dirs = vec![root.join("src")];
+    let mut dirs: Vec<_> = ["src", "tests"]
+        .iter()
+        .map(|d| root.join(d))
+        .filter(|d| d.is_dir())
+        .collect();
     while let Some(dir) = dirs.pop() {
         for entry in fs::read_dir(&dir).unwrap() {
             let path = entry.unwrap().path();
@@ -259,4 +275,17 @@ fn ts2_2_grouped_crate_import_in_core_fails() {
 fn ts2_2_multiline_use_group_in_core_fails() {
     let text = "use std::{\n    collections::HashMap,\n    env,\n    fs,\n};";
     assert_eq!(hits("src/core/store.rs", 3, text), ["src/core/store.rs:3"]);
+}
+
+#[test]
+fn ts12_1_tests_spawn_only_through_helper() {
+    assert_eq!(
+        hits("tests/cli_new.rs", 4, "let c = Command::new(\"x\");"),
+        ["tests/cli_new.rs:4"]
+    );
+    let found: Vec<Violation> = scan(Path::new(env!("CARGO_MANIFEST_DIR")))
+        .into_iter()
+        .filter(|v| v.file.starts_with("tests/"))
+        .collect();
+    assert!(found.is_empty(), "{found:?}");
 }
