@@ -38,7 +38,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F1-T1 Package skeleton and layering test
 
-- Status: doing
+- Status: done
 - Depends on: none
 - Covers: NFR-03, NFR-04, NFR-09, NFR-11; TECHSPEC 2.1, 2.2, 13
 - Size: M

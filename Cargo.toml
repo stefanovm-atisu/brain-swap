@@ -1,0 +1,28 @@
+[package]
+name = "brain-swap"      # bin brain-swap, lib brain_swap
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"    # std File::lock and try_lock
+
+[lib]
+name = "brain_swap"
+
+[[bin]]
+name = "brain-swap"
+path = "src/main.rs"
+
+[features]
+failpoints = []          # crash tests only
+
+[dependencies]
+ratatui = "0.30"                                    # the TUI; re-exports crossterm
+clap = { version = "4.6", features = ["derive"] }   # subcommands, help, usage errors
+serde = { version = "1", features = ["derive"] }    # config, references, JSON
+toml = { version = "1.1", features = ["preserve_order"] }   # config and session files; keeps [boards] order
+serde_json = "1"                                    # --json output, herdr JSON
+jiff = "0.2"                                        # stamps with offsets, time zones
+
+[dev-dependencies]
+insta = "1.49"
+assert_cmd = "2.2"
+tempfile = "3.27"
