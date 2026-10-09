@@ -640,7 +640,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F4-T3 Template hygiene and lookup
 
-- Status: doing
+- Status: done
 - Depends on: E1-F4-T2
 - Covers: FR-11; TECHSPEC 5.4 (`## Timeline`, duplicate hotkeys), 6.2 (unknown template)
 - Size: S

@@ -1,5 +1,6 @@
 //! Card templates (TECHSPEC 5.4): built-ins and template file parsing.
 
+use crate::core::error::{Error, Result};
 use crate::core::frontmatter::{self, FmRead};
 use std::path::Path;
 
@@ -26,7 +27,7 @@ impl Template {
     }
 }
 
-pub fn parse_template(file_stem: &str, text: &str) -> Result<Template, String> {
+pub fn parse_template(file_stem: &str, text: &str) -> std::result::Result<Template, String> {
     let (fm, skeleton) = match frontmatter::read(text) {
         FmRead::None => (None, text),
         FmRead::Valid(fm) => {
@@ -68,6 +69,18 @@ pub fn builtins() -> Vec<Template> {
     .collect()
 }
 
+/// The template named `name`, ignoring case.
+pub fn find<'a>(templates: &'a [Template], name: &str) -> Result<&'a Template> {
+    let lower = name.to_lowercase();
+    templates
+        .iter()
+        .find(|t| t.name.to_lowercase() == lower)
+        .ok_or_else(|| {
+            let names: Vec<&str> = templates.iter().map(|t| t.name.as_str()).collect();
+            Error::NotFound(format!("unknown template '{name}' ({})", names.join(", ")))
+        })
+}
+
 /// Built-ins, then every `*.md` file in `dir` by file name; problems are warnings.
 pub fn load(dir: &Path) -> (Vec<Template>, Vec<String>) {
     let mut ts = builtins();
@@ -93,16 +106,47 @@ pub fn load(dir: &Path) -> (Vec<Template>, Vec<String>) {
         let stem = path.file_stem().unwrap_or_default().to_string_lossy();
         let parsed = std::fs::read_to_string(&path)
             .map_err(|e| e.to_string())
-            .and_then(|text| parse_template(&stem, &text));
+            .and_then(|text| Ok((parse_template(&stem, &text)?, text)));
         match parsed {
-            Ok(t) => match ts
-                .iter_mut()
-                .find(|b| b.name.to_lowercase() == t.name.to_lowercase())
-            {
-                Some(b) => *b = t,
-                None => ts.push(t),
-            },
+            Ok((mut t, text)) => {
+                if t.key.is_none()
+                    && matches!(frontmatter::read(&text),
+                        FmRead::Valid(fm) if fm.get("key").is_some_and(|k| !k.is_empty()))
+                {
+                    warnings.push(format!("template {}: key must be one character", t.name));
+                }
+                if t.fields().iter().any(|f| f == "Timeline") {
+                    t.skeleton = t
+                        .skeleton
+                        .lines()
+                        .filter(|l| l.strip_prefix("## ").map(str::trim) != Some("Timeline"))
+                        .map(|l| format!("{l}\n"))
+                        .collect();
+                    warnings.push(format!("template {}: ## Timeline dropped", t.name));
+                }
+                match ts
+                    .iter_mut()
+                    .find(|b| b.name.to_lowercase() == t.name.to_lowercase())
+                {
+                    Some(b) => *b = t,
+                    None => ts.push(t),
+                }
+            }
             Err(problem) => warnings.push(format!("template {file}: {problem}")),
+        }
+    }
+    let mut seen: Vec<(char, String)> = Vec::new();
+    for t in &mut ts {
+        let Some(k) = t.key else { continue };
+        match seen.iter().find(|(c, _)| *c == k) {
+            Some((_, other)) => {
+                warnings.push(format!(
+                    "template {}: hotkey '{k}' already used by {other}, dropped",
+                    t.name
+                ));
+                t.key = None;
+            }
+            None => seen.push((k, t.name.clone())),
         }
     }
     (ts, warnings)
@@ -278,5 +322,55 @@ mod tests {
         assert_eq!(ts, builtins());
         assert_eq!(warnings.len(), 1, "{warnings:?}");
         assert!(warnings[0].starts_with("template x.md: "), "{warnings:?}");
+    }
+
+    #[test]
+    fn ts5_4_timeline_heading_in_template_is_dropped() {
+        let tmp = dir_with("spike.md", b"## Hypothesis\n## Timeline\n");
+        let (ts, warnings) = load(tmp.path());
+        assert_eq!(ts[4].fields(), ["Hypothesis"]);
+        assert_eq!(warnings, ["template Spike: ## Timeline dropped"]);
+    }
+
+    #[test]
+    fn ts5_4_duplicate_hotkey_is_dropped_from_later_template() {
+        let tmp = dir_with("spike.md", b"---\nkey: f\n---\n## Hypothesis\n");
+        let (ts, warnings) = load(tmp.path());
+        assert_eq!(ts[0].key, Some('f'));
+        assert_eq!(ts[4].key, None);
+        assert_eq!(
+            warnings,
+            ["template Spike: hotkey 'f' already used by Feature, dropped"]
+        );
+        let mut keys: Vec<char> = ts.iter().filter_map(|t| t.key).collect();
+        let n = keys.len();
+        keys.sort();
+        keys.dedup();
+        assert_eq!(keys.len(), n, "{ts:?}");
+    }
+
+    #[test]
+    fn ts5_4_multi_character_key_is_ignored_with_warning() {
+        let tmp = dir_with("spike.md", b"---\nkey: ff\n---\n## Hypothesis\n");
+        let (ts, warnings) = load(tmp.path());
+        assert_eq!(ts[4].key, None);
+        assert_eq!(warnings, ["template Spike: key must be one character"]);
+    }
+
+    #[test]
+    fn ts6_2_find_template_ignores_case() {
+        let ts = builtins();
+        assert_eq!(find(&ts, "feature").unwrap().name, "Feature");
+    }
+
+    #[test]
+    fn ts6_2_unknown_template_lists_names() {
+        let ts = builtins();
+        let e = find(&ts, "epic").unwrap_err();
+        assert_eq!(
+            e,
+            Error::NotFound("unknown template 'epic' (Feature, Bug, Research, Chore)".into())
+        );
+        assert_eq!(e.exit_code(), 3);
     }
 }
