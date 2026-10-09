@@ -103,7 +103,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F1-T4 Stamps
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F1-T1
 - Covers: TECHSPEC 3 (stamps), 4.4 (accepted stamp forms)
 - Size: S
