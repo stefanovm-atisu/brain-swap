@@ -1,5 +1,7 @@
 //! Frontmatter reader: the flat subset of TECHSPEC 4.2, parsed by hand.
 
+use crate::core::error::{Error, Result};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
     pub key: String,
@@ -87,6 +89,44 @@ pub fn read(text: &str) -> FmRead {
         line: 1,
         problem: "no closing ---".to_string(),
     }
+}
+
+/// The dominant line end of `bytes` (TECHSPEC 4.8 R5).
+/// CRLF only when CRLF line ends outnumber bare LF ones.
+pub fn line_ending(bytes: &[u8]) -> &'static str {
+    let lf = bytes.iter().filter(|&&b| b == b'\n').count();
+    let crlf = bytes.windows(2).filter(|w| w == b"\r\n").count();
+    if crlf > lf - crlf { "\r\n" } else { "\n" }
+}
+
+/// Sets `key` to `value` by splicing one line (TECHSPEC 4.2, 4.8 R1, R2).
+/// Every byte outside the changed or inserted line stays identical.
+pub fn set(bytes: &[u8], key: &str, value: &str) -> Result<Vec<u8>> {
+    // The block is parsed from the longest valid UTF-8 prefix; bytes after it are only copied.
+    let text = match std::str::from_utf8(bytes) {
+        Ok(t) => t,
+        Err(e) => std::str::from_utf8(&bytes[..e.valid_up_to()]).unwrap_or_default(),
+    };
+    let nl = line_ending(bytes);
+    let start = |n: usize| -> usize { text.split_inclusive('\n').take(n - 1).map(str::len).sum() };
+    let (at, end, line) = match read(text) {
+        FmRead::None => (0, 0, format!("---{nl}{key}: {value}{nl}---{nl}")),
+        FmRead::Invalid { line, problem } => {
+            return Err(Error::Unreadable(format!("{line}: {problem}")));
+        }
+        FmRead::Valid(fm) => match fm.entries.iter().find(|e| e.key.eq_ignore_ascii_case(key)) {
+            Some(e) => {
+                let at = start(e.line);
+                let len = text[at..].lines().next().unwrap_or_default().len();
+                (at, at + len, format!("{}: {value}", e.key))
+            }
+            None => {
+                let at = start(fm.close_line);
+                (at, at, format!("{key}: {value}{nl}"))
+            }
+        },
+    };
+    Ok([&bytes[..at], line.as_bytes(), &bytes[end..]].concat())
 }
 
 #[cfg(test)]
