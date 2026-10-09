@@ -262,7 +262,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F2-T1 Frontmatter reader
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F1-T2
 - Covers: TECHSPEC 4.2
 - Size: M
