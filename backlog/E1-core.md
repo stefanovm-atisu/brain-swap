@@ -286,7 +286,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F2-T2 Frontmatter splice
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F2-T1
 - Covers: NFR-07; TECHSPEC 4.2 (setting a key), 4.8 R1, R2, R5
 - Size: M
