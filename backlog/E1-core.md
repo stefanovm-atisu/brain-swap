@@ -103,7 +103,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F1-T4 Stamps
 
-- Status: blocked: bug hunter still fails after two fix rounds, a fraction longer than 9 digits is a bad stamp; branch pushed as wip/E1-F1-T4
+- Status: blocked bug hunter still fails after two fix rounds (a fraction longer than 9 digits reads as a bad stamp), branch pushed as wip/E1-F1-T4
 - Depends on: E1-F1-T1
 - Covers: TECHSPEC 3 (stamps), 4.4 (accepted stamp forms)
 - Size: S
