@@ -9,7 +9,7 @@ pub type Stamp = jiff::Zoned;
 
 /// Reads an RFC 3339 stamp with offset, or `YYYY-MM-DD HH:MM[:SS]` in `local`.
 pub fn parse_stamp(text: &str, local: &TimeZone) -> Option<Stamp> {
-    if shaped(text, "9999-99-99T99:99:99Z") || shaped(text, "9999-99-99T99:99:99+99:99") {
+    if rfc3339(text) {
         let p = Pieces::parse(text).ok()?;
         let offset = p.to_numeric_offset()?;
         return p
@@ -26,6 +26,20 @@ pub fn parse_stamp(text: &str, local: &TimeZone) -> Option<Stamp> {
     .find(|(shape, _)| shaped(text, shape))
     .and_then(|(_, f)| DateTime::strptime(f, text).ok())
     .and_then(|dt| dt.to_zoned(local.clone()).ok())
+}
+
+/// RFC 3339 date-time: `T`/`t`, optional `.digits`, then `Z`/`z` or an offset up to 23:59.
+fn rfc3339(text: &str) -> bool {
+    let Some((head, rest)) = text.split_at_checked(19) else {
+        return false;
+    };
+    let frac = rest
+        .strip_prefix('.')
+        .map_or(0, |r| 1 + r.bytes().take_while(u8::is_ascii_digit).count());
+    let off = &rest[frac..];
+    frac != 1
+        && shaped(&head.to_ascii_uppercase(), "9999-99-99T99:99:99")
+        && (off.eq_ignore_ascii_case("Z") || shaped(off, "+99:99") && &off[1..3] < "24")
 }
 
 /// The exact accepted shapes of 4.4: `9` is an ASCII digit, `+` is `+` or `-`.
@@ -98,6 +112,14 @@ mod tests {
             round("2026-10-08T07:31:05Z", &TimeZone::fixed(offset(3))),
             "2026-10-08T07:31:05+00:00"
         );
+        assert_eq!(
+            round("2026-10-08t07:31:05z", &TimeZone::UTC),
+            "2026-10-08T07:31:05+00:00"
+        );
+        assert_eq!(
+            round("2026-10-08T10:31:05.5+03:00", &TimeZone::UTC),
+            "2026-10-08T10:31:05+03:00"
+        );
     }
 
     #[test]
@@ -118,7 +140,8 @@ mod tests {
             "2026-10-08T10:31:05+03",
             "+002026-10-08T10:31:05+03:00",
             "2026-10-08T10:31:05+03:00[Europe/Moscow]",
-            "2026-10-08T10:31:05.5+03:00",
+            "2026-10-08T10:31:05+24:00",
+            "2026-10-08T10:31:05.+03:00",
         ] {
             assert!(parse_stamp(s, &TimeZone::UTC).is_none(), "{s}");
         }
