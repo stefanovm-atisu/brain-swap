@@ -58,6 +58,14 @@ pub struct HerdrPlace {
     pub workspace: Option<String>,
 }
 
+/// A board's `board.md` settings (TECHSPEC 4.3).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BoardMeta {
+    pub letter: char,
+    pub columns: Vec<String>,
+    pub next: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

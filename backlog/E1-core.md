@@ -673,7 +673,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F5-T1 board.md reader
 
-- Status: doing
+- Status: done
 - Depends on: E1-F2-T1
 - Covers: FR-03; TECHSPEC 3 (I3), 4.3
 - Size: S
