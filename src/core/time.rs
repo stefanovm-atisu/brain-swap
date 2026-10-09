@@ -1,5 +1,7 @@
 //! Stamps: parsing and writing (TECHSPEC 3, 4.4).
 
+use jiff::civil::DateTime;
+use jiff::fmt::temporal::Pieces;
 use jiff::tz::TimeZone;
 
 /// A stamp in the fixed offset written in the file.
@@ -7,14 +9,24 @@ pub type Stamp = jiff::Zoned;
 
 /// Reads an RFC 3339 stamp with offset, or `YYYY-MM-DD HH:MM[:SS]` in `local`.
 pub fn parse_stamp(text: &str, local: &TimeZone) -> Option<Stamp> {
-    let _ = (text, local);
-    todo!()
+    if let Ok(p) = Pieces::parse(text)
+        && let (Some(time), Some(offset)) = (p.time(), p.to_numeric_offset())
+    {
+        return p
+            .date()
+            .to_datetime(time)
+            .to_zoned(TimeZone::fixed(offset))
+            .ok();
+    }
+    ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"]
+        .iter()
+        .find_map(|f| DateTime::strptime(f, text).ok())
+        .and_then(|dt| dt.to_zoned(local.clone()).ok())
 }
 
 /// Writes `2026-10-08T10:31:05+03:00`, never the bracketed zone of `Display`.
 pub fn format_stamp(stamp: &Stamp) -> String {
-    let _ = stamp;
-    todo!()
+    stamp.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string()
 }
 
 #[cfg(test)]
