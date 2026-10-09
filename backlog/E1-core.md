@@ -521,7 +521,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F3-T4 Key binding syntax
 
-- Status: doing
+- Status: done
 - Depends on: E1-F1-T1
 - Covers: FR-43; TECHSPEC 5.3
 - Size: S
