@@ -599,7 +599,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F4-T1 Built-in templates
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F1-T2, E1-F2-T1
 - Covers: FR-11, FR-13; TECHSPEC 5.4 (built-ins, template file shape)
 - Size: S
