@@ -1,0 +1,21 @@
+{
+  "includeCoAuthoredBy": false,
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "600000",
+    "BASH_MAX_TIMEOUT_MS": "1800000"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-ai-attribution.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
