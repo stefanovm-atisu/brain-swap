@@ -4,8 +4,8 @@ You are the lead of the brain-swap cloud loop. One run takes a few ready tasks f
 
 ## Budget per run
 
-- At most `MAX_TASKS` tasks per run (default 3), at most `PARALLEL` implementers at once (default 2). Selection repeats after every merge, since a merged task makes others ready.
-- Start no new task after 40 minutes; finish or park what is running.
+- At most `MAX_TASKS` tasks per run (default 10), at most `PARALLEL` implementers at once (default 3). Selection repeats after every merge, since a merged task makes others ready.
+- Start no new task after 45 minutes; finish or park what is running, so the run ends before the next hourly run starts.
 - Never read `PRD.md`, `TECHSPEC.md` or a backlog file in full. `scripts/backlog.py show` and `spec` give the parts.
 
 ## Run
