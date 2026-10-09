@@ -3,9 +3,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if grep -rnP '[\x{2014}\x{2013}]' --include='*.md' --include='*.rs' --include='*.toml' . --exclude-dir=target --exclude-dir=.git --exclude-dir=.claude; then
-  echo "gate: em or en dash found" >&2; exit 1
-fi
+# Byte patterns, so the check works in any locale; a grep error must fail the gate, not pass it.
+set +e
+dashes=$(grep -rn $'\xe2\x80\x94\|\xe2\x80\x93' --include='*.md' --include='*.rs' --include='*.toml' . --exclude-dir=target --exclude-dir=.git --exclude-dir=.claude)
+rc=$?
+set -e
+case $rc in
+  0) echo "$dashes"; echo "gate: em or en dash found" >&2; exit 1 ;;
+  1) ;;
+  *) echo "gate: dash check failed to run (grep exit $rc)" >&2; exit 1 ;;
+esac
 python3 scripts/backlog.py check
 [ -f Cargo.toml ] || { echo "gate: no Cargo.toml yet" >&2; exit 1; }
 cargo fmt --check
