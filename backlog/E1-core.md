@@ -83,7 +83,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F1-T3 Card ID type
 
-- Status: doing
+- Status: done
 - Depends on: E1-F1-T1
 - Covers: TECHSPEC 3 (`CardId`, `Place`, `HerdrPlace`, I1, I2), 4.1 (card file name pattern)
 - Size: S
