@@ -334,7 +334,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F2-T4 Tolerant note reading
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F2-T3
 - Covers: FR-14; TECHSPEC 4.4 (reader tolerance, place quoting), 4.7 (bad stamps, notes without place)
 - Size: M
