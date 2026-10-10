@@ -32,7 +32,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F1-T1 Runner trait and process runner
 
-- Status: doing
+- Status: done
 - Depends on: E1-F1-T6
 - Covers: TECHSPEC 2.2 (herdr only through its CLI, never the socket), 9.1 (the binary), T-15
 - Size: S
