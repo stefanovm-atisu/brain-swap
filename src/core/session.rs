@@ -1,6 +1,8 @@
 //! Session identity (TECHSPEC 3 I8, 6.4 steps 1, 2 and 4).
 
 use crate::core::env::Env;
+use jiff::{SignedDuration, Timestamp};
+use std::fs;
 
 pub const WARN_NOT_SUBSTITUTED: &str = "session id not substituted";
 pub const WARN_INVALID: &str = "invalid session id";
@@ -56,5 +58,28 @@ pub fn resolve(flag: Option<&str>, env: &Env) -> Resolution {
     Resolution {
         session: None,
         warnings,
+    }
+}
+
+/// Age after which `prune` removes a file from `sessions/` or `panes/` (TECHSPEC 10, T-17).
+pub const PRUNE_AFTER: SignedDuration = SignedDuration::from_hours(720);
+
+/// Removes every regular file in `sessions/` and `panes/` whose mtime lies more than
+/// `PRUNE_AFTER` before `env.now`; missing folders and every error are ignored.
+pub fn prune(env: &Env) {
+    let now = env.now.timestamp();
+    for dir in [env.sessions_dir(), env.panes_dir()] {
+        for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+            let old = entry
+                .metadata()
+                .ok()
+                .filter(|m| m.is_file())
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| Timestamp::try_from(t).ok())
+                .is_some_and(|t| now.duration_since(t) > PRUNE_AFTER);
+            if old {
+                let _ = fs::remove_file(entry.path());
+            }
+        }
     }
 }

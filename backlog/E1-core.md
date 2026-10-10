@@ -1091,7 +1091,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F7-T4 Pruning
 
-- Status: doing
+- Status: done
 - Depends on: E1-F1-T6
 - Covers: FR-05; TECHSPEC 10 (cleanup of `sessions/` and `panes/`), T-17
 - Size: S
