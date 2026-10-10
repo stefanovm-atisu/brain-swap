@@ -1,6 +1,7 @@
 //! The process environment read once by `main` (TECHSPEC 5.1, 6.1).
 
 use crate::core::error::{Error, Result};
+use crate::core::failpoint::Failpoint;
 use crate::core::time::{Stamp, parse_stamp};
 use jiff::tz::TimeZone;
 use std::collections::HashMap;
@@ -24,6 +25,7 @@ pub struct Env {
     pub log: Option<PathBuf>,
     pub claude_config_dir: Option<PathBuf>,
     pub exe: Option<PathBuf>,
+    pub failpoint: Option<Failpoint>,
     pub pid: u32,
     pub tz: TimeZone,
     pub now: Stamp,
@@ -73,6 +75,9 @@ impl Env {
             log: get("BRAIN_SWAP_LOG").map(PathBuf::from),
             claude_config_dir: get("CLAUDE_CONFIG_DIR").map(PathBuf::from),
             exe: None,
+            failpoint: get("BRAIN_SWAP_FAILPOINT")
+                .filter(|_| cfg!(feature = "failpoints"))
+                .map(|name| Failpoint { name, abort: true }),
             pid,
             now: now.timestamp().to_zoned(tz.clone()),
             tz,
