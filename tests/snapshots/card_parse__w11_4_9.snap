@@ -1,0 +1,23 @@
+---
+source: tests/card_parse.rs
+expression: card
+---
+Card {
+    id: CardId {
+        letter: 'W',
+        number: 11,
+    },
+    path: "W-11.md",
+    title: "invoice PDF shows the wrong VAT",
+    column: "Todo",
+    template: Some(
+        "Bug",
+    ),
+    created: Some(
+        2026-10-08T11:40:00+03:00[+03:00],
+    ),
+    body: "\n## Symptom\n\n## Expected\n\n## Repro\n\n## Context\n\n",
+    notes: [],
+    writable: true,
+    mtime: None,
+}

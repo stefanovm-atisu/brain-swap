@@ -1,0 +1,28 @@
+---
+column: Doing
+template: Feature
+created: 2026-10-08T10:02:11+03:00
+---
+# migrate invoices to v13
+
+## Goal
+Switch invoice reads and writes to the v13 procedures.
+
+## Acceptance
+
+## Context
+The DBA applies the procedure on staging; we hand over the SQL only.
+
+## Timeline
+
+### 2026-10-08T10:31:05+03:00 auto
+- Doing: switched InvoiceRepository to v13, unit tests green
+- Next: rerun the migration test against the staging copy
+- Watch out: v13 needs a 10 s timeout entry, the default is 2 s
+<!-- where: cwd=/home/smilen/Work/ati.billing pane=w4V:p9 tab=w4V:t1 workspace=w4V session=55583127-a22a-49bc-a803-e777c377a595 -->
+
+### 2026-10-08T11:12:40+03:00
+- Doing: migration test passes on staging
+- Next: open the MR, ask the DBA for the v13 deploy list
+- Watch out: nothing new
+<!-- where: cwd=/home/smilen/Work/ati.billing pane=w4V:p9 tab=w4V:t1 workspace=w4V session=55583127-a22a-49bc-a803-e777c377a595 -->

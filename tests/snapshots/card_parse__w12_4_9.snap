@@ -1,0 +1,84 @@
+---
+source: tests/card_parse.rs
+expression: card
+---
+Card {
+    id: CardId {
+        letter: 'W',
+        number: 12,
+    },
+    path: "W-12.md",
+    title: "migrate invoices to v13",
+    column: "Doing",
+    template: Some(
+        "Feature",
+    ),
+    created: Some(
+        2026-10-08T10:02:11+03:00[+03:00],
+    ),
+    body: "\n## Goal\nSwitch invoice reads and writes to the v13 procedures.\n\n## Acceptance\n\n## Context\nThe DBA applies the procedure on staging; we hand over the SQL only.\n\n",
+    notes: [
+        Note {
+            heading: "### 2026-10-08T10:31:05+03:00 auto",
+            at: Some(
+                2026-10-08T10:31:05+03:00[+03:00],
+            ),
+            auto: true,
+            doing: "switched InvoiceRepository to v13, unit tests green",
+            next: "rerun the migration test against the staging copy",
+            watch_out: "v13 needs a 10 s timeout entry, the default is 2 s",
+            place: Place {
+                cwd: Some(
+                    "/home/smilen/Work/ati.billing",
+                ),
+                herdr: Some(
+                    HerdrPlace {
+                        pane: "w4V:p9",
+                        tab: Some(
+                            "w4V:t1",
+                        ),
+                        workspace: Some(
+                            "w4V",
+                        ),
+                    },
+                ),
+                session: Some(
+                    "55583127-a22a-49bc-a803-e777c377a595",
+                ),
+            },
+            extra: [],
+        },
+        Note {
+            heading: "### 2026-10-08T11:12:40+03:00",
+            at: Some(
+                2026-10-08T11:12:40+03:00[+03:00],
+            ),
+            auto: false,
+            doing: "migration test passes on staging",
+            next: "open the MR, ask the DBA for the v13 deploy list",
+            watch_out: "nothing new",
+            place: Place {
+                cwd: Some(
+                    "/home/smilen/Work/ati.billing",
+                ),
+                herdr: Some(
+                    HerdrPlace {
+                        pane: "w4V:p9",
+                        tab: Some(
+                            "w4V:t1",
+                        ),
+                        workspace: Some(
+                            "w4V",
+                        ),
+                    },
+                ),
+                session: Some(
+                    "55583127-a22a-49bc-a803-e777c377a595",
+                ),
+            },
+            extra: [],
+        },
+    ],
+    writable: true,
+    mtime: None,
+}

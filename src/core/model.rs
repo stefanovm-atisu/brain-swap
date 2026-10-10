@@ -3,6 +3,8 @@
 use std::fmt;
 use std::path::PathBuf;
 
+use crate::core::time::Stamp;
+
 /// A card ID such as `W-12` (I1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CardId {
@@ -42,6 +44,34 @@ impl fmt::Display for CardId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}-{}", self.letter, self.number)
     }
+}
+
+/// A card file (TECHSPEC 3, 4.4); `mtime` is filled by board loading (A-E1-05).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Card {
+    pub id: CardId,
+    pub path: PathBuf,
+    pub title: String,
+    pub column: String,
+    pub template: Option<String>,
+    pub created: Option<Stamp>,
+    pub body: String,
+    pub notes: Vec<Note>,
+    pub writable: bool,
+    pub mtime: Option<Stamp>,
+}
+
+/// One switch note of a card's timeline (TECHSPEC 3).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Note {
+    pub heading: String,
+    pub at: Option<Stamp>,
+    pub auto: bool,
+    pub doing: String,
+    pub next: String,
+    pub watch_out: String,
+    pub place: Place,
+    pub extra: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
