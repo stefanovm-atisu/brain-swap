@@ -147,7 +147,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F1-T6 Env and XDG paths
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F1-T2, E1-F1-T4
 - Covers: NFR-09; TECHSPEC 3 (local zone for new stamps), 5.1, 6.1, 9.1 (detection accessor), 9.4 (binary path), 10 (lock and hint name encoding), T-08, T-09, T-21
 - Size: M
