@@ -1021,7 +1021,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F7-T1 Session ID check and resolution steps 1, 2 and 4
 
-- Status: doing
+- Status: done
 - Depends on: E1-F1-T6
 - Covers: FR-41; TECHSPEC 3 (I8), 6.4 (steps 1, 2 and 4, missing flag, warnings), T-09
 - Size: S
