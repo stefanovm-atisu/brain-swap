@@ -1,0 +1,26 @@
+default_board = "work"   # must be in [boards]
+editor = ""              # empty: $VISUAL, $EDITOR, vi; arguments allowed ("code --wait")
+
+[boards]                 # name = folder; names match [a-z][a-z0-9_-]*
+work = "~/.local/share/brain-swap/work"
+home = "~/.local/share/brain-swap/home"
+personal = "~/.local/share/brain-swap/personal"
+
+[keys]                   # action = key or list of keys
+up = ["k", "up"]
+down = ["j", "down"]
+left = ["h", "left"]
+right = ["l", "right"]
+move_left = "H"
+move_right = "L"
+open = "o"
+jump = "enter"
+new = "n"
+edit = "e"
+switch_board = "b"
+scroll_down = "ctrl+d"
+scroll_up = "ctrl+u"
+help = "?"
+quit = ["q", "esc"]
+confirm = "enter"
+cancel = "esc"
