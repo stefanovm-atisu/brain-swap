@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use brain_swap::core::card_file::{note_blocks, parse};
-use brain_swap::core::model::{Card, CardId};
+use brain_swap::core::model::{Card, CardId, Place};
 use brain_swap::core::time::format_stamp;
 use jiff::tz::TimeZone;
 
@@ -15,16 +15,19 @@ fn fixture(name: &str) -> String {
 }
 
 fn card(text: &str) -> Card {
-    let id = CardId::parse("W-12").unwrap();
-    parse(
-        id,
-        Path::new("W-12.md"),
-        text.as_bytes(),
-        "Todo",
-        &TimeZone::UTC,
-    )
-    .card
+    card_in(text, &TimeZone::UTC)
 }
+
+fn card_in(text: &str, tz: &TimeZone) -> Card {
+    let id = CardId::parse("W-12").unwrap();
+    parse(id, Path::new("W-12.md"), text.as_bytes(), "Todo", tz).card
+}
+
+fn parts(n: &brain_swap::core::model::Note) -> [&str; 3] {
+    [&n.doing, &n.next, &n.watch_out]
+}
+
+const HEAD: &str = "# t\n## Timeline\n### 2026-10-08T10:31:05+03:00\n";
 
 #[test]
 fn fr07_parse_reads_title_column_template_created() {
@@ -169,4 +172,80 @@ fn ts4_9_fixtures_parse_to_snapshot() {
         .card;
         insta::assert_debug_snapshot!(name, card);
     }
+}
+
+#[test]
+fn ts4_4_bold_labels_read_as_parts() {
+    let notes = card(&fixture("bold_labels.md")).notes;
+    assert_eq!(parts(&notes[0]), ["a", "b", "c"]);
+    insta::assert_debug_snapshot!("bold_labels", notes);
+}
+
+#[test]
+fn ts4_4_labels_match_any_case() {
+    let c = card(&format!("{HEAD}- doing: a\n- NEXT: b\n- WATCH OUT: c\n"));
+    assert_eq!(parts(&c.notes[0]), ["a", "b", "c"]);
+}
+
+#[test]
+fn ts4_4_local_stamp_without_offset_uses_given_zone() {
+    let tz = TimeZone::fixed(jiff::tz::offset(3));
+    let notes = card_in(&fixture("local_stamps.md"), &tz).notes;
+    assert_eq!(
+        format_stamp(notes[0].at.as_ref().unwrap()),
+        "2026-10-08T10:31:00+03:00"
+    );
+    insta::assert_debug_snapshot!("local_stamps", notes);
+}
+
+#[test]
+fn ts4_7_bad_stamp_note_has_no_time() {
+    let notes = card(&fixture("bad_stamps.md")).notes;
+    assert_eq!(notes[0].heading, "### someday");
+    assert_eq!(notes[0].at, None);
+    assert_eq!(parts(&notes[0]), ["a", "b", "c"]);
+    insta::assert_debug_snapshot!("bad_stamps", notes);
+}
+
+#[test]
+fn ts4_4_quoted_place_value_unescapes() {
+    let notes = card(&fixture("quoted_places.md")).notes;
+    assert_eq!(
+        notes[0].place.cwd.as_deref(),
+        Some(Path::new("/home/a b/\"q\"\\x"))
+    );
+    insta::assert_debug_snapshot!("quoted_places", notes);
+}
+
+#[test]
+fn ts4_4_unknown_place_key_is_skipped() {
+    let c = card(&format!(
+        "{HEAD}- Doing: a\n<!-- where: host=x cwd=/a -->\n"
+    ));
+    let p = &c.notes[0].place;
+    assert_eq!(p.cwd.as_deref(), Some(Path::new("/a")));
+    assert_eq!(p.herdr, None);
+    assert_eq!(p.session, None);
+}
+
+#[test]
+fn ts4_7_note_without_place_has_empty_place() {
+    let c = card(&format!("{HEAD}- Doing: a\n- Next: b\n- Watch out: c\n"));
+    assert_eq!(c.notes[0].place, Place::default());
+}
+
+#[test]
+fn ts4_4_other_lines_go_to_extra() {
+    let c = card(&format!(
+        "{HEAD}- Doing: a\nfree text\n- Next: b\n- Watch out: c\n"
+    ));
+    assert_eq!(c.notes[0].extra, ["free text"]);
+    assert_eq!(parts(&c.notes[0]), ["a", "b", "c"]);
+}
+
+#[test]
+fn ts4_4_auto_marker_only_as_exact_word() {
+    let c = card("# t\n## Timeline\n### 2026-10-08T10:31:05+03:00 automatic\n- Doing: a\n");
+    assert!(!c.notes[0].auto);
+    assert!(c.notes[0].at.is_some());
 }

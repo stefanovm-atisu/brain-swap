@@ -124,11 +124,16 @@ fn note(block: &str, tz: &TimeZone) -> Note {
         }
         cur = None;
         let l = line.strip_prefix("- ").unwrap_or(line);
+        let (l, b) = l.strip_prefix("**").map_or((l, ""), |l| (l, "**"));
         if let Some((label, t)) = l.split_once(':')
-            && let Some(i) = ["doing", "next", "watch out"]
-                .iter()
-                .position(|x| label.eq_ignore_ascii_case(x))
+            && let Some(i) = ["doing", "next", "watch out"].iter().position(|x| {
+                label
+                    .strip_suffix(b)
+                    .unwrap_or(label)
+                    .eq_ignore_ascii_case(x)
+            })
         {
+            let t = t.strip_prefix(b).unwrap_or(t);
             parts[i] = t.strip_prefix(' ').unwrap_or(t).to_string();
             cur = Some(i);
         } else if let Some(pairs) = line
@@ -141,9 +146,12 @@ fn note(block: &str, tz: &TimeZone) -> Note {
         }
     }
     let [doing, next, watch_out] = parts;
+    let words: Vec<&str> = stamp.split_whitespace().collect();
     Note {
         heading: heading.to_string(),
-        at: parse_stamp(stamp, tz),
+        at: [2, 1]
+            .into_iter()
+            .find_map(|n| parse_stamp(&words.get(..n)?.join(" "), tz)),
         auto,
         doing,
         next,
@@ -153,11 +161,32 @@ fn note(block: &str, tz: &TimeZone) -> Note {
     }
 }
 
-/// Bare `k=v` pairs of a place line; unknown keys are ignored here.
+/// `k=v` pairs of a place line, values bare or quoted with `\"` and `\\`; unknown keys are ignored here.
 fn where_line(pairs: &str) -> Place {
     let mut p = Place::default();
     let (mut pane, mut tab, mut workspace) = (None, None, None);
-    for (k, v) in pairs.split(' ').filter_map(|p| p.split_once('=')) {
+    let mut toks = vec![String::new()];
+    let (mut quoted, mut escaped) = (false, false);
+    for c in pairs.chars() {
+        match c {
+            _ if escaped => escaped = false,
+            '\\' if quoted => {
+                escaped = true;
+                continue;
+            }
+            '"' => {
+                quoted = !quoted;
+                continue;
+            }
+            ' ' if !quoted => {
+                toks.push(String::new());
+                continue;
+            }
+            _ => {}
+        }
+        toks.last_mut().unwrap().push(c);
+    }
+    for (k, v) in toks.iter().filter_map(|p| p.split_once('=')) {
         let v = Some(v.to_string());
         match k {
             "cwd" => p.cwd = v.map(PathBuf::from),

@@ -1,0 +1,24 @@
+---
+source: tests/card_parse.rs
+expression: notes
+---
+[
+    Note {
+        heading: "### 2026-10-08T10:31:05+03:00",
+        at: Some(
+            2026-10-08T10:31:05+03:00[+03:00],
+        ),
+        auto: false,
+        doing: "a",
+        next: "b",
+        watch_out: "c",
+        place: Place {
+            cwd: Some(
+                "/a",
+            ),
+            herdr: None,
+            session: None,
+        },
+        extra: [],
+    },
+]
