@@ -57,6 +57,45 @@ pub fn format_stamp(stamp: &Stamp) -> String {
     stamp.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string()
 }
 
+/// How long ago a stamp was (TECHSPEC 7.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Age {
+    Now,
+    Min(i64),
+    Hours(i64),
+    Days(i64),
+    Unknown,
+}
+
+impl std::fmt::Display for Age {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Age::Now => write!(f, "now"),
+            Age::Min(n) => write!(f, "{n} min"),
+            Age::Hours(n) => write!(f, "{n} h"),
+            Age::Days(n) => write!(f, "{n} d"),
+            Age::Unknown => write!(f, "?"),
+        }
+    }
+}
+
+/// The age of `at` at `now`, every unit floored.
+pub fn age(at: Option<&Stamp>, now: &Stamp) -> Age {
+    match age_minutes(at, now) {
+        None => Age::Unknown,
+        Some(0) => Age::Now,
+        Some(m) if m < 60 => Age::Min(m),
+        Some(m) if m < 24 * 60 => Age::Hours(m / 60),
+        Some(m) => Age::Days(m / (24 * 60)),
+    }
+}
+
+/// Floored minutes from `at` to `now` for JSON `age_min`, a future stamp gives 0.
+pub fn age_minutes(at: Option<&Stamp>, now: &Stamp) -> Option<i64> {
+    let secs = now.timestamp().duration_since(at?.timestamp()).as_secs();
+    Some(secs.max(0) / 60)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,5 +184,80 @@ mod tests {
         ] {
             assert!(parse_stamp(s, &TimeZone::UTC).is_none(), "{s}");
         }
+    }
+
+    fn now() -> Stamp {
+        parse_stamp("2026-10-08T10:31:05+03:00", &TimeZone::UTC).unwrap()
+    }
+
+    fn shown(secs_before: i64) -> String {
+        let at = now()
+            .checked_sub(jiff::SignedDuration::from_secs(secs_before))
+            .unwrap();
+        age(Some(&at), &now()).to_string()
+    }
+
+    #[test]
+    fn fr21_under_60_seconds_is_now() {
+        assert_eq!(shown(59), "now");
+    }
+
+    #[test]
+    fn fr21_future_stamp_is_now() {
+        assert_eq!(shown(-5 * 60), "now");
+    }
+
+    #[test]
+    fn fr21_60_seconds_is_1_min() {
+        assert_eq!(shown(60), "1 min");
+    }
+
+    #[test]
+    fn fr21_59_min_59_s_is_59_min() {
+        assert_eq!(shown(59 * 60 + 59), "59 min");
+    }
+
+    #[test]
+    fn fr21_60_min_is_1_h() {
+        assert_eq!(shown(60 * 60), "1 h");
+    }
+
+    #[test]
+    fn fr21_23_h_59_min_is_23_h() {
+        assert_eq!(shown(23 * 3600 + 59 * 60), "23 h");
+    }
+
+    #[test]
+    fn fr21_24_h_is_1_d() {
+        assert_eq!(shown(24 * 3600), "1 d");
+    }
+
+    #[test]
+    fn fr21_42_h_47_min_is_1_d() {
+        assert_eq!(shown(42 * 3600 + 47 * 60), "1 d");
+    }
+
+    #[test]
+    fn fr21_missing_stamp_is_question_mark() {
+        assert_eq!(age(None, &now()).to_string(), "?");
+    }
+
+    #[test]
+    fn fr21_age_compares_instants_across_offsets() {
+        let at = parse_stamp("2026-10-08T10:31:05+03:00", &TimeZone::UTC).unwrap();
+        let now = parse_stamp("2026-10-08T08:10:05+00:00", &TimeZone::UTC).unwrap();
+        assert_eq!(age(Some(&at), &now).to_string(), "39 min");
+    }
+
+    #[test]
+    fn ts6_7_age_minutes_floors_and_clamps() {
+        let ago = |s: i64| {
+            now()
+                .checked_sub(jiff::SignedDuration::from_secs(s))
+                .unwrap()
+        };
+        assert_eq!(age_minutes(Some(&ago(39 * 60 + 59)), &now()), Some(39));
+        assert_eq!(age_minutes(Some(&ago(-5 * 60)), &now()), Some(0));
+        assert_eq!(age_minutes(None, &now()), None);
     }
 }

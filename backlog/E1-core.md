@@ -123,7 +123,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F1-T5 Ages
 
-- Status: doing
+- Status: done
 - Depends on: E1-F1-T4
 - Covers: TECHSPEC 7.3 (age rule; FR-21 itself, with its refresh and rendering, is E4-F2), 10 (clock skew), 6.7 (`age_min`)
 - Size: S
