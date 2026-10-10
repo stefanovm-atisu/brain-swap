@@ -308,7 +308,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F2-T3 Card model and canonical parse
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F2-T1, E1-F1-T3, E1-F1-T4
 - Covers: FR-01, FR-07, FR-14, FR-17; TECHSPEC 3 (Card, Note, Place, HerdrPlace, I7), 4.4, 4.9, 7.6 (merge identity)
 - Size: M
