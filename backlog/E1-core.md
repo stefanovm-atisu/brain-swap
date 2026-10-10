@@ -460,7 +460,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F3-T1 Config parsing with defaults
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F1-T2, E1-F1-T6
 - Covers: FR-02, FR-42; TECHSPEC 5.2, 6.2 (unknown board), 13
 - Size: M
