@@ -173,7 +173,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F1-T7 Failpoints
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F1-T2, E1-F1-T6
 - Covers: TECHSPEC 12.1 (crash, failpoint names), 6.1 (`BRAIN_SWAP_FAILPOINT`), T-21
 - Size: S
