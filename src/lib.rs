@@ -11,6 +11,7 @@ pub mod core {
     pub mod frontmatter;
     pub mod guess;
     pub mod keys;
+    pub mod log;
     pub mod model;
     pub mod session;
     pub mod store;

@@ -191,7 +191,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F1-T8 Log sink
 
-- Status: doing
+- Status: done
 - Depends on: E1-F1-T6
 - Covers: FR-05; TECHSPEC 11 (logging)
 - Size: S
