@@ -207,7 +207,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T9 Keyboard accessibility
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F1-T4, E4-F1-T5
 - Covers: NFR-10; TECHSPEC 5.2 (defaults), 7.3 (nothing relies on colour)
 - Size: S
