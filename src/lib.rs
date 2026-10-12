@@ -35,11 +35,13 @@ pub mod tui {
     pub mod view_frame;
     pub mod view_help;
     pub mod view_message;
+    pub mod view_pick;
 
     /// What `Runtime::new` starts from.
     pub struct Prepared {
         pub app: app::App,
         pub config: Option<crate::core::config::Config>,
+        pub templates: Vec<crate::core::template::Template>,
     }
 
     /// The checked bare invocation; a config error is carried for ConfigError (FR-45).
@@ -77,6 +79,7 @@ pub mod tui {
                 return Ok(Prepared {
                     app: app::App::config_error(e.to_string(), env.now.clone()),
                     config: None,
+                    templates: Vec::new(),
                 });
             }
         };
@@ -85,12 +88,24 @@ pub mod tui {
         let (keys, key_warnings) = crate::core::keys::KeyMap::build(&config.keys);
         let (name, dir) = config.board(start.board.as_deref().unwrap_or(&config.default_board))?;
         let board = crate::core::board::load(name, dir, env)?;
+        let (mut templates, template_warnings) = crate::core::template::load(&env.templates_dir());
+        let hotkeys: Vec<_> = templates
+            .iter()
+            .filter_map(|t| Some((t.name.clone(), t.key?)))
+            .collect();
+        let (kept, hotkey_warnings) = keys.check_template_hotkeys(&hotkeys);
+        for t in &mut templates {
+            t.key = t.key.filter(|&c| kept.contains(&(t.name.clone(), c)));
+        }
         let mut app = app::App::new(board, keys, env.now.clone(), env.home.clone());
+        app.templates = templates.iter().map(|t| (t.name.clone(), t.key)).collect();
         app.warnings = loaded
             .warnings
             .into_iter()
             .chain(guard)
             .chain(key_warnings)
+            .chain(template_warnings)
+            .chain(hotkey_warnings)
             .collect();
         app.status = match loaded.created {
             Some(p) => Some(format!("created config {}", p.display())),
@@ -104,6 +119,7 @@ pub mod tui {
         Ok(Prepared {
             app,
             config: Some(config),
+            templates,
         })
     }
 

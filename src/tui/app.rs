@@ -30,6 +30,8 @@ pub struct App {
     pub warnings: Vec<String>,
     /// Shown as `~` in the board header (A-E4-09).
     pub home: PathBuf,
+    /// Name and final hotkey, in load order; `App::new` starts with the built-ins.
+    pub templates: Vec<(String, Option<char>)>,
 }
 
 /// `column` indexes `Board::column_list()`.
@@ -107,6 +109,10 @@ impl App {
             now,
             warnings: Vec::new(),
             home,
+            templates: crate::core::template::builtins()
+                .into_iter()
+                .map(|t| (t.name, t.key))
+                .collect(),
         }
     }
 
@@ -255,11 +261,49 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
         }
         return Vec::new();
     }
-    let action = key_press(&event)
+    let press = key_press(&event);
+    let action = press
         .zip(context(&app.mode))
         .and_then(|(p, ctx)| app.keys.action(ctx, &p));
     match (&app.mode, action) {
         (Mode::Board, Some(Action::Quit)) => vec![Effect::Quit],
+        (Mode::Board, Some(Action::New)) => {
+            app.mode = Mode::TemplatePick { sel: 0 };
+            Vec::new()
+        }
+        // Action keys first, then a template hotkey (5.2).
+        (&Mode::TemplatePick { sel }, a) => {
+            let hotkey = match press {
+                Some(KeyPress {
+                    key: Key::Char(c),
+                    ctrl: false,
+                    alt: false,
+                    ..
+                }) if a.is_none() => app.templates.iter().position(|t| t.1 == Some(c)),
+                _ => None,
+            };
+            let chosen = if a == Some(Action::Confirm) {
+                Some(sel)
+            } else {
+                hotkey
+            };
+            let last = app.templates.len().saturating_sub(1);
+            app.mode = match (a, chosen.and_then(|i| app.templates.get(i))) {
+                (_, Some((name, _))) => Mode::TitleInput {
+                    template: name.clone(),
+                    buf: String::new(),
+                },
+                (Some(Action::Up), _) => Mode::TemplatePick {
+                    sel: sel.saturating_sub(1),
+                },
+                (Some(Action::Down), _) => Mode::TemplatePick {
+                    sel: (sel + 1).min(last),
+                },
+                (Some(Action::Cancel), _) => Mode::Board,
+                _ => Mode::TemplatePick { sel },
+            };
+            Vec::new()
+        }
         (Mode::Board, Some(Action::Open)) => {
             if let Some(card) = app.selected_card() {
                 let note = card.notes.len().saturating_sub(1);

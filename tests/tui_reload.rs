@@ -35,6 +35,7 @@ fn runtime_at(fx: &TuiFixture, s: Selection) -> Runtime<TestBackend> {
     let prepared = Prepared {
         app,
         config: Some(config),
+        templates: Vec::new(),
     };
     fake_runtime(&fx.env, prepared, 80, 24).0
 }

@@ -26,6 +26,7 @@ fn fr45_config_error_any_key_exits_1() {
     let prepared = Prepared {
         app: App::config_error("config broken".into(), fx.env.now.clone()),
         config: None,
+        templates: Vec::new(),
     };
     let (mut rt, guard, events) = fake_runtime(&fx.env, prepared, 80, 24);
     events.push([Ev::Key("x")]);

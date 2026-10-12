@@ -1,0 +1,9 @@
+---
+source: tests/tui_pick.rs
+expression: "rows(&buf).join(\"\\n\")"
+---
+ new card in Todo: pick a template
+>f  Feature
+ b  Bug
+ r  Research
+ c  Chore

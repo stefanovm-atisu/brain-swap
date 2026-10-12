@@ -47,6 +47,7 @@ fn runtime(fx: &TuiFixture, launcher: &FakeLauncher) -> Runtime<TestBackend> {
     let prepared = Prepared {
         app: app(fx),
         config: Some(config::load(&fx.env).unwrap().config),
+        templates: Vec::new(),
     };
     fake_runtime_with(&fx.env, prepared, 80, 24, Box::new(launcher.clone())).0
 }
