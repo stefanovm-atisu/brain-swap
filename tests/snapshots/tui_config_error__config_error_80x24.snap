@@ -1,0 +1,5 @@
+---
+source: tests/tui_config_error.rs
+expression: "rows(&buf).join(\"\\n\")"
+---
+ config /h/.config/brain-swap/config.toml:4:7: expected '='

@@ -3,7 +3,7 @@
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::core::keys::{Action, Key, KeyContext, KeyMap, KeyPress};
-use crate::core::model::{Board, Card, CardId};
+use crate::core::model::{Board, BoardMeta, Card, CardId};
 use crate::core::time::Stamp;
 
 #[derive(Debug, Clone)]
@@ -94,6 +94,25 @@ impl App {
         }
     }
 
+    pub fn config_error(text: String, now: Stamp) -> App {
+        let defaults = crate::core::board_file::parse("", None);
+        let board = Board {
+            name: String::new(),
+            path: Default::default(),
+            meta: BoardMeta {
+                letter: defaults.letter,
+                columns: defaults.columns,
+                next: 1,
+            },
+            cards: Vec::new(),
+            warnings: Vec::new(),
+        };
+        App {
+            mode: Mode::ConfigError(text),
+            ..App::new(board, KeyMap::defaults(), now)
+        }
+    }
+
     pub fn selected_card(&self) -> Option<&Card> {
         self.board
             .cards
@@ -124,6 +143,13 @@ pub fn initial_selection(board: &Board) -> Selection {
 }
 
 pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
+    // Nothing but Quit leaves ConfigError, so no effect can name a folder (FR-45).
+    if let Mode::ConfigError(_) = app.mode {
+        return match input {
+            Input::Key(e) if e.kind != KeyEventKind::Release => vec![Effect::Quit],
+            _ => Vec::new(),
+        };
+    }
     let event = match input {
         Input::Key(event) => event,
         Input::Done(Outcome::Failed(text)) => {

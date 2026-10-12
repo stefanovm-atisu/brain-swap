@@ -26,7 +26,9 @@ pub fn draw(frame: &mut Frame, app: &App) {
     };
     match &app.mode {
         Mode::Help { .. } => view_help::draw(frame, app, screen),
-        Mode::Message { text, .. } => view_message::draw(frame, text, screen),
+        Mode::Message { text, .. } | Mode::ConfigError(text) => {
+            view_message::draw(frame, text, screen)
+        }
         _ => {}
     }
 }
