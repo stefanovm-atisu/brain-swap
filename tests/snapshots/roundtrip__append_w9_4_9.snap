@@ -1,0 +1,24 @@
+---
+source: tests/roundtrip.rs
+expression: "String::from_utf8_lossy(&a.bytes)"
+---
+---
+column: Done
+template: Chore
+created: 2026-10-06T16:20:00+03:00
+---
+# bump rust-version to 1.89
+
+## Timeline
+
+### 2026-10-06T17:05:12+03:00
+- Doing: merged, CI green
+- Next: nothing left
+- Watch out: nothing
+<!-- where: cwd=/home/smilen/Work/private/brain-swap -->
+
+### 2026-10-08T10:31:05+03:00 auto
+- Doing: switched InvoiceRepository to v13, unit tests green
+- Next: rerun the migration test against the staging copy
+- Watch out: v13 needs a 10 s timeout entry, the default is 2 s
+<!-- where: cwd=/home/smilen/Work/ati.billing pane=w4V:p9 tab=w4V:t1 workspace=w4V session=55583127-a22a-49bc-a803-e777c377a595 -->

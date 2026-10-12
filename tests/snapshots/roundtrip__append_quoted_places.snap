@@ -1,0 +1,22 @@
+---
+source: tests/roundtrip.rs
+expression: "String::from_utf8_lossy(&a.bytes)"
+---
+---
+column: Doing
+---
+# quoted places
+
+## Timeline
+
+### 2026-10-08T10:31:05+03:00
+- Doing: a
+- Next: b
+- Watch out: c
+<!-- where: cwd="/home/a b/\"q\"\\x" pane=w1:p2 tab="w1 t" session=s1 -->
+
+### 2026-10-08T10:31:05+03:00 auto
+- Doing: switched InvoiceRepository to v13, unit tests green
+- Next: rerun the migration test against the staging copy
+- Watch out: v13 needs a 10 s timeout entry, the default is 2 s
+<!-- where: cwd=/home/smilen/Work/ati.billing pane=w4V:p9 tab=w4V:t1 workspace=w4V session=55583127-a22a-49bc-a803-e777c377a595 -->

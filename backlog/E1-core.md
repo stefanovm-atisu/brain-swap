@@ -425,7 +425,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F2-T8 set_column and the round-trip suite
 
-- Status: doing
+- Status: done
 - Depends on: E1-F2-T2, E1-F2-T4, E1-F2-T7
 - Covers: FR-16, NFR-06, NFR-07; TECHSPEC 4.8 R1, R2, R3, 12.1 (round trip)
 - Size: M

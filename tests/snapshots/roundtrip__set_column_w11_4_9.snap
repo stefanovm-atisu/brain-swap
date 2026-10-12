@@ -1,0 +1,20 @@
+---
+source: tests/roundtrip.rs
+expression: "String::from_utf8_lossy(&out)"
+---
+---
+column: Doing
+template: Bug
+created: 2026-10-08T11:40:00+03:00
+---
+# invoice PDF shows the wrong VAT
+
+## Symptom
+
+## Expected
+
+## Repro
+
+## Context
+
+## Timeline

@@ -196,6 +196,12 @@ pub fn append_note(
     Ok(a)
 }
 
+/// Sets the card's column by a one-line frontmatter splice (FR-16, R2).
+pub fn set_column(name: &str, bytes: &[u8], column: &str) -> crate::core::error::Result<Vec<u8>> {
+    check_writable(name, bytes)?;
+    crate::core::frontmatter::set(bytes, "column", column)
+}
+
 /// Refuses a read-only card (4.7): invalid frontmatter, non-UTF-8 bytes or a conflict marker.
 pub fn check_writable(name: &str, bytes: &[u8]) -> crate::core::error::Result<()> {
     read_only(name, bytes).map_or(Ok(()), |w| Err(Error::Unreadable(w)))
