@@ -282,7 +282,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F2-T2 Navigation and scrolling
 
-- Status: doing
+- Status: done
 - Depends on: E4-F2-T1
 - Covers: TECHSPEC 5.2 (Board `up`, `down`, `left`, `right`), 7.3 (stops at the ends without wrapping, vertical scroll, narrow columns scroll around the focused one)
 - Size: M

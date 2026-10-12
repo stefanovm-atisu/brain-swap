@@ -186,6 +186,28 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             }
             Vec::new()
         }
+        // Same row in the target column, clamped to its last card; nothing wraps (A-E4-06).
+        (Mode::Board, Some(a @ (Action::Up | Action::Down | Action::Left | Action::Right))) => {
+            let (b, col) = (&app.board, app.sel.column);
+            let row = b
+                .cards_in(col)
+                .iter()
+                .position(|c| Some(c.id) == app.sel.card)
+                .unwrap_or(0);
+            let (column, row) = match a {
+                Action::Up => (col, row.saturating_sub(1)),
+                Action::Down => (col, row + 1),
+                Action::Left => (col.saturating_sub(1), row),
+                _ => ((col + 1).min(b.column_list().len() - 1), row),
+            };
+            let cards = b.cards_in(column);
+            let card = cards.get(row.min(cards.len().saturating_sub(1)));
+            app.sel = Selection {
+                column,
+                card: card.map(|c| c.id),
+            };
+            Vec::new()
+        }
         (Mode::Detail { .. }, Some(a @ (Action::Up | Action::Down))) => {
             if let Mode::Detail { card, note, .. } = &mut app.mode {
                 let last = app

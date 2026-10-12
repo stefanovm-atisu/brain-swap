@@ -1,5 +1,7 @@
 //! The board screen of TECHSPEC 4.9: header, columns and cards (7.2, 7.3).
 
+use std::ops::Range;
+
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
@@ -9,6 +11,16 @@ use super::app::App;
 use crate::core::keys::Action;
 use crate::core::model::Card;
 use crate::core::time::{Age, Stamp, age};
+
+/// Narrowest column before the board shows a window of columns (A-E4-09).
+pub const MIN_COLUMN_WIDTH: u16 = 20;
+
+/// The columns drawn at `width`, a window around `focused` when not all fit (A-E4-09).
+pub fn visible_columns(count: usize, focused: usize, width: u16) -> Range<usize> {
+    let fit = ((width.saturating_sub(1) / MIN_COLUMN_WIDTH).max(1) as usize).min(count);
+    let start = focused.saturating_sub(fit / 2).min(count - fit);
+    start..start + fit
+}
 
 /// `<ID> <title>` and `  <age>  <preview>`, uncut (FR-20, A-E4-10).
 pub fn card_lines(card: &Card, now: &Stamp) -> (String, String) {
@@ -54,10 +66,12 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(Paragraph::new(help).alignment(Alignment::Right), header);
 
     let columns = board.column_list();
-    let w = area.width.saturating_sub(1) / columns.len().max(1) as u16;
+    let shown = visible_columns(columns.len(), app.sel.column, area.width);
+    let w = area.width.saturating_sub(1) / shown.len().max(1) as u16;
     let text = w.saturating_sub(2);
-    for (i, column) in columns.iter().enumerate() {
-        let x = area.x + 1 + i as u16 * w;
+    let slots = area.height.saturating_sub(2) as usize / 2;
+    for (k, i) in shown.enumerate() {
+        let (x, column) = (area.x + 1 + k as u16 * w, &columns[i]);
         let cards = board.cards_in(i);
         let mut title = format!("{} ({})", column.name, cards.len());
         let mut style = Style::default();
@@ -66,11 +80,14 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
             style = style.add_modifier(Modifier::BOLD);
         }
         frame.render_widget(Paragraph::new(title).style(style), row(x, area.y + 1, text));
-        for (j, card) in cards.iter().enumerate() {
+        // The focused column scrolls just enough to show its selection, the others show their top (A-E4-06).
+        let sel = cards.iter().position(|c| Some(c.id) == app.sel.card);
+        let first = match sel {
+            Some(r) if i == app.sel.column => (r + 1).saturating_sub(slots),
+            _ => 0,
+        };
+        for (j, card) in cards.iter().skip(first).take(slots).enumerate() {
             let y = area.y + 2 + 2 * j as u16;
-            if y + 1 >= area.bottom() {
-                break;
-            }
             let mut style = Style::default();
             if app.sel.card == Some(card.id) {
                 style = style.add_modifier(Modifier::REVERSED);
