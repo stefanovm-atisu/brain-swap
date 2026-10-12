@@ -106,6 +106,16 @@ pub struct BoardMeta {
     pub next: u32,
 }
 
+/// A session reference (TECHSPEC 3, 6.4): the card a session last parked, linked or created.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SessionRef {
+    pub card: CardId,
+    pub board: String,
+    pub pane: Option<String>,
+    pub cwd: Option<PathBuf>,
+    pub set_at: Stamp,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

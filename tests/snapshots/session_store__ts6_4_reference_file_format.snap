@@ -1,0 +1,9 @@
+---
+source: tests/session_store.rs
+expression: text
+---
+card = "W-12"
+board = "work"
+pane = "w4V:p9"
+cwd = "/home/smilen/Work/ati.billing"
+set_at = "2026-10-08T11:52:00+03:00"

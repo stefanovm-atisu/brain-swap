@@ -1,10 +1,18 @@
-//! TECHSPEC 3 (I8) and 6.4: session ID check and resolution.
+//! TECHSPEC 3 (I8) and 6.4: session ID check and resolution, the reference store.
 
 mod common;
 
-use brain_swap::core::session::{IdCheck, Resolution, check_id, resolve};
+use brain_swap::core::env::Env;
+use brain_swap::core::error::Error;
+use brain_swap::core::model::{CardId, SessionRef};
+use brain_swap::core::session::{
+    IdCheck, Resolution, check_id, read_reference, resolve, write_reference,
+};
+use brain_swap::core::time::{format_stamp, parse_stamp};
 use common::env::core_env;
-use std::path::Path;
+use jiff::tz::TimeZone;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 const UUID: &str = "55583127-a22a-49bc-a803-e777c377a595";
 
@@ -99,4 +107,205 @@ fn ts6_4_same_warning_given_once() {
         run(Some(""), Some("${X}")),
         res(None, &["session id not substituted"])
     );
+}
+
+const NOW: &str = "2026-10-08T11:52:00+03:00";
+
+fn sref(card: &str, pane: Option<&str>, cwd: Option<&str>) -> SessionRef {
+    SessionRef {
+        card: CardId::parse(card).unwrap(),
+        board: "work".to_string(),
+        pane: pane.map(str::to_string),
+        cwd: cwd.map(PathBuf::from),
+        set_at: parse_stamp(NOW, &TimeZone::UTC).unwrap(),
+    }
+}
+
+fn full() -> SessionRef {
+    sref(
+        "W-12",
+        Some("w4V:p9"),
+        Some("/home/smilen/Work/ati.billing"),
+    )
+}
+
+/// Every regular file under `dir`, recursively, sorted.
+fn files(dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for e in fs::read_dir(dir).into_iter().flatten().flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            out.extend(files(&p));
+        } else {
+            out.push(p);
+        }
+    }
+    out.sort();
+    out
+}
+
+fn write_raw(env: &Env, name: &str, text: &[u8]) {
+    fs::create_dir_all(env.sessions_dir()).unwrap();
+    fs::write(env.sessions_dir().join(name), text).unwrap();
+}
+
+const VALID: &str = "card = \"W-12\"\nboard = \"work\"\nset_at = \"2026-10-08T11:52:00+03:00\"\n";
+
+#[test]
+fn fr57_reference_round_trips() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    write_reference(&env, "s1", &full()).unwrap();
+    assert_eq!(read_reference(&env, "s1"), Some(full()));
+}
+
+#[test]
+fn ts6_4_reference_file_format() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    write_reference(&env, "s1", &full()).unwrap();
+    let text =
+        fs::read_to_string(home.path().join(".local/state/brain-swap/sessions/s1.toml")).unwrap();
+    insta::assert_snapshot!(text);
+}
+
+#[test]
+fn ts6_4_absent_pane_and_cwd_are_left_out() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    let r = sref("W-12", None, None);
+    write_reference(&env, "s1", &r).unwrap();
+    let text = fs::read_to_string(env.sessions_dir().join("s1.toml")).unwrap();
+    assert_eq!(text, VALID);
+    let back = read_reference(&env, "s1").unwrap();
+    assert_eq!((back.pane, back.cwd), (None, None));
+}
+
+#[test]
+fn fr57_new_session_id_starts_unlinked() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    write_reference(&env, "s1", &full()).unwrap();
+    assert_eq!(read_reference(&env, "s2"), None);
+}
+
+#[test]
+fn fr57_setting_again_replaces_reference() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    write_reference(&env, "s1", &sref("W-12", None, None)).unwrap();
+    write_reference(&env, "s1", &sref("W-7", None, None)).unwrap();
+    assert_eq!(
+        read_reference(&env, "s1").unwrap().card,
+        CardId::parse("W-7").unwrap()
+    );
+}
+
+#[test]
+fn ts6_4_unparsable_file_reads_as_none() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    let board = "board = \"work\"\n";
+    let set_at = "set_at = \"2026-10-08T11:52:00+03:00\"\n";
+    let card = "card = \"W-12\"\n";
+    let cases: [(&str, Vec<u8>); 5] = [
+        ("a", format!("card = \n{board}{set_at}").into_bytes()),
+        ("b", format!("card = \"W12\"\n{board}{set_at}").into_bytes()),
+        (
+            "c",
+            format!("{card}{board}set_at = \"yesterday\"\n").into_bytes(),
+        ),
+        ("d", format!("{card}{set_at}").into_bytes()),
+        (
+            "e",
+            [
+                format!("{card}{board}{set_at}# ").as_bytes(),
+                &[0xFF, b'\n'],
+            ]
+            .concat(),
+        ),
+    ];
+    for (id, bytes) in &cases {
+        write_raw(&env, &format!("{id}.toml"), bytes);
+    }
+    for (id, _) in &cases {
+        assert_eq!(read_reference(&env, id), None, "{id}");
+    }
+}
+
+#[test]
+fn ts6_4_set_at_without_offset_reads_as_utc() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    write_raw(
+        &env,
+        "s1.toml",
+        b"card = \"W-12\"\nboard = \"work\"\nset_at = \"2026-10-08 08:52:00\"\n",
+    );
+    let r = read_reference(&env, "s1").unwrap();
+    assert_eq!(format_stamp(&r.set_at), "2026-10-08T08:52:00+00:00");
+}
+
+#[test]
+fn i8_invalid_session_id_is_neither_written_nor_read() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    assert_eq!(
+        write_reference(&env, "../x", &full()),
+        Err(Error::InvalidInput("invalid session id".to_string()))
+    );
+    assert_eq!(files(&env.state_dir()), Vec::<PathBuf>::new());
+    write_raw(&env, "a b.toml", VALID.as_bytes());
+    assert_eq!(read_reference(&env, "a b"), None);
+}
+
+#[test]
+fn fr05_reference_lives_in_state_folder() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env = core_env(tmp.path(), NOW);
+    let board = tmp.path().join("boards/work");
+    fs::create_dir_all(&board).unwrap();
+    fs::write(board.join("W-12.md"), "# W-12\n").unwrap();
+    let before = files(tmp.path());
+    write_reference(&env, "s1", &sref("W-12", None, Some("/x"))).unwrap();
+    let new: Vec<PathBuf> = files(tmp.path())
+        .into_iter()
+        .filter(|p| !before.contains(p))
+        .collect();
+    assert_eq!(
+        new,
+        [tmp.path().join(".local/state/brain-swap/sessions/s1.toml")]
+    );
+}
+
+#[test]
+fn ts6_4_reference_write_is_atomic() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    let (a, b) = (sref("W-12", None, None), sref("W-7", None, None));
+    write_reference(&env, "s1", &a).unwrap();
+    let cards = std::thread::scope(|s| {
+        s.spawn(|| {
+            for i in 0..200 {
+                write_reference(&env, "s1", if i % 2 == 0 { &b } else { &a }).unwrap();
+            }
+        });
+        let reader = s.spawn(|| {
+            (0..200)
+                .map(|_| read_reference(&env, "s1").map(|r| r.card))
+                .collect::<Vec<_>>()
+        });
+        reader.join().unwrap()
+    });
+    for c in cards {
+        assert!(c == Some(a.card) || c == Some(b.card), "{c:?}");
+    }
+}
+
+#[test]
+fn ts6_4_read_creates_nothing() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    assert_eq!(read_reference(&env, "s1"), None);
+    assert!(!env.state_dir().exists());
 }

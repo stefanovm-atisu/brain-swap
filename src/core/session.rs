@@ -1,8 +1,14 @@
 //! Session identity (TECHSPEC 3 I8, 6.4 steps 1, 2 and 4).
 
 use crate::core::env::Env;
+use crate::core::error::{Error, Result};
+use crate::core::model::{CardId, SessionRef};
+use crate::core::time::Stamp;
 use jiff::{SignedDuration, Timestamp};
+use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
 
 pub const WARN_NOT_SUBSTITUTED: &str = "session id not substituted";
 pub const WARN_INVALID: &str = "invalid session id";
@@ -59,6 +65,79 @@ pub fn resolve(flag: Option<&str>, env: &Env) -> Resolution {
         session: None,
         warnings,
     }
+}
+
+/// `sessions/<session>.toml` for a valid session ID, else `None`.
+pub fn reference_path(env: &Env, session: &str) -> Option<PathBuf> {
+    (check_id(session) == IdCheck::Valid)
+        .then(|| env.sessions_dir().join(format!("{session}.toml")))
+}
+
+/// The on-disk form of a `SessionRef`; key order is file order.
+#[derive(Serialize, Deserialize)]
+struct RefFile {
+    card: String,
+    board: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pane: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cwd: Option<PathBuf>,
+    #[serde(with = "stamp_serde")]
+    set_at: Stamp,
+}
+
+/// `set_at` as a string: written with `format_stamp`, read with `parse_stamp` in UTC.
+pub mod stamp_serde {
+    use crate::core::time::{Stamp, format_stamp, parse_stamp};
+    use jiff::tz::TimeZone;
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
+
+    pub fn serialize<S: Serializer>(stamp: &Stamp, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&format_stamp(stamp))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Stamp, D::Error> {
+        let text = String::deserialize(d)?;
+        parse_stamp(&text, &TimeZone::UTC).ok_or_else(|| D::Error::custom("bad stamp"))
+    }
+}
+
+/// Writes the reference of `session` to a temp file beside it, syncs and renames it (6.4).
+pub fn write_reference(env: &Env, session: &str, r: &SessionRef) -> Result<()> {
+    let path = reference_path(env, session).ok_or(Error::InvalidInput(WARN_INVALID.into()))?;
+    let file = RefFile {
+        card: r.card.to_string(),
+        board: r.board.clone(),
+        pane: r.pane.clone(),
+        cwd: r.cwd.clone(),
+        set_at: r.set_at.clone(),
+    };
+    let text = toml::to_string(&file)
+        .map_err(|e| Error::InvalidInput(format!("{}: {e}", path.display())))?;
+    let tmp = path.with_file_name(format!(".{session}.toml.bs-tmp-{}", env.pid));
+    let written = fs::create_dir_all(env.sessions_dir()).and_then(|()| {
+        let mut f = fs::File::create(&tmp)?;
+        f.write_all(text.as_bytes())?;
+        f.sync_all()?;
+        fs::rename(&tmp, &path)
+    });
+    written.map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        Error::Io(format!("{}: {e}", path.display()))
+    })
+}
+
+/// The reference of `session`; `None` for an invalid ID, a missing or unparsable file (6.4).
+pub fn read_reference(env: &Env, session: &str) -> Option<SessionRef> {
+    let text = fs::read_to_string(reference_path(env, session)?).ok()?;
+    let f: RefFile = toml::from_str(&text).ok()?;
+    Some(SessionRef {
+        card: CardId::parse(&f.card)?,
+        board: f.board,
+        pane: f.pane,
+        cwd: f.cwd,
+        set_at: f.set_at,
+    })
 }
 
 /// Age after which `prune` removes a file from `sessions/` or `panes/` (TECHSPEC 10, T-17).
