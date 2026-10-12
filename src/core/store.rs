@@ -2,12 +2,13 @@
 
 use crate::core::env::{Env, encode_file_name};
 use crate::core::error::{Error, Result};
-use crate::core::model::{Board, Card, CardId, NewCard};
+use crate::core::model::{Board, Card, CardId, NewCard, NewNote};
 use crate::core::template::Template;
 use crate::core::{board_file, card_file, failpoint, log};
 use jiff::tz::TimeZone;
 use std::fs::{self, File, TryLockError};
 use std::io::{ErrorKind, Write};
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -259,4 +260,47 @@ pub fn verify_move(before: &[u8], after: &[u8], column: &str) -> bool {
     // R2: one line changed, added or already right, or a three-line frontmatter put in front.
     let r2 = (removed <= added && added <= 1) || (pre == 0 && removed == 0 && added == 3);
     r2 && parsed.column == column
+}
+
+// Park (FR-16, R3, R7).
+
+/// A parked card re-read from the written bytes, and the splice warnings.
+#[derive(Debug)]
+pub struct Parked {
+    pub card: Card,
+    pub warnings: Vec<String>,
+}
+
+/// R7 for park: `after` holds exactly one more note and equals `before` outside `inserted`.
+pub fn verify_park(before: &[u8], after: &[u8], inserted: Range<usize>) -> bool {
+    let notes = |b: &[u8]| card_file::note_blocks(&String::from_utf8_lossy(b)).len();
+    let (s, e) = (inserted.start, inserted.end);
+    after.len() == before.len() + inserted.len()
+        && after.get(..s) == before.get(..s)
+        && after.get(e..) == before.get(s..)
+        && notes(after) == notes(before) + 1
+}
+
+/// Appends `note` to card `id` under the board lock, re-reading the file inside it (FR-16).
+pub fn park(env: &Env, board: &Board, id: CardId, note: &NewNote) -> Result<Parked> {
+    if [&note.doing, &note.next, &note.watch_out]
+        .iter()
+        .all(|p| p.trim().is_empty())
+    {
+        return Err(Error::InvalidInput("empty note".to_string()));
+    }
+    let _lock = lock_board(env, &board.path)?;
+    let path = board.path.join(id.file_name());
+    let before = fs::read(&path).map_err(|e| match e.kind() {
+        ErrorKind::NotFound => Error::NotFound(format!("{id} not found")),
+        _ => Error::Io(format!("{}: {e}", path.display())),
+    })?;
+    let a = card_file::append_note(&id.file_name(), &before, note)?;
+    let verify = |after: &[u8]| verify_park(&before, after, a.inserted.clone());
+    write_atomic(env, &path, &a.bytes, &verify, Some("park:after_tmp"))?;
+    let card = card_file::parse(id, &path, &a.bytes, &board.meta.columns[0], &env.tz).card;
+    Ok(Parked {
+        card,
+        warnings: a.warnings,
+    })
 }
