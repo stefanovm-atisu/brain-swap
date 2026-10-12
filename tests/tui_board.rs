@@ -3,10 +3,11 @@
 mod common;
 
 use brain_swap::core::model::{Card, CardId};
-use brain_swap::tui::app::{App, Selection};
+use brain_swap::tui::app::{App, Input, Selection, update};
 use brain_swap::tui::view_board::card_lines;
-use common::tui::{TuiFixture, assert_no_colour, render, rows};
+use common::tui::{Ev, TuiFixture, assert_no_colour, render, rows, write_card};
 use ratatui::style::Modifier;
+use std::time::Duration;
 
 fn app(fixture: &str) -> App {
     TuiFixture::new(Some(fixture)).app()
@@ -158,4 +159,62 @@ fn fr20_preview_skips_blank_first_line_of_next() {
 #[test]
 fn fr20_blank_next_falls_back_to_doing() {
     assert_eq!(second_line("first", "\n  \n"), "  39 min  first");
+}
+
+/// The row under the one holding `W-12` in `lines`.
+fn w12_second_row(lines: &[String]) -> &str {
+    let i = lines.iter().position(|r| r.contains("W-12")).unwrap();
+    &lines[i + 1]
+}
+
+#[test]
+fn fr21_card_ages_are_floored() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    let stamps = [
+        "2026-10-08T11:51:01+03:00",
+        "2026-10-08T11:51:00+03:00",
+        "2026-10-08T10:52:01+03:00",
+        "2026-10-07T11:53:00+03:00",
+        "2026-10-06T17:05:00+03:00",
+        "2026-10-08T11:57:00+03:00",
+        "someday",
+    ];
+    for (i, at) in stamps.iter().enumerate() {
+        let id = format!("W-{}", i + 1);
+        write_card(&fx.board_dir, &id, "Todo", stamps[0], &[(at, "go")]);
+    }
+    let app = fx.app();
+    let ages: Vec<String> = (1..=7)
+        .map(|i| card_lines(&card(&app, &format!("W-{i}")), &app.now).1)
+        .collect();
+    let want = [
+        "  now", "  1 min", "  59 min", "  23 h", "  1 d", "  now", "  ?",
+    ];
+    for (got, want) in ages.iter().zip(want) {
+        assert!(got.starts_with(&format!("{want}  ")), "{got:?} vs {want:?}");
+    }
+}
+
+#[test]
+fn fr21_tick_refreshes_card_age() {
+    let mut app = app("work_4_9");
+    assert!(w12_second_row(&rows(&render(&app, 80, 24))).contains("39 min"));
+    let later = app.now.checked_add(Duration::from_secs(60)).unwrap();
+    update(&mut app, Input::Tick(later));
+    assert!(w12_second_row(&rows(&render(&app, 80, 24))).contains("40 min"));
+}
+
+#[test]
+fn fr21_idle_runtime_refreshes_ages_within_30_seconds() {
+    let mut fx = TuiFixture::new(Some("work_4_9"));
+    fx.env.now = fx.env.now.checked_add(Duration::from_secs(30)).unwrap();
+    let (mut rt, _guard, events) = fx.runtime(80, 24);
+    rt.draw().unwrap();
+    let first = rows(rt.terminal.backend().buffer());
+    assert!(w12_second_row(&first).contains("39 min"));
+    events.push((0..120).map(|_| Ev::Timeout));
+    events.push([Ev::Key("q")]);
+    rt.run();
+    let last = rows(rt.terminal.backend().buffer());
+    assert!(w12_second_row(&last).contains("40 min"));
 }

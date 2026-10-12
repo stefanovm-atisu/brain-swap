@@ -305,7 +305,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F2-T3 Ages and refresh
 
-- Status: doing
+- Status: done
 - Depends on: E4-F2-T1, E4-F1-T7
 - Covers: FR-21; TECHSPEC 7.3 (age: `now`, `N min`, `N h`, `N d`, `?`, floored, redrawn at least every 30 seconds)
 - Size: S
