@@ -21,9 +21,12 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
         " {} {} ({}, {})",
         card.id, card.title, card.column, app.board.name
     )];
-    if let Some(n) = card.notes.get(note) {
-        lines.extend(note_lines(n, note, card.notes.len(), &app.now));
-        lines.push(where_line(&n.place));
+    match card.notes.get(note) {
+        Some(n) => {
+            lines.extend(note_lines(n, note, card.notes.len(), &app.now));
+            lines.push(where_line(&n.place));
+        }
+        None => lines.push(" no note yet".to_string()),
     }
     let width = usize::from(area.width);
     lines.push("-".repeat(width));
@@ -85,7 +88,11 @@ pub fn note_lines(note: &Note, index: usize, count: usize, now: &Stamp) -> Vec<S
         Age::Now => "now".to_string(),
         a => format!("{a} ago"),
     };
-    let stamp = note.at.as_ref().map(format_stamp).unwrap_or_default();
+    // A bad stamp shows the heading text after `### ` (TECHSPEC 4.7).
+    let stamp = note.at.as_ref().map_or_else(
+        || note.heading.get(4..).unwrap_or_default().trim().to_string(),
+        format_stamp,
+    );
     let auto = if note.auto { ", auto" } else { "" };
     let mut lines = vec![format!(" note {}/{count}, {stamp}, {ago}{auto}", index + 1)];
     for (label, text) in [

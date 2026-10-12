@@ -4,7 +4,7 @@ mod common;
 
 use brain_swap::core::keys::KeyMap;
 use brain_swap::core::model::CardId;
-use brain_swap::tui::app::{App, Mode, Selection};
+use brain_swap::tui::app::{App, Input, Mode, Selection, update};
 use common::tui::{TuiFixture, assert_no_colour, press, render, rows};
 
 const W12: CardId = CardId {
@@ -285,4 +285,129 @@ fn fr27_wide_body_line_cut_not_wrapped() {
     let rows = rows(&render(&app, 80, 24));
     let at = rows.iter().position(|r| r.starts_with(" 界")).unwrap();
     assert_eq!(rows[at + 1], " second");
+}
+
+fn w(number: u32) -> CardId {
+    CardId {
+        letter: 'W',
+        number,
+    }
+}
+
+/// The `detail` fixture app in Detail on `W-<number>` at note index `note`.
+fn detail_at(fx: &TuiFixture, number: u32, note: usize) -> App {
+    let mut app = fx.app();
+    app.mode = Mode::Detail {
+        card: w(number),
+        note,
+        scroll: 0,
+    };
+    app
+}
+
+fn where_row(app: &App) -> String {
+    let rows = rows(&render(app, 80, 24));
+    rows.into_iter().find(|r| r.starts_with(" Where:")).unwrap()
+}
+
+#[test]
+fn fr27_card_without_notes_shows_no_note_yet() {
+    let mut app = TuiFixture::new(Some("detail")).app();
+    app.sel = Selection {
+        column: 0,
+        card: Some(w(4)),
+    };
+    press(&mut app, &["o"]);
+    let buf = render(&app, 80, 24);
+    let rows = rows(&buf);
+    assert!(rows.iter().any(|r| r == " no note yet"), "{rows:?}");
+    assert!(!rows.iter().any(|r| r.starts_with(" note ")), "{rows:?}");
+    assert_no_colour(&buf);
+    insta::assert_snapshot!("detail_no_note_80x24", rows.join("\n"));
+    let mode = app.mode.clone();
+    assert!(press(&mut app, &["j", "k"]).is_empty());
+    assert_eq!(app.mode, mode);
+}
+
+#[test]
+fn fr27_note_without_place_shows_where_none() {
+    let fx = TuiFixture::new(Some("detail"));
+    assert_eq!(where_row(&detail_at(&fx, 5, 2)), " Where: none");
+}
+
+#[test]
+fn fr27_note_with_cwd_only_shows_cwd() {
+    let fx = TuiFixture::new(Some("detail"));
+    let app = detail_at(&fx, 5, 1);
+    assert_eq!(where_row(&app), " Where: /w/latency");
+    let rows = rows(&render(&app, 80, 24));
+    assert_eq!(
+        rows[2..4],
+        [
+            " Doing:      two runs done",
+            "             third run pending"
+        ]
+    );
+}
+
+#[test]
+fn fr27_bad_stamp_shows_heading_text_and_question_mark() {
+    let fx = TuiFixture::new(Some("detail"));
+    let app = detail_at(&fx, 6, 0);
+    assert_eq!(rows(&render(&app, 80, 24))[1], " note 1/1, someday, ? ago");
+    assert_eq!(where_row(&app), " Where: /w/odd (pane w4V:p5)");
+}
+
+#[test]
+fn fr32_help_from_detail_returns_to_detail() {
+    let mut app = detail_on_w5();
+    press(&mut app, &["ctrl+d", "j"]);
+    let want = Mode::Detail {
+        card: w(5),
+        note: 1,
+        scroll: 10,
+    };
+    assert_eq!(app.mode, want);
+    assert!(press(&mut app, &["?"]).is_empty());
+    assert_eq!(
+        app.mode,
+        Mode::Help {
+            back: Box::new(want.clone())
+        }
+    );
+    assert!(press(&mut app, &["x"]).is_empty());
+    assert_eq!(app.mode, want);
+}
+
+#[test]
+fn fr23_reload_in_detail_keeps_shown_note() {
+    let fx = TuiFixture::new(Some("detail"));
+    let mut app = detail_at(&fx, 5, 1);
+    let mut f = std::fs::OpenOptions::new()
+        .append(true)
+        .open(fx.board_dir.join("W-5.md"))
+        .unwrap();
+    std::io::Write::write_all(
+        &mut f,
+        b"\n### 2026-10-08T11:50:00+03:00\n- Doing: d\n- Next: n\n- Watch out: w\n",
+    )
+    .unwrap();
+    assert!(update(&mut app, Input::Reloaded(fx.board())).is_empty());
+    assert!(matches!(app.mode, Mode::Detail { note: 1, .. }));
+    assert!(note_row(&app).starts_with(" note 2/4,"));
+}
+
+#[test]
+fn fr23_reload_with_card_gone_returns_to_board() {
+    let fx = TuiFixture::new(Some("detail"));
+    let detail = detail_at(&fx, 5, 1);
+    let mut help = detail.clone();
+    help.mode = Mode::Help {
+        back: Box::new(detail.mode.clone()),
+    };
+    std::fs::remove_file(fx.board_dir.join("W-5.md")).unwrap();
+    for mut app in [detail, help] {
+        update(&mut app, Input::Reloaded(fx.board()));
+        assert_eq!(app.mode, Mode::Board);
+    }
 }

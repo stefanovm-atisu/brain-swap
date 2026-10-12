@@ -221,6 +221,17 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
         }
         Input::Reloaded(board) if board.name == app.board.name => {
             reload(app, board);
+            // A Detail, shown or behind Help, keeps its note clamped, or leaves when its card is gone.
+            let detail = match &mut app.mode {
+                Mode::Help { back } => &mut **back,
+                m => m,
+            };
+            if let Mode::Detail { card, note, .. } = detail {
+                match app.board.card(*card) {
+                    Some(c) => *note = (*note).min(c.notes.len().saturating_sub(1)),
+                    None => app.mode = Mode::Board,
+                }
+            }
             return Vec::new();
         }
         // Selects the card and focuses its column; the mode stays (A-E4-13).
@@ -325,9 +336,9 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
         }
         (Mode::Board, Some(Action::Edit)) => app.sel.card.map(Effect::Edit).into_iter().collect(),
         (Mode::Detail { card, .. }, Some(Action::Edit)) => vec![Effect::Edit(*card)],
-        (Mode::Board, Some(Action::Help)) => {
+        (Mode::Board | Mode::Detail { .. }, Some(Action::Help)) => {
             app.mode = Mode::Help {
-                back: Box::new(Mode::Board),
+                back: Box::new(app.mode.clone()),
             };
             Vec::new()
         }

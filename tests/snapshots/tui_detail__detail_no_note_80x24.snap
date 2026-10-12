@@ -1,0 +1,27 @@
+---
+source: tests/tui_detail.rs
+expression: "rows.join(\"\\n\")"
+---
+ W-4 tidy notes (Todo, work)
+ no note yet
+--------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ j older  k newer  ctrl+d down  ctrl+u up  enter jump  e edit  ? help  q back
