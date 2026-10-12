@@ -205,7 +205,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F2-T5 `show --all` and the note JSON
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F2-T4
 - Covers: TECHSPEC 6.3 (`show --all`, `by_this_session` null), 6.7 (note, `show`)
 - Size: S
