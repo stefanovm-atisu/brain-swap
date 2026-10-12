@@ -1,0 +1,5 @@
+---
+source: tests/cli_move.rs
+expression: stdout
+---
+{"v":1,"card":{"id":"W-11","board":"work","title":"invoice PDF shows the wrong VAT","column":"Doing","open":true,"path":"<sandbox>/boards/work/W-11.md","latest_note":null}}

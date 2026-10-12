@@ -1,0 +1,5 @@
+---
+source: tests/cli_move.rs
+expression: text(&out.stderr)
+---
+brain-swap: W-12.md:7: conflict marker, read only

@@ -1,0 +1,5 @@
+---
+source: tests/cli_move.rs
+expression: err
+---
+brain-swap: unknown column 'Doign' on work (Todo, Doing, Done)

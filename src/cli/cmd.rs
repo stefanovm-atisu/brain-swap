@@ -189,6 +189,30 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                 Err(e) => out.error(&e),
             }
         }
+        Some(Command::Move { id, column }) => {
+            let ctx = ctx.expect("loaded above");
+            let moved = find_card(&ctx, id).and_then(|(board, _)| {
+                let column = board.column(&column)?.to_string();
+                Ok((store::move_card(env, &board, id, &column)?, board, column))
+            });
+            match moved {
+                Ok((moved, board, column)) => {
+                    board.warnings.iter().for_each(|w| out.warn(w));
+                    #[derive(serde::Serialize)]
+                    struct Body<'a> {
+                        card: out::CardJson<'a>,
+                    }
+                    out.result(
+                        &format!("moved {id} to {column}\n"),
+                        Body {
+                            card: out::card_json(&moved.card, &board, &env.now),
+                        },
+                    );
+                    0
+                }
+                Err(e) => out.error(&e),
+            }
+        }
         Some(Command::Templates) => {
             let (ts, warnings) = template::load(&env.templates_dir());
             for w in &warnings {

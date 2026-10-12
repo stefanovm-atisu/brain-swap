@@ -1,0 +1,5 @@
+---
+source: tests/cli_move.rs
+expression: err
+---
+brain-swap: W-99 not found

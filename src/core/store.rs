@@ -265,8 +265,9 @@ pub fn move_card(env: &Env, board: &Board, id: CardId, column: &str) -> Result<M
     };
     card_file::check_writable(&name, &before)?;
     let parse = |b: &[u8]| card_file::parse(id, &path, b, &board.meta.columns[0], &env.tz).card;
-    let card = parse(&before);
+    let mut card = parse(&before);
     if card.column.to_lowercase() == column.to_lowercase() {
+        card.column = column.to_string();
         return Ok(Moved {
             card,
             changed: false,
