@@ -36,17 +36,21 @@ fn script_env(tmp: &Path, body: &str, now: &str) -> Env {
 fn run_env(env: &Env, args: &[&str], timeout: Duration) -> RunResult {
     // A sibling test's fork can briefly inherit our write fd of the script: exec then fails with ETXTBSY.
     for _ in 0..50 {
-        let logged = env.log.as_ref().and_then(|l| fs::metadata(l).ok());
+        // A log that does not exist yet counts as empty, so its busy line is trimmed too.
+        let logged = env
+            .log
+            .as_ref()
+            .map(|l| fs::metadata(l).map_or(0, |m| m.len()));
         let r = ProcessRunner::new(env).run(args, timeout);
         if !matches!(&r.outcome, RunOutcome::SpawnFailed(e) if e.contains("os error 26")) {
             return r;
         }
         // Drop the busy attempt's log line, so a retry leaves one line per call.
-        if let (Some(log), Some(m)) = (&env.log, logged) {
+        if let (Some(log), Some(len)) = (&env.log, logged) {
             let _ = fs::OpenOptions::new()
                 .write(true)
                 .open(log)
-                .and_then(|f| f.set_len(m.len()));
+                .and_then(|f| f.set_len(len));
         }
     }
     panic!("script stayed busy (ETXTBSY) for 50 attempts");
