@@ -743,7 +743,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F5-T4 Lookup by ID, board and column
 
-- Status: doing
+- Status: done
 - Depends on: E1-F5-T3, E1-F3-T1
 - Covers: FR-10; TECHSPEC 4.7 (no move targets an extra column), 6.2 (unknown column), 10 (duplicate letters)
 - Size: S

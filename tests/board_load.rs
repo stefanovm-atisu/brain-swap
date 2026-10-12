@@ -6,7 +6,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use brain_swap::core::board::{Column, load};
+use brain_swap::core::board::{Column, find_card, load};
 use brain_swap::core::error::Error;
 use brain_swap::core::model::{Board, Card, CardId};
 use brain_swap::core::time::parse_stamp;
@@ -372,4 +372,104 @@ fn ts3_jump_note_none_without_placed_notes() {
         ("2026-10-08T10:00:00+03:00", false),
     ]);
     assert_eq!(get(&b, "W-1").jump_note(), None);
+}
+
+/// The `work_4_9` copy plus `home` holding `H-3.md`; `home` is unlistable, so only its `board.md` may be read.
+fn two_boards() -> (tempfile::TempDir, Vec<(String, PathBuf)>) {
+    let (tmp, work) = copy();
+    let home = tmp.path().join("home");
+    fs::create_dir(&home).unwrap();
+    fs::write(home.join("H-3.md"), "# home card\n").unwrap();
+    let boards = vec![("work".to_string(), work), ("home".to_string(), home)];
+    (tmp, boards)
+}
+
+fn find(tmp: &tempfile::TempDir, boards: &[(String, PathBuf)], s: &str) -> Result<Board, Error> {
+    find_card(boards, id(s), &core_env(tmp.path(), NOW))
+}
+
+#[test]
+fn fr10_lower_case_id_finds_card() {
+    let (tmp, boards) = two_boards();
+    fs::set_permissions(&boards[1].1, fs::Permissions::from_mode(0o311)).unwrap();
+    let r = find_card(
+        &boards,
+        CardId::parse("w-12").unwrap(),
+        &core_env(tmp.path(), NOW),
+    );
+    fs::set_permissions(&boards[1].1, fs::Permissions::from_mode(0o755)).unwrap();
+    let b = r.unwrap();
+    assert_eq!(b.name, "work");
+    assert_eq!(b.card(id("W-12")).map(|c| c.id), Some(id("W-12")));
+}
+
+#[test]
+fn fr10_id_resolves_to_board_by_letter() {
+    let (tmp, boards) = two_boards();
+    let b = find(&tmp, &boards, "H-3").unwrap();
+    assert_eq!(b.name, "home");
+}
+
+#[test]
+fn fr10_letter_from_board_md_is_used() {
+    let (tmp, mut boards) = two_boards();
+    let ops = tmp.path().join("ops");
+    fs::create_dir(&ops).unwrap();
+    fs::write(ops.join("board.md"), "---\nletter: X\n---\n# ops\n").unwrap();
+    fs::write(ops.join("X-1.md"), "# ops card\n").unwrap();
+    boards.push(("ops".to_string(), ops));
+    assert_eq!(find(&tmp, &boards, "X-1").unwrap().name, "ops");
+}
+
+#[test]
+fn ts10_duplicate_letter_first_board_wins_with_warning() {
+    let (tmp, mut boards) = two_boards();
+    let wiki = tmp.path().join("wiki");
+    fs::create_dir(&wiki).unwrap();
+    fs::write(wiki.join("W-12.md"), "# wiki card\n").unwrap();
+    boards.insert(1, ("wiki".to_string(), wiki));
+    let b = find(&tmp, &boards, "W-12").unwrap();
+    assert_eq!(b.name, "work");
+    assert!(
+        b.warnings
+            .contains(&"boards work and wiki share letter W; using work".to_string()),
+        "{:?}",
+        b.warnings
+    );
+}
+
+#[test]
+fn ts6_2_unknown_card_is_not_found() {
+    let (tmp, boards) = two_boards();
+    for s in ["W-99", "Q-1"] {
+        let e = find(&tmp, &boards, s).unwrap_err();
+        assert_eq!(e, Error::NotFound(format!("{s} not found")));
+        assert_eq!(e.exit_code(), 3);
+    }
+}
+
+#[test]
+fn ts6_2_column_lookup_ignores_case() {
+    let (tmp, dir) = copy();
+    assert_eq!(load_at(tmp.path(), &dir).column("doing"), Ok("Doing"));
+}
+
+#[test]
+fn ts6_2_unknown_column_lists_columns() {
+    let (tmp, dir) = copy();
+    assert_eq!(
+        load_at(tmp.path(), &dir).column("Doign"),
+        Err(Error::NotFound(
+            "unknown column 'Doign' on work (Todo, Doing, Done)".to_string()
+        ))
+    );
+}
+
+#[test]
+fn ts4_7_extra_column_is_not_a_move_target() {
+    let (tmp, dir) = copy();
+    fs::write(dir.join("W-13.md"), card("Doign", None, &[])).unwrap();
+    let b = load_at(tmp.path(), &dir);
+    assert!(b.column_list().iter().any(|c| c.name == "Doign (unknown)"));
+    assert!(matches!(b.column("Doign"), Err(Error::NotFound(_))));
 }
