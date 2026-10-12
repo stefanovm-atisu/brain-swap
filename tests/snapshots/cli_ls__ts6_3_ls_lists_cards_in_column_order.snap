@@ -1,0 +1,9 @@
+---
+source: tests/cli_ls.rs
+expression: s.redact(&stdout)
+---
+cards on work:
+1. W-11 invoice PDF shows the wrong VAT [Todo] no note
+2. W-12 migrate invoices to v13 [Doing] 39 min: open the MR, ask the DBA for the v13
+3. W-7 fix rounding in act export [Doing] 2 h: check the 0.005 case
+4. W-9 bump rust-version to 1.89 [Done] 1 d: nothing left

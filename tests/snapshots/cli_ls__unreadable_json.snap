@@ -1,0 +1,5 @@
+---
+source: tests/cli_ls.rs
+expression: stdout
+---
+{"v":1,"error":{"code":"io","message":"board work: Not a directory (os error 20)"}}

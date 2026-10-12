@@ -243,7 +243,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F2-T7 `ls` and `ls --open`
 
-- Status: doing
+- Status: done
 - Depends on: E2-F2-T2, E2-F2-T5
 - Covers: TECHSPEC 4.7 (extra columns), 5.2 (unknown keys warn), 6.2 (exit 1 `io`), 6.3 (`ls`, picker line), 6.7 (`ls`), 11 (`BRAIN_SWAP_LOG` inside a board folder, as printed)
 - Size: M

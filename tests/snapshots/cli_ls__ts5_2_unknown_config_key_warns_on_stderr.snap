@@ -1,0 +1,5 @@
+---
+source: tests/cli_ls.rs
+expression: s.redact(&err)
+---
+warning: config: unknown key 'colour'

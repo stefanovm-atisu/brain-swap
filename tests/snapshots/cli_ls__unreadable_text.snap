@@ -1,0 +1,5 @@
+---
+source: tests/cli_ls.rs
+expression: s.redact(&text(&out.stderr))
+---
+brain-swap: board work: Not a directory (os error 20)

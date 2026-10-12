@@ -140,6 +140,44 @@ pub fn note_block(label: &str, n: &Note, now: &Stamp, session: &SessionView) -> 
     s + &format!("Where: {cwd}{pane}\n")
 }
 
+/// `<n>. <ID> <title> [<column>] <age>[, <label>]: <preview>` (6.3), without a newline.
+pub fn picker_line(n: usize, card: &Card, label: Option<&str>, now: &Stamp) -> String {
+    let (age, preview) = match card.latest_note() {
+        Some(note) => (age(note.at.as_ref(), now).to_string(), preview(note)),
+        None => ("no note".to_string(), String::new()),
+    };
+    let label = label.map(|l| format!(", {l}")).unwrap_or_default();
+    let preview = match preview.is_empty() {
+        true => preview,
+        false => format!(": {preview}"),
+    };
+    let (id, title, column) = (card.id, &card.title, &card.column);
+    format!("{n}. {id} {title} [{column}] {age}{label}{preview}")
+}
+
+/// The first non-blank line of Next, else Doing, cut at the last word boundary within 40 characters.
+pub fn preview(note: &Note) -> String {
+    let mut lines = note.next.lines().chain(note.doing.lines()).map(str::trim);
+    let line = lines
+        .find(|l| !l.is_empty())
+        .unwrap_or_default()
+        .to_string();
+    let chars: Vec<char> = line.chars().collect();
+    if chars.len() <= 40 {
+        return line;
+    }
+    // A space at position 40 still keeps the 40 characters before it whole.
+    let cut = chars[..41]
+        .iter()
+        .rposition(|c| c.is_whitespace())
+        .unwrap_or(40);
+    chars[..cut]
+        .iter()
+        .collect::<String>()
+        .trim_end()
+        .to_string()
+}
+
 /// One `--json` object: `v` first, then the flattened body.
 #[derive(Serialize)]
 pub struct Envelope<T> {
@@ -366,6 +404,60 @@ mod tests {
         let v = serde_json::to_value(note_json(&note("### yesterday"), &now)).unwrap();
         assert!(v["at"].is_null(), "{v}");
         assert!(v["age_min"].is_null(), "{v}");
+    }
+
+    fn card(notes: Vec<crate::core::model::Note>) -> Card {
+        Card {
+            id: crate::core::model::CardId::parse("W-1").unwrap(),
+            path: "W-1.md".into(),
+            title: "t".into(),
+            column: "Todo".into(),
+            template: None,
+            created: None,
+            body: String::new(),
+            notes,
+            writable: true,
+            mtime: None,
+        }
+    }
+
+    #[test]
+    fn ts6_3_picker_preview_cut_at_word_boundary() {
+        let mut n = note("### 2026-10-08T11:00:00+03:00");
+        n.next = "open the MR, ask the DBA for the v13 deploy list".into();
+        assert_eq!(preview(&n), "open the MR, ask the DBA for the v13");
+        let forty = "abcd efghi ".repeat(4)[..40].to_string();
+        n.next = forty.clone();
+        assert_eq!(preview(&n), forty);
+        n.next = "x".repeat(50);
+        assert_eq!(preview(&n), "x".repeat(40));
+        n.next = "\u{fc}".repeat(45);
+        assert_eq!(preview(&n), "\u{fc}".repeat(40));
+    }
+
+    #[test]
+    fn ts6_3_picker_preview_skips_blank_leading_lines() {
+        let mut n = note("### 2026-10-08T11:00:00+03:00");
+        n.next = "\nopen the MR".into();
+        assert_eq!(preview(&n), "open the MR");
+        n.next = String::new();
+        n.doing = "\nmigration test passes".into();
+        assert_eq!(preview(&n), "migration test passes");
+    }
+
+    #[test]
+    fn ts6_3_picker_preview_falls_back_to_doing() {
+        let now =
+            crate::core::time::parse_stamp("2026-10-08T11:52:00+03:00", &jiff::tz::TimeZone::UTC)
+                .unwrap();
+        let mut n = note("### 2026-10-08T11:00:00+03:00");
+        n.next = String::new();
+        n.doing = "a\nb".into();
+        assert_eq!(preview(&n), "a");
+        n.doing = String::new();
+        let line = picker_line(1, &card(vec![n]), None, &now);
+        assert!(line.ends_with("52 min"), "{line}");
+        assert!(!line.contains(": "), "{line}");
     }
 
     #[test]

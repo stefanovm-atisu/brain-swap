@@ -213,6 +213,38 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                 Err(e) => out.error(&e),
             }
         }
+        Some(Command::Ls { open, .. }) => {
+            let ctx = ctx.expect("loaded above");
+            match ctx.board(cli.board.as_deref()) {
+                Ok(board) => {
+                    board.warnings.iter().for_each(|w| out.warn(w));
+                    let cards: Vec<&Card> = (0..board.column_list().len())
+                        .flat_map(|i| board.cards_in(i))
+                        .filter(|c| !open || board.is_open(c))
+                        .collect();
+                    let mut text = format!("cards on {}:\n", board.name);
+                    for (i, c) in cards.iter().enumerate() {
+                        text += &out::picker_line(i + 1, c, None, &env.now);
+                        text.push('\n');
+                    }
+                    #[derive(serde::Serialize)]
+                    struct Body<'a> {
+                        board: &'a str,
+                        cards: Vec<out::CardJson<'a>>,
+                    }
+                    let cards = cards.iter().map(|c| out::card_json(c, &board, &env.now));
+                    out.result(
+                        &text,
+                        Body {
+                            board: &board.name,
+                            cards: cards.collect(),
+                        },
+                    );
+                    0
+                }
+                Err(e) => out.error(&e),
+            }
+        }
         Some(Command::Templates) => {
             let (ts, warnings) = template::load(&env.templates_dir());
             for w in &warnings {
