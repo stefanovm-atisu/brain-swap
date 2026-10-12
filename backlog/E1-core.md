@@ -930,7 +930,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T7 Editor merge
 
-- Status: doing
+- Status: done
 - Depends on: E1-F6-T4
 - Covers: NFR-08; TECHSPEC 4.7 (missing timeline), 4.8 R6, 7.6 (merge inside the lock), 11 (merges), 12.1 (`edit:after_tmp`)
 - Size: M

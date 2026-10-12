@@ -4,7 +4,7 @@ use crate::core::env::{Env, encode_file_name};
 use crate::core::error::{Error, Result};
 use crate::core::model::{Board, Card, CardId, NewCard, NewNote};
 use crate::core::template::Template;
-use crate::core::{board_file, card_file, failpoint, log};
+use crate::core::{board_file, card_file, failpoint, frontmatter, log};
 use jiff::tz::TimeZone;
 use std::fs::{self, File, TryLockError};
 use std::io::{ErrorKind, Write};
@@ -325,5 +325,86 @@ pub fn park(env: &Env, board: &Board, id: CardId, note: &NewNote) -> Result<Park
     Ok(Parked {
         card,
         warnings: a.warnings,
+    })
+}
+
+// Editor merge (7.6, R6).
+
+/// What `merge_edit` did: whether it wrote, and how many parked notes it carried over.
+#[derive(Debug)]
+pub struct Merged {
+    pub written: bool,
+    pub added_notes: usize,
+}
+
+/// Writes the editor's bytes `edited` over card `id`, merging what changed on disk since `c0` (7.6).
+/// The only store function that writes bytes it did not splice itself (R6): the user's bytes, plus
+/// the note blocks parked meanwhile, plus the file's column line when only the file changed it.
+pub fn merge_edit(
+    env: &Env,
+    board: &Board,
+    id: CardId,
+    c0: &[u8],
+    edited: &[u8],
+) -> Result<Merged> {
+    if edited == c0 {
+        return Ok(Merged {
+            written: false,
+            added_notes: 0,
+        });
+    }
+    let _lock = lock_board(env, &board.path)?;
+    let name = id.file_name();
+    let path = board.path.join(&name);
+    let f = match fs::read(&path) {
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            return Err(Error::NotFound(format!("{id} not found")));
+        }
+        r => r.map_err(io)?,
+    };
+    let text = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
+    let blocks = |t: &str| -> Vec<String> {
+        card_file::note_blocks(t)
+            .into_iter()
+            .map(|r| t[r].to_string())
+            .collect()
+    };
+    let column = |t: &str| match frontmatter::read(t) {
+        frontmatter::FmRead::Valid(fm) => fm.get("column").map(str::to_string),
+        _ => None,
+    };
+    let (f_text, c0_text) = (text(&f), text(c0));
+    let old = blocks(&c0_text);
+    let added: Vec<String> = if f == c0 {
+        Vec::new()
+    } else {
+        blocks(&f_text)
+            .into_iter()
+            .filter(|b| !old.contains(b))
+            .collect()
+    };
+    let f_column = column(&f_text).filter(|c| {
+        f != c0 && column(&text(edited)) == column(&c0_text) && Some(c) != column(&c0_text).as_ref()
+    });
+    if !added.is_empty() || f_column.is_some() {
+        card_file::check_writable(&name, edited)?;
+    }
+    let mut out = edited.to_vec();
+    for b in &added {
+        out = card_file::append_raw(&name, &out, &format!("\n{b}\n"))?.bytes;
+    }
+    if let Some(c) = &f_column {
+        out = frontmatter::set(&out, "column", c)?;
+    }
+    let lf = |s: &str| s.replace("\r\n", "\n");
+    let verify = |b: &[u8]| {
+        let t = lf(&text(b));
+        added.iter().all(|a| t.contains(&lf(a)))
+    };
+    write_atomic(env, &path, &out, &verify, Some("edit:after_tmp"))?;
+    log::event(env, "merge", &format!("{id} +{} notes", added.len()));
+    Ok(Merged {
+        written: true,
+        added_notes: added.len(),
     })
 }
