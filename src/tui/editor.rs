@@ -2,8 +2,8 @@
 
 use std::fs;
 use std::io::{self, ErrorKind};
-use std::path::PathBuf;
-use std::process::ExitStatus;
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitStatus};
 
 use super::app::Outcome;
 use super::runtime::TerminalGuard;
@@ -15,9 +15,34 @@ pub trait Launcher {
     fn launch(&mut self, argv: &[String]) -> io::Result<ExitStatus>;
 }
 
+/// Runs `argv[0]` with the rest as arguments and inherited stdio, never through a shell.
+pub struct ProcessLauncher;
+
+impl Launcher for ProcessLauncher {
+    fn launch(&mut self, argv: &[String]) -> io::Result<ExitStatus> {
+        Command::new(&argv[0]).args(&argv[1..]).status()
+    }
+}
+
 /// `<edit_dir>/<board>-<ID>.md`.
 pub fn copy_path(env: &Env, board: &str, id: CardId) -> PathBuf {
     env.edit_dir().join(format!("{board}-{id}.md"))
+}
+
+/// The editor command for `copy` (TECHSPEC 5.2).
+pub fn editor_argv(config_editor: &str, env: &Env, copy: &Path) -> Vec<String> {
+    let editor = [
+        Some(config_editor),
+        env.visual.as_deref(),
+        env.editor.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|e| !e.trim().is_empty())
+    .unwrap_or("vi");
+    let mut argv: Vec<String> = editor.split_ascii_whitespace().map(String::from).collect();
+    argv.push(copy.to_string_lossy().into_owned());
+    argv
 }
 
 /// Copies `C0`, runs the editor on the copy between `leave` and `enter`, merges a zero-exit save.
@@ -51,15 +76,7 @@ fn edit(
     let copy = copy_path(env, &board.name, id);
     fs::create_dir_all(env.edit_dir())?;
     fs::write(&copy, &c0)?;
-    // ponytail: E4-F5-T2 replaces this with `editor_argv` ($VISUAL, $EDITOR).
-    let mut argv: Vec<String> = config_editor
-        .split_ascii_whitespace()
-        .map(String::from)
-        .collect();
-    if argv.is_empty() {
-        argv.push("vi".into());
-    }
-    argv.push(copy.to_string_lossy().into_owned());
+    let argv = editor_argv(config_editor, env, &copy);
     guard.leave()?;
     let status = launcher.launch(&argv);
     guard.enter()?;

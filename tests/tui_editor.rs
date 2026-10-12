@@ -8,10 +8,13 @@ use brain_swap::core::model::{CardId, NewNote};
 use brain_swap::core::store::park;
 use brain_swap::tui::Prepared;
 use brain_swap::tui::app::{App, Effect, Input, Mode, Outcome, Selection, update};
+use brain_swap::tui::editor::editor_argv;
 use brain_swap::tui::runtime::Runtime;
-use common::tui::{FakeLauncher, TuiFixture, fake_runtime_with, key, press};
+use common::env::core_env;
+use common::tui::{FakeLauncher, NOW, TuiFixture, fake_runtime_with, key, press};
 use ratatui::backend::TestBackend;
 use std::fs;
+use std::path::Path;
 
 const W12: CardId = CardId {
     letter: 'W',
@@ -148,5 +151,52 @@ fn r6_note_parked_in_process_during_edit_is_kept() {
     assert_eq!(
         fs::read_to_string(fx.board_dir.join("W-12.md")).unwrap(),
         format!("{e}{block}")
+    );
+}
+
+/// `editor_argv` with copy `/s/c.md` and the given `editor`, `$VISUAL` and `$EDITOR`.
+fn argv(config_editor: &str, visual: Option<&str>, editor: Option<&str>) -> Vec<String> {
+    let mut env = core_env(Path::new("/h"), NOW);
+    env.visual = visual.map(String::from);
+    env.editor = editor.map(String::from);
+    editor_argv(config_editor, &env, Path::new("/s/c.md"))
+}
+
+#[test]
+fn fr31_config_editor_wins() {
+    assert_eq!(
+        argv("nvim", Some("code"), Some("nano")),
+        ["nvim", "/s/c.md"]
+    );
+}
+
+#[test]
+fn fr31_visual_used_when_config_empty() {
+    assert_eq!(
+        argv("", Some("code --wait"), None),
+        ["code", "--wait", "/s/c.md"]
+    );
+}
+
+#[test]
+fn fr31_editor_variable_used_when_visual_unset() {
+    assert_eq!(argv("", None, Some("nano")), ["nano", "/s/c.md"]);
+}
+
+#[test]
+fn fr31_vi_when_nothing_set() {
+    assert_eq!(argv("", None, None), ["vi", "/s/c.md"]);
+}
+
+#[test]
+fn ts5_2_blank_values_fall_through() {
+    assert_eq!(argv("  ", Some(""), Some("nano")), ["nano", "/s/c.md"]);
+}
+
+#[test]
+fn ts5_2_editor_string_split_without_quoting() {
+    assert_eq!(
+        argv("\"my editor\" -f\t-x", None, None),
+        ["\"my", "editor\"", "-f", "-x", "/s/c.md"]
     );
 }

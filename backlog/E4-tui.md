@@ -610,7 +610,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F5-T2 Editor command
 
-- Status: doing
+- Status: done
 - Depends on: E4-F5-T1, E1-F3-T1
 - Covers: FR-31; TECHSPEC 5.2 (`editor`, else `$VISUAL`, else `$EDITOR`, else `vi`; split on ASCII whitespace with no quoting and no shell; the copy's path appended last)
 - Size: S
