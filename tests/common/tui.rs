@@ -5,15 +5,23 @@ use brain_swap::core::board::load;
 use brain_swap::core::env::Env;
 use brain_swap::core::keys::{Key, KeyMap, parse_binding};
 use brain_swap::core::model::Board;
+use brain_swap::core::time::Stamp;
+use brain_swap::tui::Prepared;
 use brain_swap::tui::app::{App, Effect, Input, update};
+use brain_swap::tui::runtime::{Clock, Events, Parts, Runtime, TerminalGuard};
 use brain_swap::tui::view_frame::draw;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
+use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::time::Duration;
 
 pub const NOW: &str = "2026-10-08T11:52:00+03:00";
 
@@ -68,6 +76,114 @@ impl TuiFixture {
             self.env.now.clone(),
             self.home.clone(),
         )
+    }
+
+    /// A runtime over `app()` and the loaded config on a `TestBackend`, with fakes.
+    pub fn runtime(
+        &self,
+        width: u16,
+        height: u16,
+    ) -> (Runtime<TestBackend>, FakeGuard, FakeEvents) {
+        let config = brain_swap::core::config::load(&self.env).unwrap().config;
+        let prepared = Prepared {
+            app: self.app(),
+            config: Some(config),
+        };
+        fake_runtime(&self.env, prepared, width, height)
+    }
+}
+
+/// A runtime over `prepared` with a `FakeGuard`, an empty `FakeEvents` and a `FakeClock` at `env.now`.
+pub fn fake_runtime(
+    env: &Env,
+    prepared: Prepared,
+    width: u16,
+    height: u16,
+) -> (Runtime<TestBackend>, FakeGuard, FakeEvents) {
+    let guard = FakeGuard::default();
+    let clock = FakeClock(Rc::new(RefCell::new(env.now.clone())));
+    let events = FakeEvents {
+        queue: Rc::default(),
+        timeouts: Rc::default(),
+        clock: clock.clone(),
+    };
+    let parts = Parts {
+        guard: Box::new(guard.clone()),
+        events: Box::new(events.clone()),
+        clock: Box::new(clock),
+    };
+    let terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    (
+        Runtime::new(env.clone(), prepared, terminal, parts),
+        guard,
+        events,
+    )
+}
+
+/// A shared log of `enter` and `leave`.
+#[derive(Clone, Default)]
+pub struct FakeGuard(pub Rc<RefCell<Vec<&'static str>>>);
+
+impl TerminalGuard for FakeGuard {
+    fn enter(&mut self) -> io::Result<()> {
+        self.0.borrow_mut().push("enter");
+        Ok(())
+    }
+    fn leave(&mut self) -> io::Result<()> {
+        self.0.borrow_mut().push("leave");
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct FakeClock(pub Rc<RefCell<Stamp>>);
+
+impl Clock for FakeClock {
+    fn now(&self) -> Stamp {
+        self.0.borrow().clone()
+    }
+}
+
+/// One scripted answer of `FakeEvents::poll`.
+pub enum Ev {
+    Key(&'static str),
+    Timeout,
+    Error,
+    Panic,
+}
+
+/// Answers `poll` from `queue`, records each timeout; a `Timeout` advances the clock by it.
+#[derive(Clone)]
+pub struct FakeEvents {
+    pub queue: Rc<RefCell<VecDeque<Ev>>>,
+    pub timeouts: Rc<RefCell<Vec<Duration>>>,
+    pub clock: FakeClock,
+}
+
+impl FakeEvents {
+    pub fn push(&self, events: impl IntoIterator<Item = Ev>) {
+        self.queue.borrow_mut().extend(events);
+    }
+}
+
+impl Events for FakeEvents {
+    fn poll(&mut self, timeout: Duration) -> io::Result<Option<KeyEvent>> {
+        self.timeouts.borrow_mut().push(timeout);
+        match self
+            .queue
+            .borrow_mut()
+            .pop_front()
+            .expect("FakeEvents exhausted")
+        {
+            Ev::Key(k) => Ok(Some(key(k))),
+            Ev::Timeout => {
+                let mut now = self.clock.0.borrow_mut();
+                *now = now.checked_add(timeout).unwrap();
+                Ok(None)
+            }
+            Ev::Error => Err(io::Error::other("fake event error")),
+            Ev::Panic => panic!("fake event panic"),
+        }
     }
 }
 

@@ -36,6 +36,12 @@ pub mod tui {
     pub mod view_help;
     pub mod view_message;
 
+    /// What `Runtime::new` starts from.
+    pub struct Prepared {
+        pub app: app::App,
+        pub config: Option<crate::core::config::Config>,
+    }
+
     /// Placeholder until E4-F1-T8; without a terminal it already exits 2 (6.3).
     pub fn run(_env: crate::core::env::Env, _board: Option<String>, terminal: bool) -> i32 {
         if !terminal {
