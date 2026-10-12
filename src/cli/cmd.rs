@@ -143,7 +143,7 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                     out.result(
                         &text,
                         Body {
-                            card: out::card_json(card, &board),
+                            card: out::card_json(card, &board, &env.now),
                         },
                     );
                     0
@@ -151,7 +151,7 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                 Err(e) => out.error(&e),
             }
         }
-        Some(Command::Show { id, .. }) => {
+        Some(Command::Show { id, all }) => {
             let ctx = ctx.expect("loaded above");
             match find_card(&ctx, id) {
                 Ok((board, card)) => {
@@ -159,12 +159,28 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                     #[derive(serde::Serialize)]
                     struct Body<'a> {
                         card: out::CardJson<'a>,
+                        notes: Vec<out::NoteJson<'a>>,
                     }
                     let view = out::SessionView::Unresolved;
+                    let mut text = out::card_block(&card, &board, &env.now, &view);
+                    // Notes before the latest, numbered from the oldest as 1 (A-E2-13).
+                    let older = if all {
+                        card.notes.len().saturating_sub(1)
+                    } else {
+                        0
+                    };
+                    for (i, n) in card.notes[..older].iter().enumerate().rev() {
+                        text += &format!(
+                            "\n{}",
+                            out::note_block(&format!("note {}", i + 1), n, &env.now, &view)
+                        );
+                    }
+                    let notes = card.notes.iter().rev().take(older + 1);
                     out.result(
-                        &out::card_block(&card, &board, &env.now, &view),
+                        &text,
                         Body {
-                            card: out::card_json(&card, &board),
+                            card: out::card_json(&card, &board, &env.now),
+                            notes: notes.map(|n| out::note_json(n, &env.now)).collect(),
                         },
                     );
                     0

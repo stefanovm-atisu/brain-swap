@@ -97,3 +97,57 @@ fn ts6_2_show_unknown_card_exits_3() {
         insta::assert_snapshot!(format!("{id}_json"), stdout);
     }
 }
+
+#[test]
+fn ts6_3_show_all_adds_older_notes_newest_first() {
+    let s = sandbox();
+    let out = s.redact(&text(&run(&s, &["show", "W-12", "--all"], 0).stdout));
+    assert_eq!(
+        out,
+        show(&s, "W-12")
+            + "\nnote 1: 2026-10-08T10:31:05+03:00, 1 h ago, auto, by session 55583127-a22a-49bc-a803-e777c377a595\n\
+               Doing: switched InvoiceRepository to v13, unit tests green\n\
+               Next: rerun the migration test against the staging copy\n\
+               Watch out: v13 needs a 10 s timeout entry, the default is 2 s\n\
+               Where: <sandbox>/ati.billing (pane w4V:p9)\n"
+    );
+    insta::assert_snapshot!(out);
+}
+
+fn json(s: &Sandbox, args: &[&str]) -> (String, serde_json::Value) {
+    let out = s.redact(&text(&run(s, args, 0).stdout));
+    let v = serde_json::from_str(&out).unwrap();
+    (out, v)
+}
+
+#[test]
+fn ts6_7_show_json_card_and_latest_note() {
+    let s = sandbox();
+    let (out, v) = json(&s, &["--json", "show", "W-12"]);
+    let n = &v["card"]["latest_note"];
+    assert_eq!(n["at"], "2026-10-08T11:12:40+03:00", "{out}");
+    assert_eq!(n["age_min"], 39, "{out}");
+    assert_eq!(n["auto"], false, "{out}");
+    assert!(n["by_this_session"].is_null(), "{out}");
+    assert_eq!(n["place"]["herdr"]["pane"], "w4V:p9", "{out}");
+    assert_eq!(v["notes"], serde_json::json!([n]), "{out}");
+    insta::assert_snapshot!(out);
+}
+
+#[test]
+fn ts6_7_show_all_json_notes_newest_first() {
+    let s = sandbox();
+    let (out, v) = json(&s, &["--json", "show", "W-12", "--all"]);
+    let at: Vec<&str> = v["notes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|n| n["at"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        at,
+        ["2026-10-08T11:12:40+03:00", "2026-10-08T10:31:05+03:00"],
+        "{out}"
+    );
+    insta::assert_snapshot!(out);
+}

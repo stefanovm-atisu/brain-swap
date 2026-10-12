@@ -1,8 +1,8 @@
 //! Result, error and warning output (TECHSPEC 6.2, 6.7).
 
 use crate::core::error::Error;
-use crate::core::model::{Board, Card};
-use crate::core::time::{Age, Stamp, age, format_stamp};
+use crate::core::model::{Board, Card, Note};
+use crate::core::time::{Age, Stamp, age, age_minutes, format_stamp};
 use serde::Serialize;
 use std::io::{Stderr, Stdout, Write};
 use std::path::Path;
@@ -16,11 +16,10 @@ pub struct CardJson<'a> {
     pub column: &'a str,
     pub open: bool,
     pub path: &'a Path,
-    // ponytail: always null until `note_json` exists (E2-F2-T5).
-    pub latest_note: Option<()>,
+    pub latest_note: Option<NoteJson<'a>>,
 }
 
-pub fn card_json<'a>(card: &'a Card, board: &'a Board) -> CardJson<'a> {
+pub fn card_json<'a>(card: &'a Card, board: &'a Board, now: &Stamp) -> CardJson<'a> {
     CardJson {
         id: card.id.to_string(),
         board: &board.name,
@@ -28,7 +27,56 @@ pub fn card_json<'a>(card: &'a Card, board: &'a Board) -> CardJson<'a> {
         column: &card.column,
         open: board.is_open(card),
         path: &card.path,
-        latest_note: None,
+        latest_note: card.latest_note().map(|n| note_json(n, now)),
+    }
+}
+
+/// The 6.7 note.
+#[derive(Serialize)]
+pub struct NoteJson<'a> {
+    pub at: Option<String>,
+    pub age_min: Option<i64>,
+    pub auto: bool,
+    pub doing: &'a str,
+    pub next: &'a str,
+    pub watch_out: &'a str,
+    pub by_this_session: Option<bool>,
+    pub place: PlaceJson<'a>,
+}
+
+#[derive(Serialize)]
+pub struct PlaceJson<'a> {
+    pub cwd: Option<&'a Path>,
+    pub session: Option<&'a str>,
+    pub herdr: Option<HerdrJson<'a>>,
+}
+
+#[derive(Serialize)]
+pub struct HerdrJson<'a> {
+    pub pane: &'a str,
+    pub tab: Option<&'a str>,
+    pub workspace: Option<&'a str>,
+}
+
+/// `by_this_session` stays null: `show` resolves no session (A-E2-21).
+pub fn note_json<'a>(n: &'a Note, now: &Stamp) -> NoteJson<'a> {
+    NoteJson {
+        at: n.at.as_ref().map(format_stamp),
+        age_min: age_minutes(n.at.as_ref(), now),
+        auto: n.auto,
+        doing: &n.doing,
+        next: &n.next,
+        watch_out: &n.watch_out,
+        by_this_session: None,
+        place: PlaceJson {
+            cwd: n.place.cwd.as_deref(),
+            session: n.place.session.as_deref(),
+            herdr: n.place.herdr.as_ref().map(|h| HerdrJson {
+                pane: &h.pane,
+                tab: h.tab.as_deref(),
+                workspace: h.workspace.as_deref(),
+            }),
+        },
     }
 }
 
@@ -42,13 +90,18 @@ pub enum SessionView {
 
 /// The block from `card:` on (6.3).
 pub fn card_block(card: &Card, board: &Board, now: &Stamp, session: &SessionView) -> String {
-    let mut s = format!(
+    let s = format!(
         "card: {} {}\nboard: {}, column: {}\n",
         card.id, card.title, board.name, card.column
     );
-    let Some(n) = card.latest_note() else {
-        return s + "latest note: none\n";
-    };
+    match card.latest_note() {
+        Some(n) => s + &note_block("latest note", n, now, session),
+        None => s + "latest note: none\n",
+    }
+}
+
+/// `<label>: <stamp>, <age>[, auto], <ending>`, the three parts and the `Where:` line.
+pub fn note_block(label: &str, n: &Note, now: &Stamp, session: &SessionView) -> String {
     let stamp = n.at.as_ref().map(format_stamp).unwrap_or_else(|| {
         let h = n.heading.get(4..).unwrap_or_default().trim();
         h.strip_suffix(" auto").unwrap_or(h).trim_end().to_string()
@@ -64,7 +117,7 @@ pub fn card_block(card: &Card, board: &Board, now: &Stamp, session: &SessionView
         (Some(id), SessionView::Resolved(Some(me))) if id == me => "by this session".to_string(),
         (Some(_), SessionView::Resolved(_)) => "by another session".to_string(),
     };
-    s += &format!("latest note: {stamp}, {age}{auto}, {ending}\n");
+    let mut s = format!("{label}: {stamp}, {age}{auto}, {ending}\n");
     for (label, part) in [
         ("Doing", &n.doing),
         ("Next", &n.next),
@@ -297,6 +350,22 @@ mod tests {
             b.ends_with("\nNext: a\n  b\nWatch out:\nWhere: none\n"),
             "{b}"
         );
+    }
+
+    #[test]
+    fn ts6_7_note_json_absent_values_null() {
+        let now =
+            crate::core::time::parse_stamp("2026-10-08T11:52:00+03:00", &jiff::tz::TimeZone::UTC)
+                .unwrap();
+        let mut w9 = note("### 2026-10-06T17:05:12+03:00");
+        w9.place.cwd = Some("/s/brain-swap".into());
+        let v = serde_json::to_value(note_json(&w9, &now)).unwrap();
+        assert!(v["place"]["herdr"].is_null(), "{v}");
+        assert!(v["place"]["session"].is_null(), "{v}");
+        assert!(v["by_this_session"].is_null(), "{v}");
+        let v = serde_json::to_value(note_json(&note("### yesterday"), &now)).unwrap();
+        assert!(v["at"].is_null(), "{v}");
+        assert!(v["age_min"].is_null(), "{v}");
     }
 
     #[test]
