@@ -89,7 +89,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F1-T4 Config prelude and config errors
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F1-T2, E1-F3
 - Covers: FR-36; TECHSPEC 6.2 (exit 1, code `config`), 10 (Config bullet), 11 (`BRAIN_SWAP_LOG` inside a board folder)
 - Size: S
