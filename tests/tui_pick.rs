@@ -6,7 +6,7 @@ use brain_swap::core::config::load;
 use brain_swap::core::keys::KeyMap;
 use brain_swap::core::model::CardId;
 use brain_swap::tui::app::{App, Effect, Input, Mode};
-use brain_swap::tui::runtime::Runtime;
+use brain_swap::tui::runtime::{Clock, Runtime};
 use brain_swap::tui::{TuiStart, prepare};
 use common::tui::{TuiFixture, assert_no_colour, key, press, render, rows, write_card};
 use ratatui::backend::TestBackend;
@@ -433,4 +433,84 @@ fn fr30_title_input_snapshots() {
         assert_no_colour(&buf);
         insta::assert_snapshot!(format!("title_input_{w}x{h}"), rows(&buf).join("\n"));
     }
+}
+
+/// Dispatches `n`, `f`, the title (no spaces) and `enter`.
+fn create_through_keys(rt: &mut Runtime<TestBackend>, title: &str) {
+    dispatch_keys(rt, &["n", "f"]);
+    for c in title.chars() {
+        rt.dispatch(Input::Key(key(&c.to_string())));
+    }
+    dispatch_keys(rt, &["enter"]);
+}
+
+#[test]
+fn as6_created_card_appears_selected_in_focused_column() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    let (mut rt, _, _) = fx.runtime(80, 24);
+    dispatch_keys(&mut rt, &["l"]);
+    assert_eq!(rt.app().sel.column, 1);
+    dispatch_keys(
+        &mut rt,
+        &[
+            "n", "f", "f", "i", "x", "space", "l", "o", "g", "i", "n", "enter",
+        ],
+    );
+    let card = fx.board().cards.into_iter().find(|c| c.id.number == 13);
+    let card = card.expect("W-13.md");
+    assert_eq!(card.column, "Doing");
+    assert_eq!(card.template.as_deref(), Some("Feature"));
+    assert_eq!(card.title, "fix login");
+    let app = rt.app();
+    assert_eq!((app.sel.column, app.sel.card), (1, Some(card.id)));
+    assert_eq!(app.status, None);
+    assert_eq!(app.mode, Mode::Board);
+    // The TUI resolves no session and sets no reference.
+    assert!(!fx.env.sessions_dir().exists());
+}
+
+#[test]
+fn as7_tui_creation_skips_past_hand_made_card() {
+    let fx = TuiFixture::new(Some("as7"));
+    let (mut rt, _, _) = fx.runtime(80, 24);
+    create_through_keys(&mut rt, "x");
+    assert!(fx.board_dir.join("W-21.md").exists());
+    assert_eq!(rt.app().sel.card.map(|c| c.number), Some(21));
+}
+
+#[test]
+fn fr30_create_failure_sets_status_line() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    let (mut rt, _, _) = fx.runtime(80, 24);
+    fs::write(fx.board_dir.join("board.md"), "---\nletter W\n---\n").unwrap();
+    let before = fs::read_dir(&fx.board_dir).unwrap().count();
+    create_through_keys(&mut rt, "x");
+    let status = rt.app().status.clone().unwrap_or_default();
+    assert!(status.starts_with("board.md:2: "), "{status}");
+    assert_eq!(fs::read_dir(&fx.board_dir).unwrap().count(), before);
+}
+
+#[test]
+fn fr30_create_on_missing_board_folder_creates_it() {
+    let fx = TuiFixture::new(None);
+    let (mut rt, _, _) = fx.runtime(80, 24);
+    create_through_keys(&mut rt, "x");
+    assert!(fx.board_dir.join("W-1.md").exists());
+    assert_eq!(rt.app().sel.card, Some(CardId::parse("W-1").unwrap()));
+}
+
+#[test]
+fn fr30_created_card_stamped_with_runtime_clock() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    let (mut rt, _, events) = fx.runtime(80, 24);
+    let later = events
+        .clock
+        .now()
+        .checked_add(jiff::SignedDuration::from_secs(7200));
+    *events.clock.0.borrow_mut() = later.unwrap();
+    rt.tick();
+    create_through_keys(&mut rt, "x");
+    let card = fx.board().cards.into_iter().find(|c| c.id.number == 13);
+    let created = card.expect("W-13.md").created.unwrap();
+    assert_eq!(created.timestamp(), events.clock.now().timestamp());
 }

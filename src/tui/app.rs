@@ -260,7 +260,7 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             return Vec::new();
         }
         // Selects the card and focuses its column; the mode stays (A-E4-13).
-        Input::Done(Outcome::Moved(id) | Outcome::Edited(id)) => {
+        Input::Done(Outcome::Moved(id) | Outcome::Created(id) | Outcome::Edited(id)) => {
             if let Some(column) = (0..app.board.column_list().len())
                 .find(|&i| app.board.cards_in(i).iter().any(|c| c.id == id))
             {
@@ -271,7 +271,6 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             }
             return Vec::new();
         }
-        _ => return Vec::new(),
     };
     app.status = None;
     if let Mode::Help { back } | Mode::Message { back, .. } = &mut app.mode {

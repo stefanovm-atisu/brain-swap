@@ -23,7 +23,8 @@ use crate::core::board;
 use crate::core::env::Env;
 use crate::core::log;
 use crate::core::model::CardId;
-use crate::core::store::move_card;
+use crate::core::store::{CreateRequest, create, move_card};
+use crate::core::template::{Template, find};
 use crate::core::time::Stamp;
 
 pub trait TerminalGuard {
@@ -113,6 +114,7 @@ pub struct Runtime<B: Backend> {
     parts: Parts,
     env: Env,
     editor: String,
+    templates: Vec<Template>,
     print: Fingerprint,
     scans: u64,
     last_scan: Stamp,
@@ -129,6 +131,7 @@ impl<B: Backend> Runtime<B> {
             app: prepared.app,
             parts,
             env,
+            templates: prepared.templates,
             editor: prepared.config.map(|c| c.editor).unwrap_or_default(),
         }
     }
@@ -147,6 +150,8 @@ impl<B: Backend> Runtime<B> {
 
     /// Runs `update`, then its effects in order; the exit code once quitting (A-E4-04).
     pub fn dispatch(&mut self, input: Input) -> Option<i32> {
+        // The store stamps from `env.now` (6), so it follows the clock, not the launch time.
+        self.env.now = self.parts.clock.now();
         for effect in update(&mut self.app, input) {
             match effect {
                 Effect::Quit => return Some(matches!(self.app.mode, Mode::ConfigError(_)) as i32),
@@ -184,6 +189,33 @@ impl<B: Backend> Runtime<B> {
                     }
                     self.dispatch(Input::Done(outcome));
                 }
+                Effect::Create {
+                    template,
+                    title,
+                    column,
+                } => {
+                    let b = &self.app.board;
+                    let created = find(&self.templates, &template).and_then(|t| {
+                        let req = CreateRequest {
+                            title: &title,
+                            template: t,
+                            column: Some(&column),
+                            body: None,
+                        };
+                        create(&self.env, b, &req)
+                    });
+                    let outcome = match created {
+                        Ok(c) => {
+                            // Reload before `Done` (A-E4-05); a failed load keeps the board.
+                            if let Ok(new) = board::load(&b.name, &b.path, &self.env) {
+                                self.dispatch(Input::Reloaded(new));
+                            }
+                            Outcome::Created(c.card.id)
+                        }
+                        Err(e) => Outcome::Failed(e.to_string()),
+                    };
+                    self.dispatch(Input::Done(outcome));
+                }
                 // A failed load keeps the current board (A-E4-18); the new folder is the baseline.
                 Effect::LoadBoard(name) => {
                     let Some((_, dir)) = self.app.boards.iter().find(|b| b.0 == name) else {
@@ -198,7 +230,6 @@ impl<B: Backend> Runtime<B> {
                     };
                     self.dispatch(input);
                 }
-                _ => {}
             }
         }
         None
