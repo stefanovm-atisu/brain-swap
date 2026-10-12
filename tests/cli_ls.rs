@@ -1,7 +1,9 @@
-//! TECHSPEC 4.7 extra columns, 5.2, 6.2 `io`, 6.3 `ls` and the picker line, 6.7 `ls`, 11.
+//! TECHSPEC 4.7 extra columns, 5.2, 6.2 `io`, 6.3 `ls` and the picker line, 6.6, 6.7 `ls`, 11.
 
 mod common;
 
+use brain_swap::core::model::{CardId, SessionRef};
+use brain_swap::core::session::write_reference;
 use common::cli::Sandbox;
 use std::fs;
 use std::process::Output;
@@ -136,4 +138,134 @@ fn ts11_log_inside_board_folder_ignored_on_cli() {
         "{err}"
     );
     assert!(!log.exists());
+}
+
+const GUESS: &str = "open cards on work, best guess first:
+1. W-12 migrate invoices to v13 [Doing] 39 min: open the MR, ask the DBA for the v13
+2. W-7 fix rounding in act export [Doing] 2 h: check the 0.005 case
+3. W-11 invoice PDF shows the wrong VAT [Todo] no note
+o. other board: home, personal
+";
+
+fn line2(out: &Output) -> String {
+    text(&out.stdout)
+        .lines()
+        .nth(1)
+        .unwrap_or_default()
+        .to_string()
+}
+
+#[test]
+fn fr38_ls_guess_orders_open_cards_by_tier() {
+    let s = sandbox();
+    let out = run(&s, &["ls", "--open", "--guess"], 0);
+    let stdout = text(&out.stdout);
+    assert_eq!(stdout, GUESS);
+    insta::assert_snapshot!(s.redact(&stdout));
+}
+
+#[test]
+fn fr38_ls_guess_same_folder_label() {
+    let s = sandbox();
+    let cwd = s.root().join("acts/src");
+    fs::create_dir_all(&cwd).unwrap();
+    let mut c = s.cmd(&["ls", "--open", "--guess"]);
+    let out = c.current_dir(cwd).assert().code(0).get_output().clone();
+    assert_eq!(
+        line2(&out),
+        "1. W-7 fix rounding in act export [Doing] 2 h, same folder: check the 0.005 case"
+    );
+}
+
+#[test]
+fn fr38_ls_guess_same_pane_label() {
+    let mut s = sandbox();
+    let scenario = s.scenario_mut();
+    *scenario = scenario.clone().herdr("w4V:p9", "w4V:t1", "w4V");
+    let out = run(&s, &["ls", "--open", "--guess"], 0);
+    assert_eq!(
+        line2(&out),
+        "1. W-12 migrate invoices to v13 [Doing] 39 min, same pane: open the MR, ask the DBA for the v13"
+    );
+}
+
+#[test]
+fn ts6_6_pane_ignored_outside_herdr() {
+    let mut s = sandbox();
+    let scenario = s.scenario_mut();
+    *scenario = scenario.clone().pane_id("w4V:p9");
+    let out = run(&s, &["ls", "--open", "--guess"], 0);
+    assert_eq!(text(&out.stdout), GUESS);
+}
+
+#[test]
+fn fr38_ls_guess_linked_here_from_pane_hint() {
+    let mut s = sandbox();
+    let mut env = common::env::core_env(&s.root().join("home"), "2026-10-08T11:52:00+03:00");
+    env.state_home = s.root().join("state");
+    let r = SessionRef {
+        card: CardId::parse("W-11").unwrap(),
+        board: "work".to_string(),
+        pane: Some("w4V:p11".to_string()),
+        cwd: None,
+        set_at: env.now.clone(),
+    };
+    write_reference(&env, "s1", &r).unwrap();
+    let scenario = s.scenario_mut();
+    *scenario = scenario.clone().herdr("w4V:p11", "w4V:t1", "w4V");
+    let out = run(&s, &["ls", "--open", "--guess"], 0);
+    assert_eq!(
+        line2(&out),
+        "1. W-11 invoice PDF shows the wrong VAT [Todo] no note, linked here"
+    );
+}
+
+#[test]
+fn ts6_3_ls_guess_implies_open() {
+    let s = sandbox();
+    let out = run(&s, &["ls", "--guess"], 0);
+    assert_eq!(text(&out.stdout), GUESS);
+}
+
+#[test]
+fn ts6_3_other_board_line_omitted_with_one_board() {
+    let s = sandbox();
+    let work = s.root().join("boards/work").display().to_string();
+    let config = format!("default_board = \"work\"\n\n[boards]\nwork = \"{work}\"\n");
+    fs::write(s.config_file(), config).unwrap();
+    let out = run(&s, &["ls", "--open", "--guess"], 0);
+    let stdout = text(&out.stdout);
+    assert!(!stdout.lines().any(|l| l.starts_with("o. ")), "{stdout}");
+    let want: Vec<&str> = GUESS.lines().take(4).collect();
+    assert_eq!(stdout, want.join("\n") + "\n");
+}
+
+#[test]
+fn ts6_7_ls_guess_json_candidates() {
+    let s = sandbox();
+    let out = run(&s, &["--json", "ls", "--open", "--guess"], 0);
+    let stdout = s.redact(&text(&out.stdout));
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let cards = v["cards"].as_array().unwrap();
+    let got: Vec<(&str, u64, &str)> = cards
+        .iter()
+        .map(|c| {
+            let id = c["id"].as_str().unwrap();
+            (
+                id,
+                c["rank"].as_u64().unwrap(),
+                c["reason"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("W-12", 1, "middle_column"),
+            ("W-7", 2, "middle_column"),
+            ("W-11", 3, "other")
+        ]
+    );
+    assert_eq!(v["other_boards"], serde_json::json!(["home", "personal"]));
+    insta::assert_snapshot!(stdout);
 }

@@ -1,5 +1,6 @@
 //! Result, error and warning output (TECHSPEC 6.2, 6.7).
 
+use crate::cli::cmd::Ctx;
 use crate::core::error::Error;
 use crate::core::model::{Board, Card, Note};
 use crate::core::time::{Age, Stamp, age, age_minutes, format_stamp};
@@ -153,6 +154,27 @@ pub fn picker_line(n: usize, card: &Card, label: Option<&str>, now: &Stamp) -> S
     };
     let (id, title, column) = (card.id, &card.title, &card.column);
     format!("{n}. {id} {title} [{column}] {age}{label}{preview}")
+}
+
+/// The 6.7 Candidate: a Card plus its 1-based printed position and 6.6 reason (A-E2-20).
+#[derive(Serialize)]
+pub struct CandidateJson<'a> {
+    #[serde(flatten)]
+    pub card: CardJson<'a>,
+    pub rank: usize,
+    pub reason: &'static str,
+}
+
+/// The configured boards other than `shown`, in config order (A-E2-19).
+pub fn other_boards<'a>(ctx: &'a Ctx, shown: &str) -> Vec<&'a str> {
+    let names = ctx.config.boards.iter().map(|(n, _)| n.as_str());
+    names.filter(|n| *n != shown).collect()
+}
+
+/// `o. other board: <names>`, or `None` when no other board is configured (A-E2-19).
+pub fn other_boards_line(ctx: &Ctx, shown: &str) -> Option<String> {
+    let names = other_boards(ctx, shown);
+    (!names.is_empty()).then(|| format!("o. other board: {}", names.join(", ")))
 }
 
 /// The first non-blank line of Next, else Doing, cut at the last word boundary within 40 characters.

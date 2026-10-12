@@ -5,6 +5,7 @@ use crate::cli::out::{self, Out};
 use crate::core::config::{self, Config};
 use crate::core::env::Env;
 use crate::core::error::Error;
+use crate::core::guess;
 use crate::core::model::{Board, Card, CardId, NewNote};
 use crate::core::store::{self, CreateRequest};
 use crate::core::template::{self, Template};
@@ -213,9 +214,42 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                 Err(e) => out.error(&e),
             }
         }
-        Some(Command::Ls { open, .. }) => {
+        Some(Command::Ls { open, guess }) => {
             let ctx = ctx.expect("loaded above");
             match ctx.board(cli.board.as_deref()) {
+                Ok(board) if guess => {
+                    board.warnings.iter().for_each(|w| out.warn(w));
+                    let cands = guess::best_guess(&board, &guess::GuessInput::from_env(env));
+                    let mut text = format!("open cards on {}, best guess first:\n", board.name);
+                    for (i, c) in cands.iter().enumerate() {
+                        text += &out::picker_line(i + 1, c.card, c.tier.label(), &env.now);
+                        text.push('\n');
+                    }
+                    if let Some(l) = out::other_boards_line(&ctx, &board.name) {
+                        text += &l;
+                        text.push('\n');
+                    }
+                    #[derive(serde::Serialize)]
+                    struct Body<'a> {
+                        board: &'a str,
+                        cards: Vec<out::CandidateJson<'a>>,
+                        other_boards: Vec<&'a str>,
+                    }
+                    let cards = cands.iter().enumerate().map(|(i, c)| out::CandidateJson {
+                        card: out::card_json(c.card, &board, &env.now),
+                        rank: i + 1,
+                        reason: c.tier.reason(),
+                    });
+                    out.result(
+                        &text,
+                        Body {
+                            board: &board.name,
+                            cards: cards.collect(),
+                            other_boards: out::other_boards(&ctx, &board.name),
+                        },
+                    );
+                    0
+                }
                 Ok(board) => {
                     board.warnings.iter().for_each(|w| out.warn(w));
                     let cards: Vec<&Card> = (0..board.column_list().len())

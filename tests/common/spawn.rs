@@ -46,6 +46,11 @@ impl Scenario {
             .set("HERDR_WORKSPACE_ID", workspace)
     }
 
+    /// `HERDR_PANE_ID` alone, without `HERDR_ENV`.
+    pub fn pane_id(self, pane: &str) -> Scenario {
+        self.set("HERDR_PANE_ID", pane)
+    }
+
     pub fn fake_scenario(self, name: &str) -> Scenario {
         self.set("FAKE_HERDR_SCENARIO", name)
     }
