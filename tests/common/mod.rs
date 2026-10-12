@@ -4,4 +4,5 @@
 pub mod bytes;
 pub mod cli;
 pub mod env;
+pub mod mem_board;
 pub mod spawn;

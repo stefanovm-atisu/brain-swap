@@ -1125,7 +1125,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F8-T1 Middle columns, the rest and the tie rules
 
-- Status: doing
+- Status: done
 - Depends on: E1-F5-T3
 - Covers: FR-38; TECHSPEC 3 (`activity()`, `is_open()`), 6.6 (tiers 3 and 4, order within a tier, `reason`, labels), 6.7 (`reason`)
 - Size: S
