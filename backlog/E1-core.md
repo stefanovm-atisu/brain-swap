@@ -843,7 +843,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T3 Move
 
-- Status: doing
+- Status: done
 - Depends on: E1-F6-T2, E1-F5-T4, E1-F2-T8
 - Covers: NFR-06, NFR-08; TECHSPEC 4.8 R2, R7, 6.2 (move to the current column), 10 (fresh reads), 12.1 (R7 per fixture)
 - Size: S

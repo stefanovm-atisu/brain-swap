@@ -2,9 +2,11 @@
 
 use crate::core::env::{Env, encode_file_name};
 use crate::core::error::{Error, Result};
-use crate::core::{failpoint, log};
+use crate::core::model::{Board, Card, CardId};
+use crate::core::{card_file, failpoint, log};
+use jiff::tz::TimeZone;
 use std::fs::{self, File, TryLockError};
-use std::io::Write;
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -94,4 +96,68 @@ pub fn write_atomic(
     }
     let dir = target.parent().unwrap_or(Path::new("/"));
     File::open(dir).and_then(|d| d.sync_all()).map_err(io)
+}
+
+/// The card after a move; `changed` is false when it already sat in the column.
+#[derive(Debug)]
+pub struct Moved {
+    pub card: Card,
+    pub changed: bool,
+}
+
+/// Moves card `id` to `column`, re-reading its file inside the lock (6.2, 10, R2, R7).
+pub fn move_card(env: &Env, board: &Board, id: CardId, column: &str) -> Result<Moved> {
+    let column = board.column(column)?;
+    let _lock = lock_board(env, &board.path)?;
+    let name = id.file_name();
+    let path = board.path.join(&name);
+    let before = match fs::read(&path) {
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            return Err(Error::NotFound(format!("{id} not found")));
+        }
+        r => r.map_err(io)?,
+    };
+    card_file::check_writable(&name, &before)?;
+    let parse = |b: &[u8]| card_file::parse(id, &path, b, &board.meta.columns[0], &env.tz).card;
+    let card = parse(&before);
+    if card.column.to_lowercase() == column.to_lowercase() {
+        return Ok(Moved {
+            card,
+            changed: false,
+        });
+    }
+    let after = card_file::set_column(&name, &before, column)?;
+    write_atomic(
+        env,
+        &path,
+        &after,
+        &|a| verify_move(&before, a, column),
+        None,
+    )?;
+    Ok(Moved {
+        card: parse(&after),
+        changed: true,
+    })
+}
+
+/// R7 for a move: `after` parses to `column` and differs from `before` only as R2 allows.
+pub fn verify_move(before: &[u8], after: &[u8], column: &str) -> bool {
+    let id = CardId {
+        letter: 'X',
+        number: 1,
+    };
+    let parsed = card_file::parse(id, Path::new(""), after, "", &TimeZone::UTC).card;
+    let b: Vec<&[u8]> = before.split_inclusive(|&c| c == b'\n').collect();
+    let a: Vec<&[u8]> = after.split_inclusive(|&c| c == b'\n').collect();
+    let pre = b.iter().zip(&a).take_while(|(x, y)| x == y).count();
+    let suf = b[pre..]
+        .iter()
+        .rev()
+        .zip(a[pre..].iter().rev())
+        .take_while(|(x, y)| x == y)
+        .count();
+    let (removed, added) = (b.len() - pre - suf, a.len() - pre - suf);
+    // R2: one line changed, added or already right, or a three-line frontmatter put in front.
+    let r2 = (removed <= added && added <= 1) || (pre == 0 && removed == 0 && added == 3);
+    r2 && parsed.column == column
 }
