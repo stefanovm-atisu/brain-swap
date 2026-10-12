@@ -11,7 +11,7 @@ use brain_swap::tui::app::{App, Effect, Input, Mode, Outcome, Selection, update}
 use brain_swap::tui::editor::editor_argv;
 use brain_swap::tui::runtime::Runtime;
 use common::env::core_env;
-use common::spawn::Scenario;
+use common::spawn::{Scenario, brain_swap};
 use common::tui::{
     FakeGuard, FakeLauncher, NOW, TuiFixture, fake_runtime_with, key, press, rows, scripted_editor,
 };
@@ -498,4 +498,133 @@ fn ts12_1_scripted_editor_is_hermetic() {
         l.starts_with("CLAUDE_") || (l.starts_with("HERDR_") && !l.starts_with("HERDR_BIN_PATH="))
     };
     assert_eq!(got.iter().filter(leaked).count(), 0, "{got:?}");
+}
+
+const W11: CardId = CardId {
+    letter: 'W',
+    number: 11,
+};
+
+/// The block a CLI `park` from `cwd` appends at the scenario's `BRAIN_SWAP_NOW`, its session
+/// left to `read` (park does not record `--session` yet).
+fn block(doing: &str, cwd: &Path) -> String {
+    format!(
+        "\n### 2026-10-08T08:52:00+00:00\n- Doing: {doing}\n- Next:\n- Watch out:\n<!-- where: cwd={} -->\n",
+        cwd.display()
+    )
+}
+
+/// The board file `name`, without the ` session=a` and ` session=b` the parks may record.
+fn read(fx: &TuiFixture, name: &str) -> String {
+    let text = fs::read_to_string(fx.board_dir.join(name)).unwrap();
+    text.replace(" session=a -->", " -->")
+        .replace(" session=b -->", " -->")
+}
+
+/// Runs `park --card <card> --session <session>` with `Doing: <doing>` for every job in
+/// parallel from `<tmp>`; returns each stdout. Exit 5 (lock wait over 2 s) is retried.
+fn parks(fx: &TuiFixture, jobs: &[(&str, &str, &str)]) -> Vec<String> {
+    let tmp = fx.home.parent().unwrap();
+    let s = Scenario::new(tmp);
+    std::thread::scope(|t| {
+        let handles: Vec<_> = jobs
+            .iter()
+            .map(|&(card, session, doing)| {
+                let s = &s;
+                t.spawn(move || {
+                    for _ in 0..10 {
+                        let out = brain_swap(s)
+                            .args(["park", "--card", card, "--session", session])
+                            .current_dir(tmp)
+                            .write_stdin(format!("Doing: {doing}\n"))
+                            .output()
+                            .unwrap();
+                        if out.status.code() != Some(5) {
+                            assert!(out.status.success(), "{out:?}");
+                            return String::from_utf8(out.stdout).unwrap();
+                        }
+                    }
+                    panic!("park on {card} busy 10 times")
+                })
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    })
+}
+
+/// The `work_4_9` runtime with W-12 selected.
+fn as8_runtime(fx: &TuiFixture) -> Runtime<TestBackend> {
+    let (mut rt, _, _) = fx.runtime(80, 24);
+    rt.dispatch(Input::Key(key("l")));
+    assert_eq!(rt.app().sel.card, Some(W12));
+    rt
+}
+
+fn notes(rt: &Runtime<TestBackend>, id: CardId) -> usize {
+    rt.app().board.card(id).unwrap().notes.len()
+}
+
+#[test]
+fn as8_parks_on_two_cards_in_one_second_show_after_one_tick() {
+    let fx = work_4_9();
+    let tmp = fx.home.parent().unwrap();
+    let names = ["W-12.md", "W-11.md", "W-9.md", "board.md"];
+    let before = names.map(|n| read(&fx, n));
+    let mut rt = as8_runtime(&fx);
+    let out = parks(&fx, &[("W-12", "a", "twelve"), ("W-11", "b", "eleven")]);
+    assert_eq!(
+        out,
+        [
+            "parked to W-12: migrate invoices to v13\n",
+            "parked to W-11: invoice PDF shows the wrong VAT\n"
+        ]
+    );
+    rt.tick();
+    assert_eq!(notes(&rt, W12), 3);
+    assert_eq!(notes(&rt, W11), 1);
+    let after = names.map(|n| read(&fx, n));
+    assert_eq!(after[0], before[0].clone() + &block("twelve", tmp));
+    assert_eq!(after[1], before[1].clone() + &block("eleven", tmp));
+    assert_eq!(after[2..], before[2..]);
+    assert_eq!(rt.app().sel.card, Some(W12));
+}
+
+#[test]
+fn as8_two_parks_on_one_card_both_show() {
+    let fx = work_4_9();
+    let tmp = fx.home.parent().unwrap();
+    let before = read(&fx, "W-12.md");
+    let mut rt = as8_runtime(&fx);
+    parks(&fx, &[("W-12", "a", "one"), ("W-12", "b", "two")]);
+    rt.tick();
+    assert_eq!(notes(&rt, W12), 4);
+    let after = read(&fx, "W-12.md");
+    let [one, two] = ["one", "two"].map(|d| block(d, tmp));
+    assert!(
+        after == before.clone() + &one + &two || after == before + &two + &one,
+        "{after}"
+    );
+}
+
+#[test]
+fn as8_parks_while_tui_editor_open_survive_save() {
+    let fx = work_4_9();
+    let tmp = fx.home.parent().unwrap();
+    let e = edited(&fx);
+    let w11 = read(&fx, "W-11.md");
+    let cd = format!("cd {}", tmp.display());
+    let steps = [
+        cd.as_str(),
+        "printf 'Doing: twelve\\n' | @BS@ park --card W-12 --session a &",
+        "printf 'Doing: eleven\\n' | @BS@ park --card W-11 --session b &",
+        "wait",
+    ];
+    let mut rt = scripted(&fx, &steps, &e);
+    rt.tick();
+    assert_eq!(read(&fx, "W-12.md"), e + &block("twelve", tmp));
+    assert_eq!(read(&fx, "W-11.md"), w11 + &block("eleven", tmp));
+    assert_eq!(notes(&rt, W12), 3);
+    assert_eq!(notes(&rt, W11), 1);
+    assert_eq!(rt.app().board.card(W12).unwrap().notes[2].doing, "twelve");
+    assert_eq!(rt.app().board.card(W11).unwrap().notes[0].doing, "eleven");
 }

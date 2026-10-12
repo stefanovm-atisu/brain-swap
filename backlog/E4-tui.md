@@ -682,7 +682,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F5-T6 AS-8 with the TUI
 
-- Status: doing
+- Status: done
 - Depends on: E4-F5-T5
 - Covers: FR-31; TECHSPEC 7.4 (both parks show after one poll), 7.6; AS-8 (TUI half)
 - Size: S
