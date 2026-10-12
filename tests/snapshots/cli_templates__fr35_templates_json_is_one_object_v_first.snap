@@ -1,0 +1,5 @@
+---
+source: tests/cli_templates.rs
+expression: s.redact(&text)
+---
+{"v":1,"templates":[{"name":"Feature","key":"f","skeleton":"## Goal\n\n## Acceptance\n\n## Context\n\n"},{"name":"Bug","key":"b","skeleton":"## Symptom\n\n## Expected\n\n## Repro\n\n## Context\n\n"},{"name":"Research","key":"r","skeleton":"## Question\n\n## Done when\n\n## Context\n\n"},{"name":"Chore","key":"c","skeleton":"## Task\n\n## Why\n\n## Context\n\n"}]}

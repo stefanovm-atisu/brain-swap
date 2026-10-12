@@ -4,7 +4,7 @@ use crate::core::error::{Error, Result};
 use crate::core::frontmatter::{self, FmRead};
 use std::path::Path;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Template {
     pub name: String,
     pub key: Option<char>,

@@ -9,10 +9,7 @@ use std::io::IsTerminal;
 fn main() {
     let cli = Cli::try_parse_from(std::env::args_os()).unwrap_or_else(|e| e.exit());
     let code = match env() {
-        Err(e) => {
-            eprintln!("brain-swap: {e}");
-            e.exit_code()
-        }
+        Err(e) => brain_swap::cli::out::Out::new(cli.json).error(&e),
         Ok(env) if cli.command.is_none() => brain_swap::tui::run(
             env,
             cli.board,
