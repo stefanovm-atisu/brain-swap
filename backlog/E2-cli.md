@@ -145,7 +145,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F2-T2 `new --template`, `--column`, `--board` and unknown names
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F2-T1
 - Covers: FR-13; TECHSPEC 6.1 (`--board`), 6.2 (exit 3, code `not_found`, the three texts, names matched ignoring case), 6.3 (`new` flags), I3
 - Size: M
