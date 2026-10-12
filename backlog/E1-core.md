@@ -764,7 +764,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F5-T5 4.9 and AS-7 boards load as described
 
-- Status: doing
+- Status: done
 - Depends on: E1-F5-T4
 - Covers: FR-01, FR-03, FR-04, FR-08, FR-09; TECHSPEC 4.9; AS-7 (file side)
 - Size: S

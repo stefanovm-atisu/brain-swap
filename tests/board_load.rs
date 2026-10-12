@@ -18,13 +18,19 @@ const WORK_4_9: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/tests/fixtures/boards/work_4_9"
 );
+const AS7: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/boards/as7");
 
 /// A temp home holding a copy of `work_4_9` at `<home>/work`.
 fn copy() -> (tempfile::TempDir, PathBuf) {
+    copy_of(WORK_4_9)
+}
+
+/// A temp home holding a copy of the fixture board `src` at `<home>/work`.
+fn copy_of(src: &str) -> (tempfile::TempDir, PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path().join("work");
     fs::create_dir(&dir).unwrap();
-    for e in fs::read_dir(WORK_4_9).unwrap() {
+    for e in fs::read_dir(src).unwrap() {
         let e = e.unwrap();
         fs::copy(e.path(), dir.join(e.file_name())).unwrap();
     }
@@ -472,4 +478,88 @@ fn ts4_7_extra_column_is_not_a_move_target() {
     let b = load_at(tmp.path(), &dir);
     assert!(b.column_list().iter().any(|c| c.name == "Doign (unknown)"));
     assert!(matches!(b.column("Doign"), Err(Error::NotFound(_))));
+}
+
+#[test]
+fn ts4_9_work_board_loads_as_described() {
+    let (tmp, dir) = copy();
+    let b = load_at(tmp.path(), &dir);
+    assert_eq!(
+        [order(&b, 0), order(&b, 1), order(&b, 2)],
+        [["W-11"], ["W-12"], ["W-9"]]
+    );
+    assert_eq!(b.meta.next, 13);
+    assert!(b.warnings.is_empty(), "{:?}", b.warnings);
+    assert_eq!(
+        get(&b, "W-12").latest_note().map(|n| n.next.as_str()),
+        Some("open the MR, ask the DBA for the v13 deploy list")
+    );
+}
+
+#[test]
+fn ts4_9_jump_note_of_w12_targets_pane_w4v_p9() {
+    let (tmp, dir) = copy();
+    let b = load_at(tmp.path(), &dir);
+    let w12 = get(&b, "W-12");
+    assert_eq!(w12.jump_note(), Some(1));
+    let pane = w12.notes[1].place.herdr.as_ref().map(|h| h.pane.as_str());
+    assert_eq!(pane, Some("w4V:p9"));
+    let w9 = get(&b, "W-9");
+    let place = &w9.notes[w9.jump_note().expect("W-9 jump note")].place;
+    assert!(place.cwd.is_some());
+    assert_eq!(place.herdr, None);
+}
+
+#[test]
+fn as7_hand_made_card_lands_in_first_column_without_notes() {
+    let (tmp, dir) = copy_of(AS7);
+    let b = load_at(tmp.path(), &dir);
+    assert!(order(&b, 0).contains(&"W-20".to_string()));
+    let w20 = get(&b, "W-20");
+    assert_eq!(w20.title, "spike on caching");
+    assert!(w20.notes.is_empty());
+}
+
+#[test]
+fn as7_next_card_skips_past_hand_made_card() {
+    let (tmp, dir) = copy_of(AS7);
+    assert_eq!(load_at(tmp.path(), &dir).meta.next, 21);
+}
+
+#[test]
+fn as7_misspelt_column_shows_as_unknown_extra_column() {
+    let (tmp, dir) = copy_of(AS7);
+    let b = load_at(tmp.path(), &dir);
+    let cols = b.column_list();
+    let at = cols
+        .iter()
+        .position(|c| c.name == "Doign (unknown)" && c.unknown)
+        .expect("Doign (unknown)");
+    assert_eq!(order(&b, at), ["W-13"]);
+    assert!(
+        b.warnings
+            .contains(&"W-13: unknown column 'Doign'".to_string()),
+        "{:?}",
+        b.warnings
+    );
+}
+
+#[test]
+fn as7_hand_edit_shows_on_next_load() {
+    let (tmp, dir) = copy_of(AS7);
+    assert_eq!(
+        get(&load_at(tmp.path(), &dir), "W-12").title,
+        "migrate invoices to v13"
+    );
+    let path = dir.join("W-12.md");
+    let text = fs::read_to_string(&path).unwrap();
+    let edited = text.replace("# migrate invoices to v13\n", "# migrate invoices to v14\n");
+    assert_ne!(edited, text);
+    fs::write(&path, edited).unwrap();
+    let b = load_at(tmp.path(), &dir);
+    let w12 = get(&b, "W-12");
+    assert_eq!(
+        (w12.id, w12.title.as_str()),
+        (id("W-12"), "migrate invoices to v14")
+    );
 }
