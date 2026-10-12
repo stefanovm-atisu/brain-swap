@@ -366,7 +366,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F2-T6 AS-7 and AS-9 boards
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F2-T4, E4-F1-T8
 - Covers: FR-20; TECHSPEC 4.7 (hand-made card, unknown column); AS-7 (TUI rendering), AS-9 (TUI board)
 - Size: S
