@@ -717,7 +717,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F5-T3 Columns, open cards and order
 
-- Status: doing
+- Status: done
 - Depends on: E1-F5-T2
 - Covers: FR-08, FR-09; TECHSPEC 3 (I5, `activity()`, `is_open()`, `jump_note()`), 4.5, 4.7 (unknown columns, bad stamps, notes without place), 10 (clock skew)
 - Size: M

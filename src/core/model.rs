@@ -61,6 +61,28 @@ pub struct Card {
     pub mtime: Option<Stamp>,
 }
 
+impl Card {
+    /// The last note's stamp, else `created`, else `mtime` (FR-09, A-E1-30).
+    pub fn activity(&self) -> Option<&Stamp> {
+        self.latest_note()
+            .and_then(|n| n.at.as_ref())
+            .or(self.created.as_ref())
+            .or(self.mtime.as_ref())
+    }
+
+    /// The last note in file order (I7).
+    pub fn latest_note(&self) -> Option<&Note> {
+        self.notes.last()
+    }
+
+    /// The index of the last note with a `cwd` or `herdr` place (FR-25).
+    pub fn jump_note(&self) -> Option<usize> {
+        self.notes
+            .iter()
+            .rposition(|n| n.place.cwd.is_some() || n.place.herdr.is_some())
+    }
+}
+
 /// One switch note of a card's timeline (TECHSPEC 3).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Note {

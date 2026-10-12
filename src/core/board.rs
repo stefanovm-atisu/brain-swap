@@ -1,5 +1,6 @@
 //! Board loading (TECHSPEC 3, 4.1).
 
+use std::cmp::Reverse;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
@@ -8,7 +9,7 @@ use crate::core::board_file;
 use crate::core::card_file;
 use crate::core::env::Env;
 use crate::core::error::{Error, Result};
-use crate::core::model::{Board, BoardMeta, CardId};
+use crate::core::model::{Board, BoardMeta, Card, CardId};
 
 /// Reads the board folder `path`; creates and locks nothing (FR-04).
 pub fn load(name: &str, path: &Path, env: &Env) -> Result<Board> {
@@ -60,6 +61,15 @@ pub fn load(name: &str, path: &Path, env: &Env) -> Result<Board> {
         warnings.extend(parsed.warnings);
         cards.push(parsed.card);
     }
+    // Sorted by number so extra columns follow first appearance by card number (A-E1-30).
+    cards.sort_by_key(|c| c.id);
+    for c in &mut cards {
+        let lower = c.column.to_lowercase();
+        match bf.columns.iter().find(|k| k.to_lowercase() == lower) {
+            Some(k) => c.column = k.clone(),
+            None => warnings.push(format!("{}: unknown column '{}'", c.id, c.column)),
+        }
+    }
     let highest = cards.iter().map(|c| c.id.number).max().unwrap_or(0);
     Ok(Board {
         name: name.to_string(),
@@ -72,4 +82,57 @@ pub fn load(name: &str, path: &Path, env: &Env) -> Result<Board> {
         cards,
         warnings,
     })
+}
+
+/// A board column; `unknown` marks an extra column holding unmatched cards (I5).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Column {
+    pub name: String,
+    pub unknown: bool,
+}
+
+impl Board {
+    /// Configured column names, then the unmatched ones in card number order (I5).
+    fn names(&self) -> Vec<&str> {
+        let mut v: Vec<&str> = self.meta.columns.iter().map(String::as_str).collect();
+        for c in &self.cards {
+            if !v.contains(&c.column.as_str()) {
+                v.push(&c.column);
+            }
+        }
+        v
+    }
+
+    pub fn column_list(&self) -> Vec<Column> {
+        let n = self.meta.columns.len();
+        self.names()
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| Column {
+                name: if i < n {
+                    name.to_string()
+                } else {
+                    format!("{name} (unknown)")
+                },
+                unknown: i >= n,
+            })
+            .collect()
+    }
+
+    /// The cards of column `column_index`, newest activity first, ties to the higher number (FR-09).
+    pub fn cards_in(&self, column_index: usize) -> Vec<&Card> {
+        let name = self.names()[column_index];
+        let mut v: Vec<&Card> = self.cards.iter().filter(|c| c.column == name).collect();
+        v.sort_by_key(|c| Reverse((c.activity().map(|s| s.timestamp()), c.id.number)));
+        v
+    }
+
+    /// Not in the last configured column; extra columns are open (FR-08, I5).
+    pub fn is_open(&self, card: &Card) -> bool {
+        self.meta.columns.last() != Some(&card.column)
+    }
+
+    pub fn open_cards(&self) -> Vec<&Card> {
+        self.cards.iter().filter(|c| self.is_open(c)).collect()
+    }
 }
