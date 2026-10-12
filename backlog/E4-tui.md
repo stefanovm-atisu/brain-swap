@@ -418,7 +418,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F3-T2 Note navigation and snapshots
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F3-T1
 - Covers: FR-26; TECHSPEC 5.2 (Detail `up` newer, `down` older), 7.1 (note index clamped), 12.1 (snapshots at 80x24 and 120x40); AS-1 step 6
 - Size: S
