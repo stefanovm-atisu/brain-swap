@@ -94,6 +94,11 @@ pub fn parse_binding(s: &str) -> Result<Binding, String> {
 }
 
 impl Binding {
+    /// Text a title field would insert: a character or space without ctrl or alt.
+    fn printable(&self) -> bool {
+        matches!(self.key, Key::Char(_) | Key::Space) && !self.ctrl && !self.alt
+    }
+
     /// SHIFT is ignored for printable characters (crossterm reports `H` with SHIFT set).
     pub fn matches(&self, press: &KeyPress) -> bool {
         self.key == press.key
@@ -267,18 +272,56 @@ impl KeyMap {
                 }
             }
         }
+        for a in [Confirm, Cancel] {
+            for k in map.keys(a).iter().filter(|k| k.printable()) {
+                warnings.push(format!(
+                    "key config: {}: printable key '{k}' ignored in title input",
+                    a.config_name()
+                ));
+            }
+        }
         (map, warnings)
     }
 
     pub fn action(&self, ctx: KeyContext, press: &KeyPress) -> Option<Action> {
-        ctx.actions()
-            .iter()
-            .copied()
-            .find(|&a| self.keys(a).iter().any(|k| k.matches(press)))
+        ctx.actions().iter().copied().find(|&a| {
+            self.keys(a)
+                .iter()
+                .any(|k| k.matches(press) && !(ctx == KeyContext::TitleInput && k.printable()))
+        })
     }
 
     pub fn keys(&self, action: Action) -> &[Binding] {
         &self.0[action as usize]
+    }
+
+    /// Must run after `KeyMap::build`, so it checks the final Picker keys.
+    pub fn check_template_hotkeys(
+        &self,
+        hotkeys: &[(String, char)],
+    ) -> (Vec<(String, char)>, Vec<String>) {
+        let mut warnings = Vec::new();
+        let kept = hotkeys
+            .iter()
+            .filter(|(name, c)| {
+                let press = KeyPress {
+                    key: Key::Char(*c),
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                };
+                let hit = self.action(KeyContext::Picker, &press);
+                if let Some(a) = hit {
+                    warnings.push(format!(
+                        "template {name}: hotkey '{c}' collides with {}, dropped",
+                        a.config_name()
+                    ));
+                }
+                hit.is_none()
+            })
+            .cloned()
+            .collect();
+        (kept, warnings)
     }
 }
 
@@ -549,5 +592,69 @@ mod tests {
             Some(Action::Confirm)
         );
         assert_eq!(m.action(KeyContext::Board, &p("enter")), Some(Action::Jump));
+    }
+
+    #[test]
+    fn ts5_2_title_input_ignores_printable_confirm() {
+        let (m, w) = KeyMap::build(&user(&[("confirm", &["enter", "y"])]));
+        assert_eq!(m.action(KeyContext::TitleInput, &p("y")), None);
+        assert_eq!(
+            m.action(KeyContext::TitleInput, &p("enter")),
+            Some(Action::Confirm)
+        );
+        assert_eq!(m.action(KeyContext::Picker, &p("y")), Some(Action::Confirm));
+        assert_eq!(
+            w,
+            ["key config: confirm: printable key 'y' ignored in title input"]
+        );
+    }
+
+    #[test]
+    fn ts5_2_title_input_resolves_only_confirm_and_cancel() {
+        let m = KeyMap::defaults();
+        for k in ["j", "q", "?"] {
+            assert_eq!(m.action(KeyContext::TitleInput, &p(k)), None, "{k}");
+        }
+        assert_eq!(
+            m.action(KeyContext::TitleInput, &p("enter")),
+            Some(Action::Confirm)
+        );
+        assert_eq!(
+            m.action(KeyContext::TitleInput, &p("esc")),
+            Some(Action::Cancel)
+        );
+    }
+
+    fn hk(pairs: &[(&str, char)]) -> Vec<(String, char)> {
+        pairs.iter().map(|&(n, c)| (n.to_string(), c)).collect()
+    }
+
+    #[test]
+    fn ts5_2_template_hotkey_colliding_with_down_is_dropped() {
+        let (kept, w) =
+            KeyMap::defaults().check_template_hotkeys(&hk(&[("Feature", 'f'), ("Junk", 'j')]));
+        assert_eq!(kept, hk(&[("Feature", 'f')]));
+        assert_eq!(w, ["template Junk: hotkey 'j' collides with down, dropped"]);
+    }
+
+    #[test]
+    fn ts5_2_template_hotkey_check_uses_final_keys() {
+        let (m, _) = KeyMap::build(&user(&[("down", &["x"])]));
+        let (kept, w) = m.check_template_hotkeys(&hk(&[("J", 'j'), ("X", 'x')]));
+        assert_eq!(kept, hk(&[("J", 'j')]));
+        assert_eq!(w, ["template X: hotkey 'x' collides with down, dropped"]);
+    }
+
+    #[test]
+    fn ts5_2_builtin_hotkeys_survive_defaults() {
+        let all = hk(&[
+            ("feature", 'f'),
+            ("bug", 'b'),
+            ("research", 'r'),
+            ("chore", 'c'),
+        ]);
+        let (kept, w) = KeyMap::defaults().check_template_hotkeys(&all);
+        assert_eq!(kept, all);
+        assert!(w.is_empty(), "{w:?}");
     }
 }
