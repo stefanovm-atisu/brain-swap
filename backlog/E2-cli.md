@@ -222,7 +222,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F2-T6 `move`
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F2-T2, E2-F2-T4, E1-F6
 - Covers: FR-39; TECHSPEC 6.2 (exit 0 for the current column, exit 1 `unreadable`, exit 3), 6.3 (`move`), 6.7 (`move`)
 - Size: M
