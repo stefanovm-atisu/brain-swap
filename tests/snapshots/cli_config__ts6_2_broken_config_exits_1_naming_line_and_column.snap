@@ -1,0 +1,5 @@
+---
+source: tests/cli_config.rs
+expression: err
+---
+brain-swap: config <sandbox>/config/brain-swap/config.toml:4:6: key with no value, expected `=`

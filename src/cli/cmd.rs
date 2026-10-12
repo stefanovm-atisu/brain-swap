@@ -2,6 +2,7 @@
 
 use crate::cli::args::{Cli, Command};
 use crate::cli::out::Out;
+use crate::core::config::{self, Config};
 use crate::core::env::Env;
 use crate::core::error::Error;
 use crate::core::template::{self, Template};
@@ -37,9 +38,41 @@ pub fn parse_failure(err: clap::Error, argv: &[OsString]) -> i32 {
     code
 }
 
+/// What every board subcommand loads first: the config and the warnings to print.
+pub struct Ctx {
+    pub config: Config,
+    pub warnings: Vec<String>,
+}
+
+impl Ctx {
+    /// Loads `config.toml` (a broken one is `Error::Config`, never defaults, section 10)
+    /// and drops a `BRAIN_SWAP_LOG` inside a board folder (section 11).
+    pub fn load(env: &mut Env) -> Result<Ctx, Error> {
+        let loaded = config::load(env)?;
+        let mut warnings = loaded.warnings;
+        warnings.extend(crate::core::log::guard_board_folders(
+            env,
+            &loaded.config.boards,
+        ));
+        Ok(Ctx {
+            config: loaded.config,
+            warnings,
+        })
+    }
+}
+
 /// Dispatches one subcommand and returns its 6.2 exit code.
 pub fn run(env: &mut Env, cli: Cli) -> i32 {
     let mut out = Out::new(cli.json);
+    if !matches!(
+        cli.command,
+        Some(Command::Templates | Command::Install(_) | Command::Context { .. })
+    ) {
+        match Ctx::load(env) {
+            Ok(ctx) => ctx.warnings.iter().for_each(|w| out.warn(w)),
+            Err(e) => return out.error(&e),
+        }
+    }
     match cli.command {
         Some(Command::Templates) => {
             let (ts, warnings) = template::load(&env.templates_dir());
