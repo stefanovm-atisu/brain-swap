@@ -537,7 +537,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F4-T3 Create in the runtime
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F4-T2, E4-F1-T6, E1-F6-T5
 - Covers: FR-30; TECHSPEC 7.1 (`Create` effect; `Created` reloads and selects the card, no Message; `Failed`); PRD A-25; AS-6 (the card appears in the focused column, selected), AS-7 (the next card is W-21)
 - Size: S
