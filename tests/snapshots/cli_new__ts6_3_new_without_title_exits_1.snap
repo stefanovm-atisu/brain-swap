@@ -1,0 +1,5 @@
+---
+source: tests/cli_new.rs
+expression: text(&out.stderr)
+---
+brain-swap: no title

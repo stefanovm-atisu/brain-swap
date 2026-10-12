@@ -1,0 +1,5 @@
+---
+source: tests/cli_new.rs
+expression: err
+---
+brain-swap: board.md:2: not a key, comment or continuation: letter W

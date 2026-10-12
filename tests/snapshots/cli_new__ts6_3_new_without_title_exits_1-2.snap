@@ -1,0 +1,5 @@
+---
+source: tests/cli_new.rs
+expression: text(&out.stdout)
+---
+{"v":1,"error":{"code":"invalid_input","message":"no title"}}

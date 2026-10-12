@@ -125,7 +125,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F2-T1 `new <title>` on the default board, and the first run
 
-- Status: doing
+- Status: done
 - Depends on: E2-F1-T4, E1-F6
 - Covers: FR-13; TECHSPEC 4.3 (invalid `board.md`), 6.2 (exit 1 `io`, `unreadable`, `invalid_input`), 6.3 (`new` defaults and output), 6.7 (Card, `new`), AS-9 (subcommand half)
 - Size: M

@@ -1,0 +1,18 @@
+---
+source: tests/cli_new.rs
+expression: "fs::read_to_string(work(&s).join(\"W-1.md\")).unwrap()"
+---
+---
+column: Todo
+template: Feature
+created: 2026-10-08T08:52:00+00:00
+---
+# migrate invoices to v13
+
+## Goal
+
+## Acceptance
+
+## Context
+
+## Timeline

@@ -1,0 +1,5 @@
+---
+source: tests/cli_new.rs
+expression: stdout
+---
+{"v":1,"card":{"id":"W-1","board":"work","title":"x","column":"Todo","open":true,"path":"<sandbox>/boards/work/W-1.md","latest_note":null}}

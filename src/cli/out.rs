@@ -1,8 +1,35 @@
 //! Result, error and warning output (TECHSPEC 6.2, 6.7).
 
 use crate::core::error::Error;
+use crate::core::model::{Board, Card};
 use serde::Serialize;
 use std::io::{Stderr, Stdout, Write};
+use std::path::Path;
+
+/// The 6.7 Card.
+#[derive(Serialize)]
+pub struct CardJson<'a> {
+    pub id: String,
+    pub board: &'a str,
+    pub title: &'a str,
+    pub column: &'a str,
+    pub open: bool,
+    pub path: &'a Path,
+    // ponytail: always null until `note_json` exists (E2-F2-T5).
+    pub latest_note: Option<()>,
+}
+
+pub fn card_json<'a>(card: &'a Card, board: &'a Board) -> CardJson<'a> {
+    CardJson {
+        id: card.id.to_string(),
+        board: &board.name,
+        title: &card.title,
+        column: &card.column,
+        open: board.is_open(card),
+        path: &card.path,
+        latest_note: None,
+    }
+}
 
 /// One `--json` object: `v` first, then the flattened body.
 #[derive(Serialize)]
