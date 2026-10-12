@@ -170,6 +170,21 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
         .and_then(|(p, ctx)| app.keys.action(ctx, &p));
     match (&app.mode, action) {
         (Mode::Board, Some(Action::Quit)) => vec![Effect::Quit],
+        (Mode::Board, Some(Action::Open)) => {
+            if let Some(card) = app.selected_card() {
+                let note = card.notes.len().saturating_sub(1);
+                app.mode = Mode::Detail {
+                    card: card.id,
+                    note,
+                    scroll: 0,
+                };
+            }
+            Vec::new()
+        }
+        (Mode::Detail { .. }, Some(Action::Quit)) => {
+            app.mode = Mode::Board;
+            Vec::new()
+        }
         (Mode::Board, Some(Action::Help)) => {
             app.mode = Mode::Help {
                 back: Box::new(Mode::Board),

@@ -30,6 +30,7 @@ pub mod tui {
     pub mod app;
     pub mod editor;
     pub mod runtime;
+    pub mod view_detail;
     pub mod view_frame;
     pub mod view_help;
     pub mod view_message;
