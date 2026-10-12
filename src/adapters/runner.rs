@@ -118,3 +118,114 @@ fn drain(stream: Option<impl Read + Send + 'static>) -> mpsc::Receiver<String> {
     });
     rx
 }
+
+/// A scripted `Runner` for in-process tests (TECHSPEC 12.1); it never sleeps and never starts a process.
+#[derive(Debug, Default)]
+pub struct FakeRunner {
+    answers: std::collections::HashMap<String, Answer>,
+    calls: std::cell::RefCell<Vec<(String, Duration)>>,
+}
+
+/// What a `FakeRunner` answers for one argv.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Answer {
+    Exit {
+        code: i32,
+        stdout: String,
+        stderr: String,
+        took: Duration,
+    },
+    Hang,
+    SpawnFailed(String),
+}
+
+impl Answer {
+    pub fn ok(stdout: &str) -> Answer {
+        Answer::Exit {
+            code: 0,
+            stdout: stdout.into(),
+            stderr: String::new(),
+            took: Duration::ZERO,
+        }
+    }
+
+    pub fn fail(code: i32, stderr: &str) -> Answer {
+        Answer::Exit {
+            code,
+            stdout: String::new(),
+            stderr: stderr.into(),
+            took: Duration::ZERO,
+        }
+    }
+
+    /// Sets how long an `Exit` answer pretends to take; other answers are unchanged.
+    pub fn taking(self, d: Duration) -> Answer {
+        match self {
+            Answer::Exit {
+                code,
+                stdout,
+                stderr,
+                ..
+            } => Answer::Exit {
+                code,
+                stdout,
+                stderr,
+                took: d,
+            },
+            other => other,
+        }
+    }
+}
+
+impl FakeRunner {
+    pub fn new() -> FakeRunner {
+        FakeRunner::default()
+    }
+
+    pub fn on(mut self, args: &str, answer: Answer) -> Self {
+        self.answers.insert(args.to_string(), answer);
+        self
+    }
+
+    pub fn calls(&self) -> Vec<String> {
+        self.calls.borrow().iter().map(|c| c.0.clone()).collect()
+    }
+
+    pub fn timeouts(&self) -> Vec<Duration> {
+        self.calls.borrow().iter().map(|c| c.1).collect()
+    }
+}
+
+impl Runner for FakeRunner {
+    fn run(&self, args: &[&str], timeout: Duration) -> RunResult {
+        let argv = args.join(" ");
+        self.calls.borrow_mut().push((argv.clone(), timeout));
+        let answer = self.answers.get(&argv);
+        let answer = answer.unwrap_or_else(|| panic!("FakeRunner: no answer for '{argv}'"));
+        let timed_out = RunResult {
+            outcome: RunOutcome::TimedOut,
+            took: timeout,
+        };
+        match answer.clone() {
+            Answer::Exit { took, .. } if took > timeout => timed_out,
+            Answer::Exit {
+                code,
+                stdout,
+                stderr,
+                took,
+            } => RunResult {
+                outcome: RunOutcome::Exited {
+                    code: Some(code),
+                    stdout,
+                    stderr,
+                },
+                took,
+            },
+            Answer::Hang => timed_out,
+            Answer::SpawnFailed(msg) => RunResult {
+                outcome: RunOutcome::SpawnFailed(msg),
+                took: Duration::ZERO,
+            },
+        }
+    }
+}
