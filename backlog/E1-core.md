@@ -480,7 +480,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F3-T2 Config errors and warnings
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F3-T1
 - Covers: FR-45; TECHSPEC 5.2 (validation, unknown keys), 10 (config)
 - Size: M
