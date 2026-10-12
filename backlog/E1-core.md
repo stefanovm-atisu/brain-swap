@@ -1148,7 +1148,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F8-T2 Same pane and same folder
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F8-T1
 - Covers: FR-38; TECHSPEC 6.6 (tiers 1 and 2, best tier, ties within a tier)
 - Size: M
