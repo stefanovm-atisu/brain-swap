@@ -195,3 +195,28 @@ fn ts6_2_park_busy_exits_5() {
     insta::assert_snapshot!("busy_json", stdout);
     assert_eq!(fs::read(card(&s, "W-12")).unwrap(), before);
 }
+
+#[test]
+fn fr18_park_empty_note_exits_1() {
+    let s = sandbox();
+    let before = fs::read(card(&s, "W-12")).unwrap();
+    for (i, stdin) in ["Doing:\nNext:  \n", ""].into_iter().enumerate() {
+        let out = park(&s, &["park", "--card", "W-12"], stdin, "x", 1);
+        let err = text(&out.stderr);
+        assert_eq!(err, "brain-swap: empty note\n");
+        insta::assert_snapshot!(format!("empty_note_text_{i}"), err);
+        let out = park(&s, &["--json", "park", "--card", "W-12"], stdin, "x", 1);
+        let stdout = text(&out.stdout);
+        assert!(stdout.contains("\"code\":\"invalid_input\""), "{stdout}");
+        insta::assert_snapshot!(format!("empty_note_json_{i}"), stdout);
+        assert_eq!(fs::read(card(&s, "W-12")).unwrap(), before);
+    }
+}
+
+#[test]
+fn ts6_5_continuation_written_indented() {
+    let s = sandbox();
+    park(&s, &["park", "--card", "W-12"], "Next: a\nb\n", "x", 0);
+    let file = fs::read_to_string(card(&s, "W-12")).unwrap();
+    assert!(file.contains("\n- Next: a\n  b\n"), "{file}");
+}

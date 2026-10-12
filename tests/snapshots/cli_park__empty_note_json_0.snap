@@ -1,0 +1,5 @@
+---
+source: tests/cli_park.rs
+expression: stdout
+---
+{"v":1,"error":{"code":"invalid_input","message":"empty note"}}

@@ -329,7 +329,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T2 Note grammar on stdin and `empty note`
 
-- Status: doing
+- Status: done
 - Depends on: E2-F3-T1
 - Covers: FR-18, FR-34; TECHSPEC 6.5
 - Size: S

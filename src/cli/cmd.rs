@@ -355,19 +355,52 @@ pub struct NoteText {
     pub watch_out: String,
 }
 
-/// A first 6.5 parser: only plain `Doing:`, `Next:` and `Watch out:` lines count.
+/// The 6.5 grammar: a label line starts its part, other non-blank lines continue the
+/// current one (Doing before any label), a repeated label continues its part (A-E2-24).
 pub fn parse_note(text: &str) -> NoteText {
-    let mut n = NoteText::default();
+    let mut parts = [String::new(), String::new(), String::new()];
+    let mut at = 0;
     for line in text.lines() {
-        if let Some(v) = line.strip_prefix("Doing:") {
-            n.doing = v.trim().to_string();
-        } else if let Some(v) = line.strip_prefix("Next:") {
-            n.next = v.trim().to_string();
-        } else if let Some(v) = line.strip_prefix("Watch out:") {
-            n.watch_out = v.trim().to_string();
+        let rest = match label(line) {
+            Some((i, rest)) => {
+                at = i;
+                rest
+            }
+            None => line,
         }
+        .trim();
+        if rest.is_empty() {
+            continue;
+        }
+        if !parts[at].is_empty() {
+            parts[at].push('\n');
+        }
+        parts[at].push_str(rest);
     }
-    n
+    let [doing, next, watch_out] = parts;
+    NoteText {
+        doing,
+        next,
+        watch_out,
+    }
+}
+
+/// `^\s*-?\s*(\*\*)?(doing|next|watch out|watch)\s*:\s*(\*\*)?\s*(.*)$` in any case, matched
+/// on characters: the part index and the captured rest.
+fn label(line: &str) -> Option<(usize, &str)> {
+    let l = line.trim_start();
+    let l = l.strip_prefix('-').unwrap_or(l).trim_start();
+    let l = l.strip_prefix("**").unwrap_or(l);
+    [(0, "doing"), (1, "next"), (2, "watch out"), (2, "watch")]
+        .into_iter()
+        .find_map(|(i, word)| {
+            let mut cs = l.chars();
+            word.chars()
+                .all(|w| cs.next().is_some_and(|c| c.to_ascii_lowercase() == w))
+                .then_some(())?;
+            let rest = cs.as_str().trim_start().strip_prefix(':')?.trim_start();
+            Some((i, rest.strip_prefix("**").unwrap_or(rest)))
+        })
 }
 
 /// `templates` (6.3): header line and skeleton per template, one blank line between;
@@ -381,4 +414,66 @@ pub fn templates(ts: &[Template]) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_note;
+
+    fn parts(text: &str) -> [String; 3] {
+        let n = parse_note(text);
+        [n.doing, n.next, n.watch_out]
+    }
+
+    #[test]
+    fn ts6_5_labels_start_parts() {
+        assert_eq!(parts("Doing: a\nNext: b\nWatch out: c"), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn ts6_5_dash_bold_and_spacing_variants() {
+        let text = "- Doing: a\n**Next:** b\n  watch out :  c";
+        assert_eq!(parts(text), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn ts6_5_labels_match_any_case() {
+        assert_eq!(parts("DOING: a\nnExT: b\nWatch Out: c"), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn ts6_5_watch_alone_is_watch_out() {
+        assert_eq!(parts("watch: timeout"), ["", "", "timeout"]);
+    }
+
+    #[test]
+    fn ts6_5_unlabelled_leading_lines_are_doing() {
+        let text = "rerun the next test\nNext: x";
+        assert_eq!(parts(text), ["rerun the next test", "x", ""]);
+    }
+
+    #[test]
+    fn ts6_5_label_word_without_colon_is_text() {
+        assert_eq!(parts("next step is x"), ["next step is x", "", ""]);
+    }
+
+    #[test]
+    fn ts6_5_other_lines_continue_part() {
+        assert_eq!(parts("Next: a\nb\n\nc"), ["", "a\nb\nc", ""]);
+    }
+
+    #[test]
+    fn ts6_5_colon_after_closing_bold_is_text() {
+        assert_eq!(parts("**Next**: x"), ["**Next**: x", "", ""]);
+    }
+
+    #[test]
+    fn ts6_5_repeated_label_continues_part() {
+        assert_eq!(parts("Doing: a\nDoing: b"), ["a\nb", "", ""]);
+    }
+
+    #[test]
+    fn ts6_5_non_ascii_text_kept() {
+        assert_eq!(parts("Doing: über\nwätch: x"), ["über\nwätch: x", "", ""]);
+    }
 }
