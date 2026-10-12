@@ -177,7 +177,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T8 Start-up: gate, prepare and tui::run
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F1-T4, E4-F1-T6, E1-F3-T3, E1-F1-T8
 - Covers: FR-19, FR-44, FR-45; TECHSPEC 6.2 (the TUI with an unknown `--board` exits 3 before the alternate screen; exit 2 without a terminal), 6.3 (`brain-swap` opens the TUI; exit 2 without a terminal), 7.1 (start), 7.5 (on panic), 10 (config), 11 (loader warnings and the first load warning in the status line, all warnings in Help, `BRAIN_SWAP_LOG` inside a board folder); AS-9 (notice)
 - Size: M
