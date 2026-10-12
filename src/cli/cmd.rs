@@ -5,7 +5,7 @@ use crate::cli::out::{self, Out};
 use crate::core::config::{self, Config};
 use crate::core::env::Env;
 use crate::core::error::Error;
-use crate::core::model::{Board, Card, CardId};
+use crate::core::model::{Board, Card, CardId, NewNote};
 use crate::core::store::{self, CreateRequest};
 use crate::core::template::{self, Template};
 use std::ffi::OsString;
@@ -225,6 +225,45 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             out.result(&templates(&ts), Body { templates: &ts });
             0
         }
+        Some(Command::Park { card: Some(id), .. }) => {
+            let ctx = ctx.expect("loaded above");
+            let parked = find_card(&ctx, id).and_then(|(board, _)| {
+                let text = std::io::read_to_string(std::io::stdin())
+                    .map_err(|e| Error::Io(format!("stdin: {e}")))?;
+                let n = parse_note(&text);
+                let note = NewNote {
+                    at: env.now.clone(),
+                    auto: false,
+                    doing: n.doing,
+                    next: n.next,
+                    watch_out: n.watch_out,
+                    cwd: env.cwd.clone(),
+                    herdr: None,
+                    session: None,
+                };
+                Ok((store::park(env, &board, id, &note)?, board))
+            });
+            match parked {
+                Ok((parked, board)) => {
+                    let card = &parked.card;
+                    for w in board.warnings.iter().chain(&parked.warnings) {
+                        out.warn(w);
+                    }
+                    #[derive(serde::Serialize)]
+                    struct Body<'a> {
+                        card: out::CardJson<'a>,
+                    }
+                    out.result(
+                        &format!("parked to {}: {}\n", card.id, card.title),
+                        Body {
+                            card: out::card_json(card, &board, &env.now),
+                        },
+                    );
+                    0
+                }
+                Err(e) => out.error(&e),
+            }
+        }
         _ => todo!(),
     }
 }
@@ -274,6 +313,29 @@ pub fn split_body(text: &str) -> (Option<String>, String) {
         Some(t) => (Some(t.trim().to_string()), skip_blank(rest)),
         None => (None, text.clone()),
     }
+}
+
+/// The three parts of a note read from stdin (6.5).
+#[derive(Debug, Default)]
+pub struct NoteText {
+    pub doing: String,
+    pub next: String,
+    pub watch_out: String,
+}
+
+/// A first 6.5 parser: only plain `Doing:`, `Next:` and `Watch out:` lines count.
+pub fn parse_note(text: &str) -> NoteText {
+    let mut n = NoteText::default();
+    for line in text.lines() {
+        if let Some(v) = line.strip_prefix("Doing:") {
+            n.doing = v.trim().to_string();
+        } else if let Some(v) = line.strip_prefix("Next:") {
+            n.next = v.trim().to_string();
+        } else if let Some(v) = line.strip_prefix("Watch out:") {
+            n.watch_out = v.trim().to_string();
+        }
+    }
+    n
 }
 
 /// `templates` (6.3): header line and skeleton per template, one blank line between;

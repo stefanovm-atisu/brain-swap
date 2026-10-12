@@ -1,0 +1,5 @@
+---
+source: tests/cli_park.rs
+expression: text(&out.stderr)
+---
+brain-swap: W-11.md: not UTF-8, read only

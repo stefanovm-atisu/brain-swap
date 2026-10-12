@@ -1,0 +1,5 @@
+---
+source: tests/cli_park.rs
+expression: stdout
+---
+{"v":1,"error":{"code":"unreadable","message":"W-11.md: not UTF-8, read only"}}

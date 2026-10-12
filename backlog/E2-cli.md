@@ -308,7 +308,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T1 `park --card` from stdin and its error exits
 
-- Status: doing
+- Status: done
 - Depends on: E2-F2-T5, E1-F6
 - Covers: FR-16, FR-34, FR-15; TECHSPEC 6.2 (exit 1 `unreadable`, exit 3, exit 5 `busy`), 6.3 (`park` output), 6.7 (`park`), 10 (lock), AS-6 (stdin step)
 - Size: M

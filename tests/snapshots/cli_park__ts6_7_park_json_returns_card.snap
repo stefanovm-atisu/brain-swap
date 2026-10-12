@@ -1,0 +1,5 @@
+---
+source: tests/cli_park.rs
+expression: stdout
+---
+{"v":1,"card":{"id":"W-12","board":"work","title":"migrate invoices to v13","column":"Doing","open":true,"path":"<sandbox>/boards/work/W-12.md","latest_note":{"at":"2026-10-08T08:52:00+00:00","age_min":0,"auto":false,"doing":"a","next":"b","watch_out":"c","by_this_session":null,"place":{"cwd":"<sandbox>/ati.billing","session":null,"herdr":null}}}}

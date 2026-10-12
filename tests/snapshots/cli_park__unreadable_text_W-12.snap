@@ -1,0 +1,5 @@
+---
+source: tests/cli_park.rs
+expression: text(&out.stderr)
+---
+brain-swap: W-12.md:7: conflict marker, read only
