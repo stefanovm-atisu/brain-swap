@@ -49,7 +49,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F1-T2 JSON envelope, error and warning output
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F1-T1
 - Covers: FR-35, FR-36, FR-11; TECHSPEC 6.1 (`--json`), 6.2 (stderr and envelope rules, error codes), 6.7 (`templates`)
 - Size: M
