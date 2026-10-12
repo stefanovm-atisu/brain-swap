@@ -220,3 +220,45 @@ fn ts6_5_continuation_written_indented() {
     let file = fs::read_to_string(card(&s, "W-12")).unwrap();
     assert!(file.contains("\n- Next: a\n  b\n"), "{file}");
 }
+
+#[test]
+fn as6_park_from_terminal_prompts_and_writes_no_auto() {
+    let mut s = sandbox();
+    let bin = env!("CARGO_BIN_EXE_brain-swap");
+    let script = std::path::Path::new("/usr/bin/script");
+    // Linux only: macOS `script` takes other flags (A-E2-35).
+    let version = common::spawn::command(s.scenario_mut(), script)
+        .arg("--version")
+        .output();
+    if !version.is_ok_and(|v| text(&v.stdout).contains("util-linux")) {
+        eprintln!("skipped: /usr/bin/script is not util-linux");
+        return;
+    }
+    let out = common::spawn::command(s.scenario_mut(), script)
+        .args(["-qec", &format!("{bin} park --card W-12"), "/dev/null"])
+        .current_dir(s.root().join("elsewhere"))
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut c| {
+            use std::io::Write;
+            c.stdin.take().unwrap().write_all(b"a\nb\nc\n")?;
+            c.wait_with_output()
+        })
+        .unwrap();
+    let all = text(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{all}");
+    let at = |needle: &str| {
+        all.find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {all}"))
+    };
+    assert!(at("Doing: ") < at("Next: "), "{all}");
+    assert!(at("Next: ") < at("Watch out: "), "{all}");
+    assert!(at("Watch out: ") < at("parked to W-12: migrate invoices to v13"));
+    let file = fs::read_to_string(card(&s, "W-12")).unwrap();
+    let (_, note) = file.rsplit_once("\n### ").unwrap();
+    let mut lines = note.lines();
+    assert_eq!(lines.next(), Some("2026-10-08T08:52:00+00:00"));
+    let parts: Vec<_> = lines.take(3).collect();
+    assert_eq!(parts, ["- Doing: a", "- Next: b", "- Watch out: c"]);
+}

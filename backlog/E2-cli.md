@@ -416,7 +416,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T6 Terminal prompts
 
-- Status: doing
+- Status: done
 - Depends on: E2-F3-T2
 - Covers: FR-34, FR-18; TECHSPEC 6.3 (`park` prompts), AS-6 (terminal step)
 - Size: S

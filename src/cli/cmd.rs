@@ -294,9 +294,9 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
         Some(Command::Park { card: Some(id), .. }) => {
             let ctx = ctx.expect("loaded above");
             let parked = find_card(&ctx, id).and_then(|(board, _)| {
-                let text = std::io::read_to_string(std::io::stdin())
-                    .map_err(|e| Error::Io(format!("stdin: {e}")))?;
-                let n = parse_note(&text);
+                let stdin = std::io::stdin();
+                let terminal = std::io::IsTerminal::is_terminal(&stdin);
+                let n = read_note(&mut stdin.lock(), &mut std::io::stderr(), terminal)?;
                 let note = NewNote {
                     at: env.now.clone(),
                     auto: false,
@@ -419,6 +419,43 @@ pub fn parse_note(text: &str) -> NoteText {
     }
 }
 
+/// A note from `input`: the 6.5 grammar, or on a terminal one verbatim line per prompt
+/// written to `prompts`, end of input leaving the rest empty (A-E2-23).
+pub fn read_note(
+    input: &mut dyn std::io::BufRead,
+    prompts: &mut dyn Write,
+    terminal: bool,
+) -> Result<NoteText, Error> {
+    let io = |e: std::io::Error| Error::Io(format!("stdin: {e}"));
+    let n = if terminal {
+        let mut parts = [String::new(), String::new(), String::new()];
+        for (part, prompt) in parts.iter_mut().zip(["Doing: ", "Next: ", "Watch out: "]) {
+            let _ = prompts
+                .write_all(prompt.as_bytes())
+                .and_then(|_| prompts.flush());
+            if input.read_line(part).map_err(io)? == 0 {
+                break;
+            }
+            part.truncate(part.trim_end_matches(['\r', '\n']).len());
+        }
+        let [doing, next, watch_out] = parts;
+        NoteText {
+            doing,
+            next,
+            watch_out,
+        }
+    } else {
+        parse_note(&std::io::read_to_string(input).map_err(io)?)
+    };
+    if [&n.doing, &n.next, &n.watch_out]
+        .iter()
+        .all(|p| p.trim().is_empty())
+    {
+        return Err(Error::InvalidInput("empty note".to_string()));
+    }
+    Ok(n)
+}
+
 /// `^\s*-?\s*(\*\*)?(doing|next|watch out|watch)\s*:\s*(\*\*)?\s*(.*)$` in any case, matched
 /// on characters: the part index and the captured rest.
 fn label(line: &str) -> Option<(usize, &str)> {
@@ -452,7 +489,8 @@ pub fn templates(ts: &[Template]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_note;
+    use super::{parse_note, read_note};
+    use crate::core::error::Error;
 
     fn parts(text: &str) -> [String; 3] {
         let n = parse_note(text);
@@ -509,5 +547,45 @@ mod tests {
     #[test]
     fn ts6_5_non_ascii_text_kept() {
         assert_eq!(parts("Doing: über\nwätch: x"), ["über\nwätch: x", "", ""]);
+    }
+
+    fn read(input: &str, terminal: bool) -> (Result<[String; 3], Error>, String) {
+        let mut prompts = Vec::new();
+        let n = read_note(&mut input.as_bytes(), &mut prompts, terminal);
+        let n = n.map(|n| [n.doing, n.next, n.watch_out]);
+        (n, String::from_utf8(prompts).unwrap())
+    }
+
+    #[test]
+    fn fr34_terminal_prompts_for_each_part() {
+        let (n, prompts) = read("a\nb\nc\n", true);
+        assert_eq!(prompts, "Doing: Next: Watch out: ");
+        assert_eq!(n.unwrap(), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn fr34_terminal_answer_taken_verbatim() {
+        let (n, _) = read("next: x\n\n\n", true);
+        assert_eq!(n.unwrap(), ["next: x", "", ""]);
+    }
+
+    #[test]
+    fn fr34_terminal_end_of_input_stops_prompting() {
+        let (n, prompts) = read("a\n", true);
+        assert_eq!(prompts, "Doing: Next: ");
+        assert_eq!(n.unwrap(), ["a", "", ""]);
+    }
+
+    #[test]
+    fn fr18_terminal_three_empty_answers_rejected() {
+        let (n, _) = read("\n\n\n", true);
+        assert_eq!(n, Err(Error::InvalidInput("empty note".to_string())));
+    }
+
+    #[test]
+    fn fr34_non_terminal_parses_without_prompts() {
+        let (n, prompts) = read("Next: b\n", false);
+        assert_eq!(prompts, "");
+        assert_eq!(n.unwrap(), ["", "b", ""]);
     }
 }
