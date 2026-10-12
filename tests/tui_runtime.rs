@@ -14,7 +14,7 @@ fn work_4_9() -> TuiFixture {
 
 #[test]
 fn ts7_5_terminal_entered_and_restored_on_quit() {
-    let (rt, guard, events) = work_4_9().runtime(80, 24);
+    let (mut rt, guard, events) = work_4_9().runtime(80, 24);
     events.push([Ev::Key("q")]);
     assert_eq!(rt.run(), 0);
     assert_eq!(*guard.0.borrow(), ["enter", "leave"]);
@@ -27,7 +27,7 @@ fn fr45_config_error_any_key_exits_1() {
         app: App::config_error("config broken".into(), fx.env.now.clone()),
         config: None,
     };
-    let (rt, guard, events) = fake_runtime(&fx.env, prepared, 80, 24);
+    let (mut rt, guard, events) = fake_runtime(&fx.env, prepared, 80, 24);
     events.push([Ev::Key("x")]);
     assert_eq!(rt.run(), 1);
     assert_eq!(*guard.0.borrow(), ["enter", "leave"]);
@@ -35,7 +35,7 @@ fn fr45_config_error_any_key_exits_1() {
 
 #[test]
 fn ts7_5_terminal_restored_on_panic() {
-    let (rt, guard, events) = work_4_9().runtime(80, 24);
+    let (mut rt, guard, events) = work_4_9().runtime(80, 24);
     events.push([Ev::Timeout, Ev::Panic]);
     assert!(catch_unwind(AssertUnwindSafe(|| rt.run())).is_err());
     assert_eq!(guard.0.borrow().last(), Some(&"leave"));
@@ -43,7 +43,7 @@ fn ts7_5_terminal_restored_on_panic() {
 
 #[test]
 fn ts7_5_terminal_restored_on_event_error() {
-    let (rt, guard, events) = work_4_9().runtime(80, 24);
+    let (mut rt, guard, events) = work_4_9().runtime(80, 24);
     events.push([Ev::Error]);
     assert_eq!(rt.run(), 1);
     assert_eq!(*guard.0.borrow(), ["enter", "leave"]);
@@ -51,7 +51,7 @@ fn ts7_5_terminal_restored_on_event_error() {
 
 #[test]
 fn ts7_1_input_polled_every_250_ms() {
-    let (rt, _guard, events) = work_4_9().runtime(80, 24);
+    let (mut rt, _guard, events) = work_4_9().runtime(80, 24);
     events.push([Ev::Timeout, Ev::Timeout, Ev::Key("q")]);
     rt.run();
     assert_eq!(*events.timeouts.borrow(), [Duration::from_millis(250); 3]);

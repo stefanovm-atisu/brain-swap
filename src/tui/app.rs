@@ -147,6 +147,39 @@ pub fn initial_selection(board: &Board) -> Selection {
     }
 }
 
+/// Replaces the board, keeping the selected card wherever it now is; a vanished card gives
+/// the card at its old row in the same column, clamped (7.4, A-E4-07).
+fn reload(app: &mut App, board: Board) {
+    let sel = &app.sel;
+    let row = app
+        .board
+        .cards_in(sel.column)
+        .iter()
+        .position(|c| Some(c.id) == sel.card)
+        .unwrap_or(0);
+    let columns = board.column_list().len();
+    let kept = sel
+        .card
+        .and_then(|id| (0..columns).find(|&i| board.cards_in(i).iter().any(|c| c.id == id)));
+    app.sel = match kept {
+        Some(column) => Selection {
+            column,
+            card: sel.card,
+        },
+        None => {
+            let column = sel.column.min(columns.saturating_sub(1));
+            let cards = board.cards_in(column);
+            Selection {
+                column,
+                card: cards
+                    .get(row.min(cards.len().saturating_sub(1)))
+                    .map(|c| c.id),
+            }
+        }
+    };
+    app.board = board;
+}
+
 pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
     // Nothing but Quit leaves ConfigError, so no effect can name a folder (FR-45).
     if let Mode::ConfigError(_) = app.mode {
@@ -159,6 +192,14 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
         Input::Key(event) => event,
         Input::Done(Outcome::Failed(text)) => {
             app.status = Some(text);
+            return Vec::new();
+        }
+        Input::Tick(now) => {
+            app.now = now;
+            return Vec::new();
+        }
+        Input::Reloaded(board) if board.name == app.board.name => {
+            reload(app, board);
             return Vec::new();
         }
         _ => return Vec::new(),

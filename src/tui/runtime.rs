@@ -1,10 +1,13 @@
 //! The TUI loop (TECHSPEC 7.1, 7.5): draws, polls keys, runs effects; terminal, input and
 //! clock are injected so tests need no tty (12.1).
 
+use std::fs;
 use std::io;
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
-use std::time::Duration;
+use std::path::Path;
+use std::time::{Duration, SystemTime};
 
+use jiff::SignedDuration;
 use jiff::tz::TimeZone;
 use ratatui::Terminal;
 use ratatui::backend::Backend;
@@ -13,9 +16,12 @@ use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 
 use super::Prepared;
-use super::app::{App, Effect, Input, Mode, update};
+use super::app::{App, Effect, Input, Mode, Outcome, update};
 use super::view_frame;
+use crate::core::board;
 use crate::core::env::Env;
+use crate::core::log;
+use crate::core::model::CardId;
 use crate::core::time::Stamp;
 
 pub trait TerminalGuard {
@@ -77,18 +83,48 @@ pub struct Parts {
     pub clock: Box<dyn Clock>,
 }
 
+/// The sorted `(name, mtime, length)` of `board.md` and the card files of one letter (7.4).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Fingerprint(Vec<(String, Option<SystemTime>, u64)>);
+
+/// Lists `dir` and reads metadata only; an unlistable or missing folder gives an empty one.
+pub fn fingerprint(dir: &Path, letter: char) -> Fingerprint {
+    let mut v: Vec<_> = fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let card = CardId::from_file_name(&name).is_some_and(|id| id.letter == letter);
+            let m = fs::metadata(e.path()).ok()?;
+            (card || name == "board.md").then(|| (name, m.modified().ok(), m.len()))
+        })
+        .collect();
+    v.sort();
+    Fingerprint(v)
+}
+
 pub struct Runtime<B: Backend> {
     pub terminal: Terminal<B>,
     app: App,
     parts: Parts,
+    env: Env,
+    print: Fingerprint,
+    scans: u64,
+    last_scan: Stamp,
 }
 
 impl<B: Backend> Runtime<B> {
-    pub fn new(_env: Env, prepared: Prepared, terminal: Terminal<B>, parts: Parts) -> Runtime<B> {
+    pub fn new(env: Env, prepared: Prepared, terminal: Terminal<B>, parts: Parts) -> Runtime<B> {
+        let board = &prepared.app.board;
         Runtime {
             terminal,
+            print: fingerprint(&board.path, board.meta.letter),
+            last_scan: parts.clock.now(),
+            scans: 0,
             app: prepared.app,
             parts,
+            env,
         }
     }
 
@@ -114,9 +150,36 @@ impl<B: Backend> Runtime<B> {
         None
     }
 
+    /// One scan of the board folder; a change reloads the board (7.4). Then `Tick`.
+    pub fn tick(&mut self) -> Option<i32> {
+        self.scans += 1;
+        self.last_scan = self.parts.clock.now();
+        let b = &self.app.board;
+        let print = fingerprint(&b.path, b.meta.letter);
+        if print != self.print {
+            self.print = print;
+            let input = match board::load(&b.name, &b.path, &self.env) {
+                Ok(board) => {
+                    log::event(&self.env, "reload", &board.name);
+                    Input::Reloaded(board)
+                }
+                Err(e) => Input::Done(Outcome::Failed(e.to_string())),
+            };
+            if let Some(code) = self.dispatch(input) {
+                return Some(code);
+            }
+        }
+        self.dispatch(Input::Tick(self.last_scan.clone()))
+    }
+
+    /// Scans made by `tick`, the baseline of `new` not counted.
+    pub fn scan_count(&self) -> u64 {
+        self.scans
+    }
+
     /// Enters the terminal, loops until an exit code and leaves it on every way out,
     /// a panic included; a terminal I/O error exits 1 (A-E4-04).
-    pub fn run(mut self) -> i32 {
+    pub fn run(&mut self) -> i32 {
         let result = catch_unwind(AssertUnwindSafe(|| self.lp()));
         let _ = self.parts.guard.leave();
         match result {
@@ -135,6 +198,12 @@ impl<B: Backend> Runtime<B> {
             self.draw()?;
             if let Some(key) = self.parts.events.poll(Duration::from_millis(250))?
                 && let Some(code) = self.dispatch(Input::Key(key))
+            {
+                return Ok(code);
+            }
+            let due = self.parts.clock.now().duration_since(&self.last_scan);
+            if due >= SignedDuration::from_secs(1)
+                && let Some(code) = self.tick()
             {
                 return Ok(code);
             }

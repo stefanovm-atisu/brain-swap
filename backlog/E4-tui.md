@@ -151,7 +151,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T7 Polling and reload
 
-- Status: doing
+- Status: done
 - Depends on: E4-F1-T6, E1-F1-T8
 - Covers: FR-23, NFR-02; TECHSPEC 7.1 (`Tick`, `Reloaded` keeps the selection), 7.4, 11 (reloads in the log), T-06, T-17
 - Size: M
