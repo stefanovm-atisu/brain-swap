@@ -1174,7 +1174,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F8-T3 Linked here and recovery by pane hint
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F8-T2, E1-F7-T3
 - Covers: FR-38; TECHSPEC 6.4 (the hint read as `linked here`), 6.6 (tier 0, current pane only when `HERDR_ENV=1`), 9.1 (detection); AS-3 (best guess part)
 - Size: S
