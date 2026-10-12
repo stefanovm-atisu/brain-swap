@@ -513,7 +513,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F4-T2 Title input
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F4-T1
 - Covers: FR-30; TECHSPEC 5.2 (TitleInput: printable characters and space inserted, `backspace`, `confirm` ignored while the trimmed title is empty, `cancel`, printable `confirm` or `cancel` bindings ignored there), 7.1 (`confirm` emits `Create` in the focused column), 7.2 (title input); PRD A-25; AS-6 (creation keys)
 - Size: S
