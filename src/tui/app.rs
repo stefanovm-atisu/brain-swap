@@ -177,6 +177,15 @@ pub fn move_target(board: &Board, card: &Card, right: bool) -> Option<String> {
     cols.get(j).cloned()
 }
 
+/// The configured column at `column`, or the first one for an extra column (4.7, A-E4-16).
+pub fn create_column(board: &Board, column: usize) -> String {
+    let cols = &board.meta.columns;
+    cols.get(column)
+        .or(cols.first())
+        .cloned()
+        .unwrap_or_default()
+}
+
 /// Replaces the board, keeping the selected card wherever it now is; a vanished card gives
 /// the card at its old row in the same column, clamped (7.4, A-E4-07).
 fn reload(app: &mut App, board: Board) {
@@ -340,6 +349,35 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             };
             effects
         }
+        // A text field: only `confirm` and `cancel` are actions there (5.2).
+        (Mode::TitleInput { template, buf }, a) => match a {
+            Some(Action::Confirm) if !buf.trim().is_empty() => {
+                let effect = Effect::Create {
+                    template: template.clone(),
+                    title: buf.trim().to_string(),
+                    column: create_column(&app.board, app.sel.column),
+                };
+                app.mode = Mode::Board;
+                vec![effect]
+            }
+            Some(Action::Cancel) => {
+                app.mode = Mode::Board;
+                Vec::new()
+            }
+            _ => {
+                if let (None, Mode::TitleInput { buf, .. }) = (a, &mut app.mode) {
+                    match press.map(|p| (p.key, p.ctrl || p.alt)) {
+                        Some((Key::Backspace, _)) => {
+                            buf.pop();
+                        }
+                        Some((Key::Char(c), false)) => buf.push(c),
+                        Some((Key::Space, false)) => buf.push(' '),
+                        _ => {}
+                    }
+                }
+                Vec::new()
+            }
+        },
         (Mode::Board, Some(Action::Open)) => {
             if let Some(card) = app.selected_card() {
                 let note = card.notes.len().saturating_sub(1);

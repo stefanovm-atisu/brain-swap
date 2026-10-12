@@ -29,10 +29,10 @@ pub fn draw(frame: &mut Frame, app: &App) {
         Mode::Detail { .. } => view_detail::draw(frame, screen, app),
         Mode::TemplatePick { .. } => view_pick::draw_templates(frame, screen, app),
         Mode::BoardPick { .. } => view_pick::draw_boards(frame, screen, app),
+        Mode::TitleInput { .. } => view_pick::draw_title(frame, screen, app),
         Mode::Help { .. } => view_help::draw(frame, app, screen),
         Mode::Message { text, .. } | Mode::ConfigError(text) => {
             view_message::draw(frame, text, screen)
         }
-        _ => {}
     }
 }

@@ -6,7 +6,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 
-use super::app::{App, Mode};
+use super::app::{App, Mode, create_column};
 
 /// The title, then ` <hotkey>  <name>` per template; the selected row starts `>`, reversed.
 pub fn draw_templates(frame: &mut Frame, area: Rect, app: &App) {
@@ -55,4 +55,18 @@ pub fn draw_boards(frame: &mut Frame, area: Rect, app: &App) {
         lines.push(Line::styled(format!("{mark}{name}  {path}"), style));
     }
     frame.render_widget(Paragraph::new(lines), area);
+}
+
+/// ` new <template> card in <column>` and ` title: <buf>`, the cursor after the title.
+pub fn draw_title(frame: &mut Frame, area: Rect, app: &App) {
+    let (template, buf) = match &app.mode {
+        Mode::TitleInput { template, buf } => (template.as_str(), buf.as_str()),
+        _ => ("", ""),
+    };
+    let column = create_column(&app.board, app.sel.column);
+    let title = Line::from(format!(" title: {buf}"));
+    let x = u16::try_from(title.width()).unwrap_or(u16::MAX);
+    frame.set_cursor_position((area.x.saturating_add(x), area.y + 1));
+    let head = Line::from(format!(" new {template} card in {column}"));
+    frame.render_widget(Paragraph::new(vec![head, title]), area);
 }

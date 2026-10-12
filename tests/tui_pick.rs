@@ -3,6 +3,7 @@
 mod common;
 
 use brain_swap::core::config::load;
+use brain_swap::core::keys::KeyMap;
 use brain_swap::core::model::CardId;
 use brain_swap::tui::app::{App, Effect, Input, Mode};
 use brain_swap::tui::runtime::Runtime;
@@ -301,5 +302,135 @@ fn fr24_board_pick_snapshots() {
         assert!(!buf[(0, 2)].modifier.contains(Modifier::REVERSED));
         let text = rows(&buf).join("\n").replace(&root, "<root>");
         insta::assert_snapshot!(format!("board_pick_{w}x{h}"), text);
+    }
+}
+
+/// The `work_4_9` app in TitleInput for Feature with `buf`.
+fn titled(buf: &str) -> App {
+    let mut app = work_4_9();
+    app.mode = Mode::TitleInput {
+        template: "Feature".into(),
+        buf: buf.into(),
+    };
+    app
+}
+
+fn buf_of(app: &App) -> &str {
+    match &app.mode {
+        Mode::TitleInput { buf, .. } => buf,
+        m => panic!("not in TitleInput: {m:?}"),
+    }
+}
+
+fn create(title: &str, column: &str) -> Effect {
+    Effect::Create {
+        template: "Feature".into(),
+        title: title.into(),
+        column: column.into(),
+    }
+}
+
+#[test]
+fn fr30_j_and_k_type_into_title() {
+    let mut app = work_4_9();
+    press(&mut app, &["n", "f", "j", "k"]);
+    assert_eq!(
+        app.mode,
+        Mode::TitleInput {
+            template: "Feature".into(),
+            buf: "jk".into()
+        }
+    );
+}
+
+#[test]
+fn ts5_2_title_input_takes_every_printable_character() {
+    let mut app = titled("");
+    assert!(press(&mut app, &["q", "?", "H", "space", "é"]).is_empty());
+    assert_eq!(buf_of(&app), "q?H é");
+}
+
+#[test]
+fn ts5_2_backspace_deletes_last_character() {
+    let mut app = titled("abc");
+    press(&mut app, &["backspace"]);
+    assert_eq!(buf_of(&app), "ab");
+    let mut app = titled("");
+    press(&mut app, &["backspace"]);
+    assert_eq!(buf_of(&app), "");
+}
+
+#[test]
+fn ts5_2_confirm_ignored_while_title_blank() {
+    for buf in ["", "   "] {
+        let mut app = titled(buf);
+        assert!(press(&mut app, &["enter"]).is_empty());
+        assert_eq!(buf_of(&app), buf);
+    }
+}
+
+#[test]
+fn as6_creation_emits_one_create_in_focused_column() {
+    let mut app = work_4_9();
+    app.sel.column = 0;
+    let keys = [
+        "n", "f", "f", "i", "x", "space", "l", "o", "g", "i", "n", "enter",
+    ];
+    assert_eq!(press(&mut app, &keys), [create("fix login", "Todo")]);
+    assert_eq!(app.mode, Mode::Board);
+}
+
+#[test]
+fn fr30_title_is_trimmed_and_column_is_focused_one() {
+    let mut app = titled("  spike  ");
+    app.sel.column = 1;
+    assert_eq!(press(&mut app, &["enter"]), [create("spike", "Doing")]);
+}
+
+#[test]
+fn ts5_2_cancel_in_title_input_returns_to_board() {
+    let mut app = titled("abc");
+    assert!(press(&mut app, &["esc"]).is_empty());
+    assert_eq!(app.mode, Mode::Board);
+}
+
+#[test]
+fn ts5_2_printable_confirm_binding_types_in_title() {
+    let mut app = titled("a");
+    app.sel.column = 0;
+    app.keys = KeyMap::build(&[("confirm".into(), vec!["enter".into(), "y".into()])]).0;
+    assert!(press(&mut app, &["y"]).is_empty());
+    assert!(buf_of(&app).ends_with('y'));
+    assert_eq!(press(&mut app, &["enter"]), [create("ay", "Todo")]);
+}
+
+#[test]
+fn ts5_2_ctrl_and_alt_keys_are_not_inserted() {
+    let mut app = titled("ab");
+    assert!(press(&mut app, &["ctrl+d", "alt+x"]).is_empty());
+    assert_eq!(buf_of(&app), "ab");
+}
+
+#[test]
+fn fr30_create_from_extra_column_uses_first_column() {
+    let mut app = TuiFixture::new(Some("as7")).app();
+    app.sel.column = app
+        .board
+        .column_list()
+        .iter()
+        .position(|c| c.name == "Doign (unknown)")
+        .unwrap();
+    let effects = press(&mut app, &["n", "f", "x", "enter"]);
+    assert_eq!(effects, [create("x", "Todo")]);
+}
+
+#[test]
+fn fr30_title_input_snapshots() {
+    let mut app = titled("fix login");
+    app.sel.column = 0;
+    for (w, h) in [(80, 24), (120, 40)] {
+        let buf = render(&app, w, h);
+        assert_no_colour(&buf);
+        insta::assert_snapshot!(format!("title_input_{w}x{h}"), rows(&buf).join("\n"));
     }
 }
