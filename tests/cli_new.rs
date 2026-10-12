@@ -140,3 +140,97 @@ fn ts5_4_new_warns_about_invalid_user_template() {
         assert!(err.contains("warning: template feature.md"), "{err}");
     }
 }
+
+#[test]
+fn ts6_2_unknown_template_exits_3_listing_names() {
+    let s = sandbox();
+    let out = run(&s, &["new", "--template", "epic", "x"], 3);
+    assert_eq!(
+        text(&out.stderr),
+        "brain-swap: unknown template 'epic' (Feature, Bug, Research, Chore)\n"
+    );
+    insta::assert_snapshot!(text(&out.stderr));
+    assert!(!work(&s).join("W-1.md").exists());
+    let out = run(&s, &["--json", "new", "--template", "epic", "x"], 3);
+    assert!(text(&out.stdout).contains("\"code\":\"not_found\""));
+    insta::assert_snapshot!(text(&out.stdout));
+}
+
+#[test]
+fn ts6_2_unknown_column_exits_3_listing_columns() {
+    let s = sandbox();
+    let out = run(&s, &["new", "--column", "Doign", "x"], 3);
+    assert_eq!(
+        text(&out.stderr),
+        "brain-swap: unknown column 'Doign' on work (Todo, Doing, Done)\n"
+    );
+    insta::assert_snapshot!(text(&out.stderr));
+    let out = run(&s, &["--json", "new", "--column", "Doign", "x"], 3);
+    assert!(text(&out.stdout).contains("\"code\":\"not_found\""));
+    insta::assert_snapshot!(text(&out.stdout));
+    assert!(!work(&s).join("W-1.md").exists());
+}
+
+#[test]
+fn ts6_2_unknown_board_exits_3_listing_boards() {
+    let s = sandbox();
+    let out = run(&s, &["--board", "work2", "new", "x"], 3);
+    assert_eq!(
+        text(&out.stderr),
+        "brain-swap: unknown board 'work2' (work, home, personal)\n"
+    );
+    insta::assert_snapshot!(text(&out.stderr));
+    let out = run(&s, &["--json", "--board", "work2", "new", "x"], 3);
+    assert!(text(&out.stdout).contains("\"code\":\"not_found\""));
+    insta::assert_snapshot!(text(&out.stdout));
+}
+
+#[test]
+fn i3_new_template_and_column_flags() {
+    let s = sandbox();
+    let out = run(
+        &s,
+        &["new", "--template", "bug", "--column", "Doing", "x"],
+        0,
+    );
+    assert_eq!(text(&out.stdout), "created W-1: x (Doing, work)\n");
+    let card = fs::read_to_string(work(&s).join("W-1.md")).unwrap();
+    for want in [
+        "column: Doing\n",
+        "template: Bug\n",
+        "## Symptom\n",
+        "## Expected\n",
+        "## Repro\n",
+        "## Context\n",
+    ] {
+        assert!(card.contains(want), "{want}: {card}");
+    }
+}
+
+#[test]
+fn ts6_2_names_match_ignoring_case() {
+    let s = sandbox();
+    let args = [
+        "--board",
+        "WORK",
+        "new",
+        "--template",
+        "BUG",
+        "--column",
+        "doing",
+        "x",
+    ];
+    let out = run(&s, &args, 0);
+    assert_eq!(text(&out.stdout), "created W-1: x (Doing, work)\n");
+    let card = fs::read_to_string(work(&s).join("W-1.md")).unwrap();
+    assert!(card.contains("column: Doing\n"), "{card}");
+    assert!(card.contains("template: Bug\n"), "{card}");
+}
+
+#[test]
+fn ts6_3_new_on_named_board_uses_its_letter() {
+    let s = sandbox();
+    let out = run(&s, &["new", "x", "--board", "home"], 0);
+    assert_eq!(text(&out.stdout), "created H-1: x (Todo, home)\n");
+    assert!(s.root().join("boards/home/H-1.md").is_file());
+}

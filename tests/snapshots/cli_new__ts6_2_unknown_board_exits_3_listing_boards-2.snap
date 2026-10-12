@@ -1,0 +1,5 @@
+---
+source: tests/cli_new.rs
+expression: text(&out.stdout)
+---
+{"v":1,"error":{"code":"not_found","message":"unknown board 'work2' (work, home, personal)"}}

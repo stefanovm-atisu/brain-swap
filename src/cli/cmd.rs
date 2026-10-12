@@ -110,9 +110,15 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
         }
     }
     match cli.command {
-        Some(Command::New { title, .. }) => {
+        Some(Command::New {
+            title,
+            template,
+            column,
+            ..
+        }) => {
             let ctx = ctx.expect("loaded above");
-            match new(env, &ctx, &title.join(" "), &mut out) {
+            let names = (cli.board.as_deref(), template.as_deref(), column.as_deref());
+            match new(env, &ctx, &title.join(" "), names, &mut out) {
                 Ok((board, created)) => {
                     let card = &created.card;
                     for w in board.warnings.iter().chain(&created.warnings) {
@@ -153,14 +159,21 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
     }
 }
 
-/// `new` (6.3): a `feature` card in the first column of the default board.
-fn new(env: &Env, ctx: &Ctx, title: &str, out: &mut Out) -> Result<(Board, store::Created), Error> {
-    let board = ctx.board(None)?;
-    let template = find_template(ctx, "feature", out)?;
+/// `new` (6.3): the board, template and column names default to the default board, `feature`
+/// and the first column; `store::create` resolves the column (`Board::column`).
+fn new(
+    env: &Env,
+    ctx: &Ctx,
+    title: &str,
+    (board, template, column): (Option<&str>, Option<&str>, Option<&str>),
+    out: &mut Out,
+) -> Result<(Board, store::Created), Error> {
+    let board = ctx.board(board)?;
+    let template = find_template(ctx, template.unwrap_or("feature"), out)?;
     let req = CreateRequest {
         title,
         template: &template,
-        column: None,
+        column,
         body: None,
     };
     let created = store::create(env, &board, &req)?;
