@@ -101,3 +101,133 @@ fn fr42_key_value_is_string_or_list() {
         ]
     );
 }
+
+fn err(text: &str) -> Error {
+    parse(
+        text,
+        Path::new("/h/.config/brain-swap/config.toml"),
+        Path::new("/h"),
+    )
+    .unwrap_err()
+}
+
+fn at(e: &Error) -> (usize, usize, &str) {
+    match e {
+        Error::Config { line, col, msg, .. } => (*line, *col, msg.as_str()),
+        e => panic!("not a config error: {e:?}"),
+    }
+}
+
+const BOARDS: &str = "[boards]\nwork = \"/w\"\nhome = \"/h\"\n";
+
+fn error_cases() -> Vec<Error> {
+    let mut v = vec![
+        err("editor = \"\"\n\n\ndefault_board \"work\"\n"),
+        err(&format!("default_board = \"x\"\n{BOARDS}")),
+        err("default_board = \"work\"\n\n[boards]\n"),
+        err("default_board = \"work\"\n"),
+    ];
+    for t in [
+        "[boards]\nWork = \"/b\"\n",
+        "[boards]\n1st = \"/b\"\n",
+        "editor = 3\n[boards]\nwork = \"/w\"\n",
+        "default_board = true\n[boards]\nwork = \"/w\"\n",
+        "[boards]\nwork = \"/w\"\n[keys]\nup = 5\n",
+        "[boards]\nwork = \"/w\"\n[keys]\nup = [1]\n",
+        "[boards]\nwork = \"boards/work\"\n",
+        "[boards]\nwork = \"~user/x\"\n",
+    ] {
+        v.push(err(t));
+    }
+    v
+}
+
+#[test]
+fn fr45_syntax_error_names_file_line_col() {
+    let e = err("editor = \"\"\n\n\ndefault_board \"work\"\n");
+    let (line, col, _) = at(&e);
+    assert_eq!(line, 4);
+    assert_eq!(col, 15);
+    assert!(
+        e.to_string()
+            .starts_with("config /h/.config/brain-swap/config.toml:4:"),
+        "{e}"
+    );
+}
+
+#[test]
+fn ts5_2_default_board_not_in_boards_is_config_error() {
+    let e = err(&format!("default_board = \"x\"\n{BOARDS}"));
+    assert_eq!(at(&e), (1, 1, "default_board 'x' is not in [boards]"));
+}
+
+#[test]
+fn ts5_2_empty_boards_is_config_error() {
+    let e = err("default_board = \"work\"\n\n[boards]\n");
+    let (line, _, msg) = at(&e);
+    assert_eq!((line, msg), (3, "[boards] is empty"));
+}
+
+#[test]
+fn ts5_2_missing_boards_is_config_error() {
+    let e = err("default_board = \"work\"\n");
+    assert_eq!(at(&e), (1, 1, "[boards] is empty"));
+}
+
+#[test]
+fn ts5_2_bad_board_name_is_config_error() {
+    for (name, col) in [("Work", 1), ("1st", 3)] {
+        let e = err(&format!(
+            "default_board = \"ok\"\n[boards]\nok = \"/o\"\n{}{name} = \"/b\"\n",
+            " ".repeat(col - 1)
+        ));
+        let msg = format!("board name '{name}' must match [a-z][a-z0-9_-]*");
+        assert_eq!(at(&e), (4, col, msg.as_str()));
+    }
+}
+
+#[test]
+fn ts5_2_wrong_type_is_config_error() {
+    for (text, line) in [
+        ("editor = 3\n[boards]\nwork = \"/w\"\n", 1),
+        ("[boards]\nwork = \"/w\"\n\ndefault_board = true\n", 4),
+        ("[boards]\nwork = \"/w\"\n[keys]\nup = 5\n", 4),
+        ("[boards]\nwork = \"/w\"\n[keys]\nup = [1]\n", 4),
+    ] {
+        let e = err(text);
+        let (l, c, msg) = at(&e);
+        assert_eq!((l, c), (line, 1), "{text}");
+        assert!(msg.contains("expected"), "{msg}");
+    }
+}
+
+#[test]
+fn ts5_2_relative_board_path_is_config_error() {
+    for p in ["boards/work", "~user/x"] {
+        let e = err(&format!("[boards]\nwork = \"{p}\"\n"));
+        let (_, _, msg) = at(&e);
+        assert_eq!(msg, "board work: path must be absolute or start with ~/");
+    }
+}
+
+#[test]
+fn ts5_2_unknown_top_level_key_warns() {
+    let text = format!("colour = \"red\"\n{}", default_text());
+    let (_, warnings) = parse(
+        &text,
+        Path::new("/h/.config/brain-swap/config.toml"),
+        Path::new("/h"),
+    )
+    .unwrap();
+    assert_eq!(warnings, ["config: unknown key 'colour'"]);
+}
+
+#[test]
+fn fr45_config_errors_exit_1() {
+    let cases = error_cases();
+    assert_eq!(cases.len(), 12);
+    for e in cases {
+        assert!(matches!(e, Error::Config { .. }), "{e:?}");
+        assert_eq!((e.exit_code(), e.code()), (1, "config"));
+    }
+}
