@@ -158,6 +158,16 @@ pub fn initial_selection(board: &Board) -> Selection {
     }
 }
 
+/// The neighbouring configured column; a card in an extra column goes to the first (7.3, 4.7).
+pub fn move_target(board: &Board, card: &Card, right: bool) -> Option<String> {
+    let cols = &board.meta.columns;
+    let Some(i) = cols.iter().position(|c| *c == card.column) else {
+        return cols.first().cloned();
+    };
+    let j = if right { i + 1 } else { i.checked_sub(1)? };
+    cols.get(j).cloned()
+}
+
 /// Replaces the board, keeping the selected card wherever it now is; a vanished card gives
 /// the card at its old row in the same column, clamped (7.4, A-E4-07).
 fn reload(app: &mut App, board: Board) {
@@ -214,7 +224,7 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             return Vec::new();
         }
         // Selects the card and focuses its column; the mode stays (A-E4-13).
-        Input::Done(Outcome::Edited(id)) => {
+        Input::Done(Outcome::Moved(id) | Outcome::Edited(id)) => {
             if let Some(column) = (0..app.board.column_list().len())
                 .find(|&i| app.board.cards_in(i).iter().any(|c| c.id == id))
             {
@@ -272,6 +282,16 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             };
             Vec::new()
         }
+        (Mode::Board, Some(a @ (Action::MoveLeft | Action::MoveRight))) => app
+            .selected_card()
+            .and_then(|c| {
+                Some(Effect::Move(
+                    c.id,
+                    move_target(&app.board, c, a == Action::MoveRight)?,
+                ))
+            })
+            .into_iter()
+            .collect(),
         (Mode::Detail { .. }, Some(a @ (Action::Up | Action::Down))) => {
             if let Mode::Detail { card, note, .. } = &mut app.mode {
                 let last = app

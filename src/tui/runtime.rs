@@ -23,6 +23,7 @@ use crate::core::board;
 use crate::core::env::Env;
 use crate::core::log;
 use crate::core::model::CardId;
+use crate::core::store::move_card;
 use crate::core::time::Stamp;
 
 pub trait TerminalGuard {
@@ -149,6 +150,20 @@ impl<B: Backend> Runtime<B> {
         for effect in update(&mut self.app, input) {
             match effect {
                 Effect::Quit => return Some(matches!(self.app.mode, Mode::ConfigError(_)) as i32),
+                Effect::Move(id, column) => {
+                    let b = &self.app.board;
+                    let outcome = match move_card(&self.env, b, id, &column) {
+                        Ok(_) => {
+                            // Reload before `Done` (A-E4-05); a failed load keeps the board.
+                            if let Ok(new) = board::load(&b.name, &b.path, &self.env) {
+                                self.dispatch(Input::Reloaded(new));
+                            }
+                            Outcome::Moved(id)
+                        }
+                        Err(e) => Outcome::Failed(e.to_string()),
+                    };
+                    self.dispatch(Input::Done(outcome));
+                }
                 Effect::Edit(id) => {
                     let b = &self.app.board;
                     let outcome = edit_card(
