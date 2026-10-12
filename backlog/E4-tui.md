@@ -344,7 +344,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F2-T5 Moves
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F2-T2, E4-F1-T6, E1-F6-T3
 - Covers: FR-29; TECHSPEC 4.7 (`H` or `L` on an extra column moves to the first configured column; no move targets an extra column), 7.1 (`move_*` emits `Move`; `Moved` reloads and selects the card, no Message; `Failed` sets the status line), 7.3 (`H` on the first column and `L` on the last configured column do nothing)
 - Size: M
