@@ -1,8 +1,8 @@
 //! TUI state machine (TECHSPEC 7.1): pure, no I/O.
 
-use ratatui::crossterm::event::KeyEvent;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::core::keys::KeyMap;
+use crate::core::keys::{Action, Key, KeyContext, KeyMap, KeyPress};
 use crate::core::model::{Board, Card, CardId};
 use crate::core::time::Stamp;
 
@@ -123,6 +123,61 @@ pub fn initial_selection(board: &Board) -> Selection {
     }
 }
 
-pub fn update(_app: &mut App, _input: Input) -> Vec<Effect> {
-    Vec::new()
+pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
+    let Input::Key(event) = input else {
+        return Vec::new();
+    };
+    let action = key_press(&event)
+        .zip(context(&app.mode))
+        .and_then(|(p, ctx)| app.keys.action(ctx, &p));
+    match (&app.mode, action) {
+        (Mode::Board, Some(Action::Quit)) => vec![Effect::Quit],
+        _ => Vec::new(),
+    }
+}
+
+/// The one crossterm conversion point; release events give `None` (A-E4-26).
+pub fn key_press(event: &KeyEvent) -> Option<KeyPress> {
+    if event.kind == KeyEventKind::Release {
+        return None;
+    }
+    let key = match event.code {
+        KeyCode::Char(' ') => Key::Space,
+        KeyCode::Char(c) => Key::Char(c),
+        KeyCode::Enter => Key::Enter,
+        KeyCode::Esc => Key::Esc,
+        KeyCode::Tab => Key::Tab,
+        KeyCode::BackTab => Key::BackTab,
+        KeyCode::Backspace => Key::Backspace,
+        KeyCode::Delete => Key::Delete,
+        KeyCode::Up => Key::Up,
+        KeyCode::Down => Key::Down,
+        KeyCode::Left => Key::Left,
+        KeyCode::Right => Key::Right,
+        KeyCode::Home => Key::Home,
+        KeyCode::End => Key::End,
+        KeyCode::PageUp => Key::PageUp,
+        KeyCode::PageDown => Key::PageDown,
+        KeyCode::F(n @ 1..=12) => Key::F(n),
+        _ => return None,
+    };
+    let m = event.modifiers;
+    Some(KeyPress {
+        key,
+        ctrl: m.contains(KeyModifiers::CONTROL),
+        alt: m.contains(KeyModifiers::ALT),
+        // crossterm reports Shift+Tab as BackTab with SHIFT set; the SHIFT is part of the key.
+        shift: m.contains(KeyModifiers::SHIFT) && key != Key::BackTab,
+    })
+}
+
+/// Help, Message and ConfigError take any key, so they have no context.
+pub fn context(mode: &Mode) -> Option<KeyContext> {
+    match mode {
+        Mode::Board => Some(KeyContext::Board),
+        Mode::Detail { .. } => Some(KeyContext::Detail),
+        Mode::TemplatePick { .. } | Mode::BoardPick { .. } => Some(KeyContext::Picker),
+        Mode::TitleInput { .. } => Some(KeyContext::TitleInput),
+        Mode::Message { .. } | Mode::Help { .. } | Mode::ConfigError(_) => None,
+    }
 }
