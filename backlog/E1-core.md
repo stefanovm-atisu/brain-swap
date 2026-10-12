@@ -953,7 +953,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T8 Cleanup after writes
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F6-T3, E1-F6-T4, E1-F6-T5, E1-F6-T7, E1-F7-T4
 - Covers: FR-05; TECHSPEC 4.6 (stale temp removal), 10 (cleanup), T-17
 - Size: S
