@@ -1046,7 +1046,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F7-T2 Reference file
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F7-T1, E1-F1-T3
 - Covers: FR-05, FR-57; TECHSPEC 3 (`SessionRef`), 5.1 (`sessions/`), 6.4 (reference store, `set_at`, atomic writes, unparsable file)
 - Size: M
