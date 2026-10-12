@@ -213,6 +213,18 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             reload(app, board);
             return Vec::new();
         }
+        // Selects the card and focuses its column; the mode stays (A-E4-13).
+        Input::Done(Outcome::Edited(id)) => {
+            if let Some(column) = (0..app.board.column_list().len())
+                .find(|&i| app.board.cards_in(i).iter().any(|c| c.id == id))
+            {
+                app.sel = Selection {
+                    column,
+                    card: Some(id),
+                };
+            }
+            return Vec::new();
+        }
         _ => return Vec::new(),
     };
     app.status = None;
@@ -291,6 +303,8 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             app.mode = Mode::Board;
             Vec::new()
         }
+        (Mode::Board, Some(Action::Edit)) => app.sel.card.map(Effect::Edit).into_iter().collect(),
+        (Mode::Detail { card, .. }, Some(Action::Edit)) => vec![Effect::Edit(*card)],
         (Mode::Board, Some(Action::Help)) => {
             app.mode = Mode::Help {
                 back: Box::new(Mode::Board),

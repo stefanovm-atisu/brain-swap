@@ -8,6 +8,7 @@ use brain_swap::core::model::Board;
 use brain_swap::core::time::Stamp;
 use brain_swap::tui::Prepared;
 use brain_swap::tui::app::{App, Effect, Input, update};
+use brain_swap::tui::editor::Launcher;
 use brain_swap::tui::runtime::{Clock, Events, Parts, Runtime, TerminalGuard};
 use brain_swap::tui::view_frame::draw;
 use ratatui::Terminal;
@@ -19,7 +20,9 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fs;
 use std::io;
+use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
+use std::process::ExitStatus;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -78,7 +81,8 @@ impl TuiFixture {
         )
     }
 
-    /// A runtime over `app()` and the loaded config on a `TestBackend`, with fakes.
+    /// A runtime over `app()` and the loaded config on a `TestBackend`, with fakes and a
+    /// launcher that fails the test when called.
     pub fn runtime(
         &self,
         width: u16,
@@ -100,6 +104,17 @@ pub fn fake_runtime(
     width: u16,
     height: u16,
 ) -> (Runtime<TestBackend>, FakeGuard, FakeEvents) {
+    fake_runtime_with(env, prepared, width, height, Box::new(NoLauncher))
+}
+
+/// Like `fake_runtime`, with `launcher` as the editor launcher.
+pub fn fake_runtime_with(
+    env: &Env,
+    prepared: Prepared,
+    width: u16,
+    height: u16,
+    launcher: Box<dyn Launcher>,
+) -> (Runtime<TestBackend>, FakeGuard, FakeEvents) {
     let guard = FakeGuard::default();
     let clock = FakeClock(Rc::new(RefCell::new(env.now.clone())));
     let events = FakeEvents {
@@ -111,6 +126,7 @@ pub fn fake_runtime(
         guard: Box::new(guard.clone()),
         events: Box::new(events.clone()),
         clock: Box::new(clock),
+        launcher,
     };
     let terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     (
@@ -132,6 +148,50 @@ impl TerminalGuard for FakeGuard {
     fn leave(&mut self) -> io::Result<()> {
         self.0.borrow_mut().push("leave");
         Ok(())
+    }
+}
+
+/// Fails the test when an editor is launched.
+pub struct NoLauncher;
+
+impl Launcher for NoLauncher {
+    fn launch(&mut self, argv: &[String]) -> io::Result<ExitStatus> {
+        panic!("unexpected editor launch: {argv:?}")
+    }
+}
+
+/// One launch: the argv and the copy's bytes at that moment.
+pub type Launch = (Vec<String>, Vec<u8>);
+
+/// Records each argv with the copy's bytes at launch, runs `on_launch` on the copy (the last
+/// argument), then exits with `code`, or fails to launch when `code` is `None`.
+#[derive(Clone)]
+pub struct FakeLauncher {
+    pub calls: Rc<RefCell<Vec<Launch>>>,
+    pub on_launch: Rc<dyn Fn(&Path)>,
+    pub code: Option<i32>,
+}
+
+impl FakeLauncher {
+    pub fn new(code: Option<i32>, on_launch: impl Fn(&Path) + 'static) -> FakeLauncher {
+        FakeLauncher {
+            calls: Rc::default(),
+            on_launch: Rc::new(on_launch),
+            code,
+        }
+    }
+}
+
+impl Launcher for FakeLauncher {
+    fn launch(&mut self, argv: &[String]) -> io::Result<ExitStatus> {
+        let copy = Path::new(argv.last().expect("argv without a copy path"));
+        let bytes = fs::read(copy).unwrap();
+        self.calls.borrow_mut().push((argv.to_vec(), bytes));
+        (self.on_launch)(copy);
+        match self.code {
+            Some(c) => Ok(ExitStatus::from_raw(c << 8)),
+            None => Err(io::Error::other("fake launch error")),
+        }
     }
 }
 

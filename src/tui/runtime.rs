@@ -17,6 +17,7 @@ use ratatui::crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScr
 
 use super::Prepared;
 use super::app::{App, Effect, Input, Mode, Outcome, update};
+use super::editor::{Launcher, edit_card};
 use super::view_frame;
 use crate::core::board;
 use crate::core::env::Env;
@@ -81,6 +82,7 @@ pub struct Parts {
     pub guard: Box<dyn TerminalGuard>,
     pub events: Box<dyn Events>,
     pub clock: Box<dyn Clock>,
+    pub launcher: Box<dyn Launcher>,
 }
 
 /// The sorted `(name, mtime, length)` of `board.md` and the card files of one letter (7.4).
@@ -109,6 +111,7 @@ pub struct Runtime<B: Backend> {
     app: App,
     parts: Parts,
     env: Env,
+    editor: String,
     print: Fingerprint,
     scans: u64,
     last_scan: Stamp,
@@ -125,6 +128,7 @@ impl<B: Backend> Runtime<B> {
             app: prepared.app,
             parts,
             env,
+            editor: prepared.config.map(|c| c.editor).unwrap_or_default(),
         }
     }
 
@@ -143,8 +147,27 @@ impl<B: Backend> Runtime<B> {
     /// Runs `update`, then its effects in order; the exit code once quitting (A-E4-04).
     pub fn dispatch(&mut self, input: Input) -> Option<i32> {
         for effect in update(&mut self.app, input) {
-            if effect == Effect::Quit {
-                return Some(matches!(self.app.mode, Mode::ConfigError(_)) as i32);
+            match effect {
+                Effect::Quit => return Some(matches!(self.app.mode, Mode::ConfigError(_)) as i32),
+                Effect::Edit(id) => {
+                    let b = &self.app.board;
+                    let outcome = edit_card(
+                        &self.env,
+                        b,
+                        id,
+                        &self.editor,
+                        &mut *self.parts.launcher,
+                        &mut *self.parts.guard,
+                    );
+                    // Reload before `Done` (A-E4-05); a failed load keeps the board.
+                    if matches!(outcome, Outcome::Edited(_))
+                        && let Ok(b) = board::load(&b.name, &b.path, &self.env)
+                    {
+                        self.dispatch(Input::Reloaded(b));
+                    }
+                    self.dispatch(Input::Done(outcome));
+                }
+                _ => {}
             }
         }
         None

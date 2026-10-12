@@ -592,7 +592,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F5-T1 Edit a card
 
-- Status: doing
+- Status: done
 - Depends on: E4-F1-T6, E1-F6-T7, E1-F1-T6
 - Covers: FR-31; TECHSPEC 7.1 (Board and Detail `edit` emit `Edit`; `Edited` reloads and selects the card, no Message), 7.6 (copy `C0` to the edit folder, zero exit with changes merged through the lock, copy deleted after a successful merge), 4.8 (R6)
 - Size: M
