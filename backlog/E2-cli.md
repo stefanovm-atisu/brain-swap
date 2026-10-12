@@ -266,7 +266,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F2-T8 `ls --guess`
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F2-T7, E1-F8
 - Covers: FR-38; TECHSPEC 6.3 (`ls --guess`), 6.6 (labels, order as printed, current pane only when `HERDR_ENV=1`), 6.7 (Candidate, `other_boards`)
 - Size: M
