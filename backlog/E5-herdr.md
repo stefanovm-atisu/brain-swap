@@ -150,7 +150,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F1-T7 Capture at park time
 
-- Status: doing
+- Status: done
 - Depends on: E5-F1-T4, E1-F1-T3
 - Covers: FR-15, FR-58; TECHSPEC 9.1 (capture), 9.5 (no herdr command outside herdr), T-15
 - Size: S
