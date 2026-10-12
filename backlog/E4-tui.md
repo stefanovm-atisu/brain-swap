@@ -115,7 +115,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T5 ConfigError screen
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F1-T3
 - Covers: FR-45; TECHSPEC 7.1 (ConfigError, any key exits), 7.2 (ConfigError), 10 (config: never defaults that could write into wrong folders); PRD A-23
 - Size: S
