@@ -665,7 +665,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F5-T5 Scripted editor: a note parked mid-edit survives
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F5-T2, E4-F5-T4, E2-F3-T1, E2-F2-T6
 - Covers: FR-31; TECHSPEC 4.8 (R6), 7.6, 10 (only the TUI's `e` merges), 12.1 (runtime test with a scripted editor that parks on the card before exiting, started with `env -i` and the scenario's variables, passing `--session test`)
 - Size: M
