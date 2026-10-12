@@ -2,8 +2,9 @@
 
 use crate::core::env::{Env, encode_file_name};
 use crate::core::error::{Error, Result};
-use crate::core::model::{Board, Card, CardId};
-use crate::core::{card_file, failpoint, log};
+use crate::core::model::{Board, Card, CardId, NewCard};
+use crate::core::template::Template;
+use crate::core::{board_file, card_file, failpoint, log};
 use jiff::tz::TimeZone;
 use std::fs::{self, File, TryLockError};
 use std::io::{ErrorKind, Write};
@@ -96,6 +97,104 @@ pub fn write_atomic(
     }
     let dir = target.parent().unwrap_or(Path::new("/"));
     File::open(dir).and_then(|d| d.sync_all()).map_err(io)
+}
+
+// Create (TECHSPEC 4.6 steps 1 to 3, 4.3, R4, R7).
+
+/// What `create` writes: the column defaults to the board's first (I3), the body to the skeleton.
+pub struct CreateRequest<'a> {
+    pub title: &'a str,
+    pub template: &'a Template,
+    pub column: Option<&'a str>,
+    pub body: Option<&'a str>,
+}
+
+#[derive(Debug)]
+pub struct Created {
+    pub card: Card,
+    pub warnings: Vec<String>,
+}
+
+/// Allocates `<L>-<n>.md` inside the board lock and links the rendered card there (4.6).
+pub fn create(env: &Env, board: &Board, req: &CreateRequest) -> Result<Created> {
+    let title = req.title.trim();
+    if title.is_empty() {
+        return Err(Error::InvalidInput("no title".to_string()));
+    }
+    let column = match req.column {
+        Some(c) => board.column(c)?,
+        None => &board.meta.columns[0],
+    };
+    let _lock = lock_board(env, &board.path)?;
+    let md_path = board.path.join("board.md");
+    let md = match fs::read(&md_path) {
+        Err(e) if e.kind() == ErrorKind::NotFound => None,
+        r => Some(r.map_err(io)?),
+    };
+    let bf = board_file::parse(&board.name, md.as_deref());
+    if !bf.writable {
+        return Err(Error::Unreadable(bf.warnings.concat()));
+    }
+    let mut highest = 0;
+    for e in fs::read_dir(&board.path).map_err(io)? {
+        let name = e.map_err(io)?.file_name();
+        if let Some(id) = CardId::from_file_name(&name.to_string_lossy())
+            && id.letter == bf.letter
+        {
+            highest = highest.max(id.number);
+        }
+    }
+    let n = bf.next.unwrap_or(1).max(highest + 1);
+    let next = board_file::set_next(md.as_deref(), n + 1)?;
+    let verify = |b: &[u8]| board_file::parse(&board.name, Some(b)).next == Some(n + 1);
+    write_atomic(env, &md_path, &next, &verify, None)?;
+    failpoint::check(env, "create:after_next")?;
+
+    let id = CardId {
+        letter: bf.letter,
+        number: n,
+    };
+    let target = board.path.join(id.file_name());
+    let new = NewCard {
+        title: title.to_string(),
+        template: req.template.name.clone(),
+        column: column.to_string(),
+        created: env.now.clone(),
+        body: req.body.unwrap_or(&req.template.skeleton).to_string(),
+    };
+    let (bytes, warnings) = card_file::render_new(&new);
+    let card = card_file::parse(id, &target, &bytes, column, &env.tz).card;
+    if (
+        &card.title,
+        &card.column,
+        card.template.as_ref(),
+        card.created.as_ref(),
+    ) != (
+        &new.title,
+        &new.column,
+        Some(&new.template),
+        Some(&new.created),
+    ) {
+        log::event(env, "verify_failed", &target.display().to_string());
+        return Err(Error::Verify(format!("{id}.md: verify failed")));
+    }
+    let tmp = temp_path(&target, env.pid);
+    File::create(&tmp)
+        .and_then(|mut f| {
+            f.write_all(&bytes)?;
+            f.sync_all()
+        })
+        .map_err(io)?;
+    failpoint::check(env, "create:after_tmp")?;
+    // ponytail: a link failure is a plain io error; retry and no-link detection are E1-F6-T6.
+    let linked = fs::hard_link(&tmp, &target);
+    if let Err(e) = linked {
+        let _ = fs::remove_file(&tmp);
+        return Err(io(e));
+    }
+    failpoint::check(env, "create:after_link")?;
+    fs::remove_file(&tmp).map_err(io)?;
+    Ok(Created { card, warnings })
 }
 
 /// The card after a move; `changed` is false when it already sat in the column.

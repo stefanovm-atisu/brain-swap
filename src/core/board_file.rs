@@ -1,5 +1,6 @@
 //! `board.md` reader (TECHSPEC 4.3).
 
+use crate::core::error::Result;
 use crate::core::frontmatter::{FmRead, read};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +75,14 @@ pub fn parse(board_name: &str, bytes: Option<&[u8]>) -> BoardFile {
         }
     }
     b
+}
+
+/// `existing` with `next: <n>`: created, prepended or spliced (4.3, R1).
+pub fn set_next(existing: Option<&[u8]>, n: u32) -> Result<Vec<u8>> {
+    match existing {
+        None => Ok(format!("---\nnext: {n}\n---\n").into_bytes()),
+        Some(b) => crate::core::frontmatter::set(b, "next", &n.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -192,5 +201,27 @@ mod tests {
         let b = p("---\nnext: x\n---\n");
         assert_eq!(b.next, None);
         assert_eq!(b.warnings, ["board.md: invalid next 'x'"]);
+    }
+
+    #[test]
+    fn ts4_3_set_next_creates_absent_board_md() {
+        assert_eq!(set_next(None, 2).unwrap(), b"---\nnext: 2\n---\n");
+    }
+
+    #[test]
+    fn ts4_3_set_next_prepends_to_board_md_without_frontmatter() {
+        assert_eq!(
+            set_next(Some(b"# work\n"), 2).unwrap(),
+            b"---\nnext: 2\n---\n# work\n"
+        );
+    }
+
+    #[test]
+    fn ts4_3_set_next_splices_next_line_of_frontmatter() {
+        let md = b"---\nletter: W\nnext: 13\n---\n# work\n";
+        assert_eq!(
+            set_next(Some(md), 14).unwrap(),
+            b"---\nletter: W\nnext: 14\n---\n# work\n"
+        );
     }
 }
