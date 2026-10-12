@@ -5,8 +5,10 @@ mod common;
 use std::path::{Path, PathBuf};
 
 use brain_swap::core::board::load;
+use brain_swap::core::env::Env;
 use brain_swap::core::guess::{Candidate, GuessInput, Tier, best_guess};
-use brain_swap::core::model::Board;
+use brain_swap::core::model::{Board, CardId, SessionRef};
+use brain_swap::core::session::{read_reference, write_reference};
 use common::env::core_env;
 use common::mem_board::{mem_board, mem_card, mem_note};
 
@@ -464,4 +466,126 @@ fn ts6_6_ties_within_same_pane_tier() {
     assert!(same.iter().all(|(_, t)| *t == Tier::SamePane));
     assert_eq!(same[0].0, "W-8");
     assert_eq!(two("10:01")[0].0, "W-5");
+}
+
+fn hinted(pane: Option<&str>, hint: Option<&str>) -> GuessInput {
+    GuessInput {
+        hint: hint.map(|h| CardId::parse(h).unwrap()),
+        ..at(pane, "/elsewhere", "/home/u")
+    }
+}
+
+fn work_4_9(env: &Env) -> Board {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/boards/work_4_9");
+    load("work", &dir, env).unwrap()
+}
+
+/// A herdr env in pane `w4V:p9`, cwd `/work/billing`, with session `old` linked to W-11 there.
+fn linked_env(home: &Path) -> Env {
+    let mut env = core_env(home, "2026-10-08T11:52:00+03:00");
+    env.herdr_env = Some("1".to_string());
+    env.herdr_pane_id = Some("w4V:p9".to_string());
+    env.cwd = PathBuf::from("/work/billing");
+    let r = SessionRef {
+        card: CardId::parse("W-11").unwrap(),
+        board: "work".to_string(),
+        pane: Some("w4V:p9".to_string()),
+        cwd: None,
+        set_at: env.now.clone(),
+    };
+    write_reference(&env, "old", &r).unwrap();
+    env
+}
+
+#[test]
+fn fr38_hint_card_is_linked_here_and_first() {
+    let b = mem_board(
+        TDD,
+        vec![
+            mem_card("W-11", "Todo", None, vec![]),
+            mem_card(
+                "W-12",
+                "Doing",
+                None,
+                vec![mem_note("10:00", Some("w4V:p9"), None)],
+            ),
+        ],
+    );
+    assert_eq!(
+        guess_at(&b, &hinted(Some("w4V:p9"), Some("W-11"))),
+        vec![
+            ("W-11".to_string(), Tier::LinkedHere),
+            ("W-12".to_string(), Tier::SamePane)
+        ]
+    );
+}
+
+#[test]
+fn ts6_6_hint_to_card_not_open_here_gives_no_tier_0() {
+    let tmp = tempfile::tempdir().unwrap();
+    let b = work_4_9(&core_env(tmp.path(), "2026-10-08T11:52:00+03:00"));
+    let plain = guess_at(&b, &hinted(None, None));
+    for h in ["W-9", "H-3", "W-99"] {
+        assert_eq!(guess_at(&b, &hinted(None, Some(h))), plain, "hint {h}");
+    }
+    assert!(plain.iter().all(|(_, t)| *t != Tier::LinkedHere));
+}
+
+#[test]
+fn ts6_6_from_env_reads_hint_of_current_pane() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env = linked_env(tmp.path());
+    assert_eq!(
+        GuessInput::from_env(&env),
+        GuessInput {
+            pane: Some("w4V:p9".to_string()),
+            cwd: PathBuf::from("/work/billing"),
+            home: env.home.clone(),
+            hint: Some(CardId::parse("W-11").unwrap()),
+        }
+    );
+}
+
+#[test]
+fn ts6_6_outside_herdr_no_pane_and_no_hint() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut env = linked_env(tmp.path());
+    for v in [None, Some("0".to_string())] {
+        env.herdr_env = v;
+        let i = GuessInput::from_env(&env);
+        assert_eq!((i.pane, i.hint), (None, None));
+    }
+}
+
+#[test]
+fn ts6_6_from_env_without_hint_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut env = core_env(tmp.path(), "2026-10-08T11:52:00+03:00");
+    env.herdr_env = Some("1".to_string());
+    env.herdr_pane_id = Some("w4V:p9".to_string());
+    assert_eq!(GuessInput::from_env(&env).hint, None);
+    assert!(!env.state_dir().exists());
+}
+
+#[test]
+fn as3_new_session_finds_previous_card_linked_here() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut env = core_env(tmp.path(), "2026-10-08T11:52:00+03:00");
+    env.herdr_env = Some("1".to_string());
+    env.herdr_pane_id = Some("w4V:p11".to_string());
+    env.cwd = PathBuf::from("/elsewhere");
+    let b = work_4_9(&env);
+    let r = SessionRef {
+        card: CardId::parse("W-11").unwrap(),
+        board: "work".to_string(),
+        pane: Some("w4V:p11".to_string()),
+        cwd: None,
+        set_at: env.now.clone(),
+    };
+    write_reference(&env, "old", &r).unwrap();
+    assert_eq!(read_reference(&env, "new"), None);
+    let g = best_guess(&b, &GuessInput::from_env(&env));
+    assert_eq!(g[0].card.id.to_string(), "W-11");
+    assert_eq!(g[0].tier.label(), Some("linked here"));
+    assert_eq!(g[1].card.id.to_string(), "W-12");
 }

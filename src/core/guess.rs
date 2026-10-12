@@ -3,7 +3,9 @@
 use std::cmp::Reverse;
 use std::path::{Path, PathBuf};
 
+use crate::core::env::Env;
 use crate::core::model::{Board, Card, CardId};
+use crate::core::session;
 
 /// A candidate's tier, best first (6.6).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -53,6 +55,22 @@ pub struct GuessInput {
     pub hint: Option<CardId>,
 }
 
+impl GuessInput {
+    /// Reads the current pane (only inside herdr), cwd, `$HOME` and that pane's hint.
+    pub fn from_env(env: &Env) -> GuessInput {
+        let pane = env.herdr_pane_id.clone().filter(|_| env.herdr_active());
+        GuessInput {
+            hint: pane
+                .as_deref()
+                .and_then(|p| session::read_pane_hint(env, p))
+                .map(|h| h.card),
+            pane,
+            cwd: env.cwd.clone(),
+            home: env.home.clone(),
+        }
+    }
+}
+
 /// The open cards of `board` in 6.6 order; pure: no `Env`, no I/O, no clock.
 pub fn best_guess<'a>(board: &'a Board, input: &GuessInput) -> Vec<Candidate<'a>> {
     let cols = &board.meta.columns;
@@ -65,7 +83,9 @@ pub fn best_guess<'a>(board: &'a Board, input: &GuessInput) -> Vec<Candidate<'a>
         .map(|card| {
             let pane = card.notes.iter().rev().find_map(|n| n.place.herdr.as_ref());
             let cwd = card.notes.iter().rev().find_map(|n| n.place.cwd.as_deref());
-            let tier = if pane.is_some_and(|h| input.pane.as_deref() == Some(h.pane.as_str())) {
+            let tier = if input.hint.as_ref() == Some(&card.id) {
+                Tier::LinkedHere
+            } else if pane.is_some_and(|h| input.pane.as_deref() == Some(h.pane.as_str())) {
                 Tier::SamePane
             } else if cwd.is_some_and(|c| same_folder(c, input)) {
                 Tier::SameFolder
