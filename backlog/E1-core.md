@@ -912,7 +912,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T6 Create collisions and unsupported links
 
-- Status: doing
+- Status: done
 - Depends on: E1-F6-T5
 - Covers: FR-06; TECHSPEC 4.6 (collision retry, hard links), T-05, T-13
 - Size: S

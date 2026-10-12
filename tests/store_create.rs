@@ -2,13 +2,15 @@
 
 mod common;
 
+use std::collections::BTreeMap;
 use std::fs;
+use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 
 use brain_swap::core::board::load;
 use brain_swap::core::env::Env;
 use brain_swap::core::error::{Error, Result};
-use brain_swap::core::store::{CreateRequest, Created, create};
+use brain_swap::core::store::{CreateRequest, Created, create, link_error};
 use brain_swap::core::template::{Template, builtins, find};
 use brain_swap::core::time::parse_stamp;
 use common::bytes::assert_only_lines_changed;
@@ -230,5 +232,85 @@ fn ts3_created_is_written_in_local_zone() {
         text.lines()
             .any(|l| l == "created: 2026-10-08T08:52:00+00:00"),
         "{text}"
+    );
+}
+
+/// A copy of `work_4_9` plus directories `W-<n>.md` for each `n` in `numbers`.
+fn copy_with_dirs(numbers: std::ops::RangeInclusive<u32>) -> (tempfile::TempDir, PathBuf) {
+    let (tmp, dir) = copy();
+    for n in numbers {
+        fs::create_dir(dir.join(format!("W-{n}.md"))).unwrap();
+    }
+    (tmp, dir)
+}
+
+fn temp_files(dir: &Path) -> Vec<String> {
+    files(dir)
+        .into_iter()
+        .filter(|f| f.contains(".bs-tmp-"))
+        .collect()
+}
+
+#[test]
+fn fr06_create_skips_name_that_appears_inside_lock() {
+    let (tmp, dir) = copy_with_dirs(13..=13);
+    let c = new(tmp.path(), &dir).unwrap();
+    assert_eq!(c.card.id.to_string(), "W-14");
+    assert_eq!(c.card.path, dir.join("W-14.md"));
+    assert!(board_md(&dir).contains("next: 15\n"));
+    assert!(dir.join("W-13.md").is_dir());
+    assert_eq!(fs::read_dir(dir.join("W-13.md")).unwrap().count(), 0);
+}
+
+#[test]
+fn fr06_create_never_overwrites_existing_file() {
+    let (tmp, dir) = copy_with_dirs(13..=13);
+    let snapshot = |dir: &Path| -> BTreeMap<String, Option<Vec<u8>>> {
+        files(dir)
+            .into_iter()
+            .filter(|f| f != "board.md")
+            .map(|f| {
+                let p = dir.join(&f);
+                (f, p.is_file().then(|| fs::read(&p).unwrap()))
+            })
+            .collect()
+    };
+    let before = snapshot(&dir);
+    new(tmp.path(), &dir).unwrap();
+    let after = snapshot(&dir);
+    for (name, content) in &before {
+        assert_eq!(after.get(name), Some(content), "{name}");
+    }
+    assert!(temp_files(&dir).is_empty(), "{:?}", files(&dir));
+}
+
+#[test]
+fn ts4_6_create_gives_up_after_100_collisions() {
+    let (tmp, dir) = copy_with_dirs(13..=112);
+    let err = new(tmp.path(), &dir).unwrap_err();
+    assert_eq!(
+        err,
+        Error::Io("board work: no free card number after 100 tries".to_string())
+    );
+    assert_eq!(err.exit_code(), 1);
+    assert!(temp_files(&dir).is_empty(), "{:?}", files(&dir));
+}
+
+#[test]
+fn ts4_6_unsupported_link_maps_to_hard_links_not_supported() {
+    for kind in [ErrorKind::Unsupported, ErrorKind::PermissionDenied] {
+        assert_eq!(
+            link_error("work", &io::Error::from(kind)),
+            Error::Io("board work: hard links not supported".to_string()),
+            "{kind:?}"
+        );
+    }
+}
+
+#[test]
+fn ts4_6_other_link_error_keeps_os_message() {
+    assert_eq!(
+        link_error("work", &io::Error::other("disk on fire")),
+        Error::Io("board work: disk on fire".to_string())
     );
 }

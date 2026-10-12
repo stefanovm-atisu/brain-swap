@@ -102,6 +102,19 @@ pub fn write_atomic(
 
 // Create (TECHSPEC 4.6 steps 1 to 3, 4.3, R4, R7).
 
+/// Maps a `hard_link` error other than `AlreadyExists` to `Error::Io` for board `board` (4.6, T-13).
+pub fn link_error(board: &str, e: &std::io::Error) -> Error {
+    match e.kind() {
+        ErrorKind::Unsupported | ErrorKind::PermissionDenied => {
+            Error::Io(format!("board {board}: hard links not supported"))
+        }
+        _ => Error::Io(format!("board {board}: {e}")),
+    }
+}
+
+/// Link attempts before `create` gives up on finding a free number (4.6, A-E1-33).
+pub const MAX_LINK_ATTEMPTS: u32 = 100;
+
 /// What `create` writes: the column defaults to the board's first (I3), the body to the skeleton.
 pub struct CreateRequest<'a> {
     pub title: &'a str,
@@ -138,64 +151,74 @@ pub fn create(env: &Env, board: &Board, req: &CreateRequest) -> Result<Created> 
     }
     let mut highest = 0;
     for e in fs::read_dir(&board.path).map_err(io)? {
-        let name = e.map_err(io)?.file_name();
-        if let Some(id) = CardId::from_file_name(&name.to_string_lossy())
+        let e = e.map_err(io)?;
+        if let Some(id) = CardId::from_file_name(&e.file_name().to_string_lossy())
             && id.letter == bf.letter
+            && e.path().is_file()
         {
             highest = highest.max(id.number);
         }
     }
-    let n = bf.next.unwrap_or(1).max(highest + 1);
-    let next = board_file::set_next(md.as_deref(), n + 1)?;
-    let verify = |b: &[u8]| board_file::parse(&board.name, Some(b)).next == Some(n + 1);
-    write_atomic(env, &md_path, &next, &verify, None)?;
-    failpoint::check(env, "create:after_next")?;
+    let mut n = bf.next.unwrap_or(1).max(highest + 1);
+    for _ in 0..MAX_LINK_ATTEMPTS {
+        let next = board_file::set_next(md.as_deref(), n + 1)?;
+        let verify = |b: &[u8]| board_file::parse(&board.name, Some(b)).next == Some(n + 1);
+        write_atomic(env, &md_path, &next, &verify, None)?;
+        failpoint::check(env, "create:after_next")?;
 
-    let id = CardId {
-        letter: bf.letter,
-        number: n,
-    };
-    let target = board.path.join(id.file_name());
-    let new = NewCard {
-        title: title.to_string(),
-        template: req.template.name.clone(),
-        column: column.to_string(),
-        created: env.now.clone(),
-        body: req.body.unwrap_or(&req.template.skeleton).to_string(),
-    };
-    let (bytes, warnings) = card_file::render_new(&new);
-    let card = card_file::parse(id, &target, &bytes, column, &env.tz).card;
-    if (
-        &card.title,
-        &card.column,
-        card.template.as_ref(),
-        card.created.as_ref(),
-    ) != (
-        &new.title,
-        &new.column,
-        Some(&new.template),
-        Some(&new.created),
-    ) {
-        log::event(env, "verify_failed", &target.display().to_string());
-        return Err(Error::Verify(format!("{id}.md: verify failed")));
+        let id = CardId {
+            letter: bf.letter,
+            number: n,
+        };
+        let target = board.path.join(id.file_name());
+        let new = NewCard {
+            title: title.to_string(),
+            template: req.template.name.clone(),
+            column: column.to_string(),
+            created: env.now.clone(),
+            body: req.body.unwrap_or(&req.template.skeleton).to_string(),
+        };
+        let (bytes, warnings) = card_file::render_new(&new);
+        let card = card_file::parse(id, &target, &bytes, column, &env.tz).card;
+        if (
+            &card.title,
+            &card.column,
+            card.template.as_ref(),
+            card.created.as_ref(),
+        ) != (
+            &new.title,
+            &new.column,
+            Some(&new.template),
+            Some(&new.created),
+        ) {
+            log::event(env, "verify_failed", &target.display().to_string());
+            return Err(Error::Verify(format!("{id}.md: verify failed")));
+        }
+        let tmp = temp_path(&target, env.pid);
+        File::create(&tmp)
+            .and_then(|mut f| {
+                f.write_all(&bytes)?;
+                f.sync_all()
+            })
+            .map_err(io)?;
+        failpoint::check(env, "create:after_tmp")?;
+        // Linking never overwrites: a name taken meanwhile fails with AlreadyExists (4.6).
+        if let Err(e) = fs::hard_link(&tmp, &target) {
+            let _ = fs::remove_file(&tmp);
+            if e.kind() == ErrorKind::AlreadyExists {
+                n += 1;
+                continue;
+            }
+            return Err(link_error(&board.name, &e));
+        }
+        failpoint::check(env, "create:after_link")?;
+        fs::remove_file(&tmp).map_err(io)?;
+        return Ok(Created { card, warnings });
     }
-    let tmp = temp_path(&target, env.pid);
-    File::create(&tmp)
-        .and_then(|mut f| {
-            f.write_all(&bytes)?;
-            f.sync_all()
-        })
-        .map_err(io)?;
-    failpoint::check(env, "create:after_tmp")?;
-    // ponytail: a link failure is a plain io error; retry and no-link detection are E1-F6-T6.
-    let linked = fs::hard_link(&tmp, &target);
-    if let Err(e) = linked {
-        let _ = fs::remove_file(&tmp);
-        return Err(io(e));
-    }
-    failpoint::check(env, "create:after_link")?;
-    fs::remove_file(&tmp).map_err(io)?;
-    Ok(Created { card, warnings })
+    Err(Error::Io(format!(
+        "board {}: no free card number after {MAX_LINK_ATTEMPTS} tries",
+        board.name
+    )))
 }
 
 /// The card after a move; `changed` is false when it already sat in the column.
