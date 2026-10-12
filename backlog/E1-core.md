@@ -803,7 +803,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T1 Board lock
 
-- Status: doing
+- Status: done
 - Depends on: E1-F1-T6, E1-F1-T8
 - Covers: FR-04, FR-05, NFR-08; TECHSPEC 10 (board lock), 11 (lock waits), T-07, T-17
 - Size: M
