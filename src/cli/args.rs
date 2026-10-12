@@ -46,7 +46,7 @@ pub enum Command {
         column: Option<String>,
         #[arg(long)]
         session: Option<String>,
-        #[arg(long)]
+        #[arg(long, value_parser = ["-"])]
         body: Option<String>,
         title: Vec<String>,
     },

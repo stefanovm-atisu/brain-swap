@@ -234,3 +234,103 @@ fn ts6_3_new_on_named_board_uses_its_letter() {
     assert_eq!(text(&out.stdout), "created H-1: x (Todo, home)\n");
     assert!(s.root().join("boards/home/H-1.md").is_file());
 }
+
+fn run_in(s: &Sandbox, args: &[&str], stdin: &str, code: i32) -> Output {
+    s.cmd(args)
+        .write_stdin(stdin)
+        .assert()
+        .code(code)
+        .get_output()
+        .clone()
+}
+
+const BODY: &str = "# migrate invoices\n\n## Goal\nswitch reads\n";
+
+#[test]
+fn fr13_new_body_from_stdin_replaces_skeleton() {
+    let s = sandbox();
+    let out = run_in(&s, &["new", "--body", "-"], BODY, 0);
+    assert_eq!(
+        text(&out.stdout),
+        "created W-1: migrate invoices (Todo, work)\n"
+    );
+    let card = fs::read_to_string(work(&s).join("W-1.md")).unwrap();
+    assert!(card.contains("# migrate invoices\n\n## Goal\nswitch reads\n"));
+    assert!(!card.contains("## Acceptance") && !card.contains("## Context"));
+    assert_eq!(card.matches("## Timeline").count(), 1);
+    assert!(card.ends_with("## Timeline\n"));
+    insta::assert_snapshot!(card);
+}
+
+#[test]
+fn ts6_3_new_positional_title_wins_and_heading_removed() {
+    let s = sandbox();
+    let out = run_in(&s, &["new", "--body", "-", "v13", "migration"], BODY, 0);
+    assert_eq!(
+        text(&out.stdout),
+        "created W-1: v13 migration (Todo, work)\n"
+    );
+    let card = fs::read_to_string(work(&s).join("W-1.md")).unwrap();
+    assert!(!card.contains("# migrate invoices"), "{card}");
+    assert!(
+        card.contains("# v13 migration\n\n## Goal\nswitch reads\n"),
+        "{card}"
+    );
+    insta::assert_snapshot!(card);
+}
+
+#[test]
+fn ts6_3_new_body_title_is_first_nonblank_line() {
+    let s = sandbox();
+    let out = run_in(&s, &["new", "--body", "-"], "\n\n# t\nrest\n", 0);
+    assert_eq!(text(&out.stdout), "created W-1: t (Todo, work)\n");
+    let card = fs::read_to_string(work(&s).join("W-1.md")).unwrap();
+    assert!(
+        card.ends_with("---\n# t\n\nrest\n\n## Timeline\n"),
+        "{card}"
+    );
+}
+
+#[test]
+fn ts6_3_new_body_later_heading_is_not_title() {
+    let s = sandbox();
+    let out = run_in(&s, &["new", "--body", "-"], "intro\n# t\n", 1);
+    assert_eq!(text(&out.stderr), "brain-swap: no title\n");
+    assert!(!work(&s).join("W-1.md").exists());
+}
+
+#[test]
+fn r4_new_body_drops_timeline_heading_with_warning() {
+    let s = sandbox();
+    let stdin = "# t\n## Timeline\n### 2026-10-08T10:00:00+03:00\n- Doing: x\n";
+    let out = run_in(&s, &["new", "--body", "-"], stdin, 0);
+    assert!(
+        text(&out.stderr).contains("warning: ## Timeline in body dropped\n"),
+        "{}",
+        text(&out.stderr)
+    );
+    let card = fs::read_to_string(work(&s).join("W-1.md")).unwrap();
+    assert_eq!(card.lines().filter(|l| *l == "## Timeline").count(), 1);
+    assert_eq!(card.lines().filter(|l| l.starts_with("# ")).count(), 1);
+    let env = common::env::core_env(&s.root().join("home"), "2026-10-08T11:52:00+03:00");
+    let board = brain_swap::core::board::load("work", &work(&s), &env).unwrap();
+    assert_eq!(board.cards.len(), 1);
+    assert!(board.cards[0].notes.is_empty());
+}
+
+#[test]
+fn ts6_3_new_body_empty_stdin_keeps_positional_title() {
+    let s = sandbox();
+    run_in(&s, &["new", "--body", "-", "x"], "", 0);
+    let card = fs::read_to_string(work(&s).join("W-1.md")).unwrap();
+    assert!(card.ends_with("---\n# x\n\n## Timeline\n"), "{card}");
+    assert!(!card.contains("## Goal"), "{card}");
+}
+
+#[test]
+fn ts6_3_new_body_flag_accepts_only_dash() {
+    let s = sandbox();
+    let out = run(&s, &["--json", "new", "--body", "notes.md", "x"], 2);
+    assert!(text(&out.stdout).contains("\"code\":\"usage\""));
+    assert!(!work(&s).join("W-1.md").exists());
+}

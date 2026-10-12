@@ -122,11 +122,12 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             title,
             template,
             column,
+            body,
             ..
         }) => {
             let ctx = ctx.expect("loaded above");
             let names = (cli.board.as_deref(), template.as_deref(), column.as_deref());
-            match new(env, &ctx, &title.join(" "), names, &mut out) {
+            match new(env, &ctx, &title.join(" "), names, body.is_some(), &mut out) {
                 Ok((board, created)) => {
                     let card = &created.card;
                     for w in board.warnings.iter().chain(&created.warnings) {
@@ -211,18 +212,44 @@ fn new(
     ctx: &Ctx,
     title: &str,
     (board, template, column): (Option<&str>, Option<&str>, Option<&str>),
+    stdin_body: bool,
     out: &mut Out,
 ) -> Result<(Board, store::Created), Error> {
     let board = ctx.board(board)?;
     let template = find_template(ctx, template.unwrap_or("feature"), out)?;
+    let stdin = match stdin_body {
+        true => Some(split_body(
+            &std::io::read_to_string(std::io::stdin()).map_err(|e| Error::Io(e.to_string()))?,
+        )),
+        false => None,
+    };
+    let title = match &stdin {
+        Some((Some(t), _)) if title.trim().is_empty() => t,
+        _ => title,
+    };
     let req = CreateRequest {
         title,
         template: &template,
         column,
-        body: None,
+        body: stdin.as_ref().map(|(_, b)| b.as_str()),
     };
     let created = store::create(env, &board, &req)?;
     Ok((board, created))
+}
+
+/// `new --body -` (6.3): a first non-blank line starting with `# ` is the title and is
+/// removed; the rest, from its first non-blank line, is the body.
+pub fn split_body(text: &str) -> (Option<String>, String) {
+    let skip_blank = |t: &str| {
+        let end = t.len() - t.trim_start().len();
+        t[t[..end].rfind('\n').map_or(0, |i| i + 1)..].to_string()
+    };
+    let text = skip_blank(text);
+    let (first, rest) = text.split_once('\n').unwrap_or((&text, ""));
+    match first.strip_prefix("# ") {
+        Some(t) => (Some(t.trim().to_string()), skip_blank(rest)),
+        None => (None, text.clone()),
+    }
 }
 
 /// `templates` (6.3): header line and skeleton per template, one blank line between;
