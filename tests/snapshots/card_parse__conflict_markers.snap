@@ -1,0 +1,45 @@
+---
+source: tests/card_parse.rs
+expression: parsed
+---
+(
+    Card {
+        id: CardId {
+            letter: 'W',
+            number: 12,
+        },
+        path: "conflict_markers.md",
+        title: "conflict markers",
+        column: "Doing",
+        template: None,
+        created: None,
+        body: "\n",
+        notes: [
+            Note {
+                heading: "### 2026-10-08T10:31:05+03:00",
+                at: Some(
+                    2026-10-08T10:31:05+03:00[+03:00],
+                ),
+                auto: false,
+                doing: "b",
+                next: "",
+                watch_out: "",
+                place: Place {
+                    cwd: None,
+                    herdr: None,
+                    session: None,
+                },
+                extra: [
+                    "<<<<<<< HEAD",
+                    "=======",
+                    ">>>>>>> other",
+                ],
+            },
+        ],
+        writable: false,
+        mtime: None,
+    },
+    [
+        "conflict_markers.md:9: conflict marker, read only",
+    ],
+)

@@ -1,0 +1,15 @@
+---
+column: Doing
+---
+# hand edited
+body line
+## Timeline
+### 2026-10-08 10:31
+**Doing:** a
+free text
+**Next:** b
+  b2
+**Watch out:** c
+<!-- where: cwd="/home/a b" host=x -->
+### 2026-10-08T11:00:00+03:00 auto
+- doing: d

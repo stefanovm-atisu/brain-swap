@@ -1,0 +1,24 @@
+---
+source: tests/card_parse.rs
+expression: parsed
+---
+(
+    Card {
+        id: CardId {
+            letter: 'W',
+            number: 12,
+        },
+        path: "invalid_frontmatter.md",
+        title: "invalid frontmatter",
+        column: "Todo",
+        template: None,
+        created: None,
+        body: "\nbody\n\n",
+        notes: [],
+        writable: false,
+        mtime: None,
+    },
+    [
+        "invalid_frontmatter.md:2: invalid frontmatter: not a key, comment or continuation: column Doing",
+    ],
+)

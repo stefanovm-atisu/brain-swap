@@ -1,0 +1,22 @@
+---
+source: tests/card_parse.rs
+expression: parsed
+---
+(
+    Card {
+        id: CardId {
+            letter: 'W',
+            number: 12,
+        },
+        path: "no_timeline.md",
+        title: "no timeline",
+        column: "Doing",
+        template: None,
+        created: None,
+        body: "\nsome body\n\n## Goal\nlast line\n",
+        notes: [],
+        writable: true,
+        mtime: None,
+    },
+    [],
+)

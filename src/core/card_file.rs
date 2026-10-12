@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use jiff::tz::TimeZone;
 
+use crate::core::error::Error;
 use crate::core::frontmatter::{FmRead, read};
 use crate::core::model::{Card, CardId, HerdrPlace, Note, Place};
 use crate::core::time::parse_stamp;
@@ -17,7 +18,9 @@ pub struct Parsed {
 
 /// Reads a card; the ID always comes from `id` (FR-01, I2), `mtime` is left `None`.
 pub fn parse(id: CardId, path: &Path, bytes: &[u8], default_column: &str, tz: &TimeZone) -> Parsed {
-    let text = String::from_utf8_lossy(bytes);
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let problem = read_only(&name, bytes);
+    let text = String::from_utf8_lossy(bytes).replace("\r\n", "\n");
     let fm = match read(&text) {
         FmRead::Valid(fm) => Some(fm),
         _ => None,
@@ -41,13 +44,32 @@ pub fn parse(id: CardId, path: &Path, bytes: &[u8], default_column: &str, tz: &T
             .into_iter()
             .map(|r| note(&text[r], tz))
             .collect(),
-        writable: true,
+        writable: problem.is_none(),
         mtime: None,
     };
     Parsed {
         card,
-        warnings: Vec::new(),
+        warnings: problem.into_iter().collect(),
     }
+}
+
+/// Refuses a read-only card (4.7): invalid frontmatter, non-UTF-8 bytes or a conflict marker.
+pub fn check_writable(name: &str, bytes: &[u8]) -> crate::core::error::Result<()> {
+    read_only(name, bytes).map_or(Ok(()), |w| Err(Error::Unreadable(w)))
+}
+
+/// The warning for the first read-only problem of a card, if any.
+fn read_only(name: &str, bytes: &[u8]) -> Option<String> {
+    let text = String::from_utf8_lossy(bytes);
+    if let Some(n) = text.lines().position(|l| l.starts_with("<<<<<<<")) {
+        return Some(format!("{name}:{}: conflict marker, read only", n + 1));
+    }
+    if let FmRead::Invalid { line, problem } = read(&text) {
+        return Some(format!("{name}:{line}: invalid frontmatter: {problem}"));
+    }
+    std::str::from_utf8(bytes)
+        .is_err()
+        .then(|| format!("{name}: not UTF-8, read only"))
 }
 
 /// Each note's bytes, from its `### ` heading to its last non-blank line (7.6, A-E1-20).

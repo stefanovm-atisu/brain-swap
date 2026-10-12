@@ -356,7 +356,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F2-T5 Tolerant file reading
 
-- Status: doing
+- Status: done
 - Depends on: E1-F2-T3
 - Covers: FR-07; TECHSPEC 4.2 (invalid block), 4.4 (fences, post), 4.7 (no frontmatter, CRLF, missing timeline, non-UTF-8, conflict markers), 12.1 (parsing never panics)
 - Size: M

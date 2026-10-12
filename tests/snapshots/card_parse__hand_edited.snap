@@ -1,0 +1,59 @@
+---
+source: tests/card_parse.rs
+expression: parsed
+---
+(
+    Card {
+        id: CardId {
+            letter: 'W',
+            number: 12,
+        },
+        path: "hand_edited.md",
+        title: "hand edited",
+        column: "Doing",
+        template: None,
+        created: None,
+        body: "body line\n",
+        notes: [
+            Note {
+                heading: "### 2026-10-08 10:31",
+                at: Some(
+                    2026-10-08T10:31:00+00:00[UTC],
+                ),
+                auto: false,
+                doing: "a",
+                next: "b\nb2",
+                watch_out: "c",
+                place: Place {
+                    cwd: Some(
+                        "/home/a b",
+                    ),
+                    herdr: None,
+                    session: None,
+                },
+                extra: [
+                    "free text",
+                ],
+            },
+            Note {
+                heading: "### 2026-10-08T11:00:00+03:00 auto",
+                at: Some(
+                    2026-10-08T11:00:00+03:00[+03:00],
+                ),
+                auto: true,
+                doing: "d",
+                next: "",
+                watch_out: "",
+                place: Place {
+                    cwd: None,
+                    herdr: None,
+                    session: None,
+                },
+                extra: [],
+            },
+        ],
+        writable: true,
+        mtime: None,
+    },
+    [],
+)

@@ -2,16 +2,38 @@
 
 use std::path::Path;
 
-use brain_swap::core::card_file::{note_blocks, parse};
+use brain_swap::core::card_file::{check_writable, note_blocks, parse};
+use brain_swap::core::error::Error;
 use brain_swap::core::model::{Card, CardId, Place};
 use brain_swap::core::time::format_stamp;
 use jiff::tz::TimeZone;
 
 fn fixture(name: &str) -> String {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/cards")
-        .join(name);
-    String::from_utf8(std::fs::read(path).unwrap()).unwrap()
+    String::from_utf8(fixture_bytes(name)).unwrap()
+}
+
+fn fixture_bytes(name: &str) -> Vec<u8> {
+    std::fs::read(Path::new(FIXTURES).join(name)).unwrap()
+}
+
+const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/cards");
+
+/// Parses a fixture file the way the board does: the file name is the path.
+fn parse_file(name: &str, bytes: &[u8]) -> (Card, Vec<String>) {
+    let id = CardId::parse("W-12").unwrap();
+    let p = parse(id, Path::new(name), bytes, "Todo", &TimeZone::UTC);
+    (p.card, p.warnings)
+}
+
+fn fixture_parse(name: &str) -> (Card, Vec<String>) {
+    let parsed = parse_file(name, &fixture_bytes(name));
+    insta::assert_debug_snapshot!(name.trim_end_matches(".md"), parsed);
+    parsed
+}
+
+/// The fields a reader sees, without the path.
+fn view(c: &Card) -> (&str, &str, &str, &[brain_swap::core::model::Note]) {
+    (&c.title, &c.column, &c.body, &c.notes)
 }
 
 fn card(text: &str) -> Card {
@@ -248,4 +270,141 @@ fn ts4_4_auto_marker_only_as_exact_word() {
     let c = card("# t\n## Timeline\n### 2026-10-08T10:31:05+03:00 automatic\n- Doing: a\n");
     assert!(!c.notes[0].auto);
     assert!(c.notes[0].at.is_some());
+}
+
+#[test]
+fn ts4_7_card_without_frontmatter_is_in_default_column() {
+    let (c, warnings) = fixture_parse("no_frontmatter.md");
+    assert_eq!(c.column, "Todo");
+    assert!(c.writable);
+    assert!(warnings.is_empty());
+}
+
+#[test]
+fn ts4_2_invalid_frontmatter_reads_as_none_and_is_read_only() {
+    let (c, warnings) = fixture_parse("invalid_frontmatter.md");
+    assert_eq!(c.column, "Todo");
+    assert!(!c.writable);
+    assert_eq!(warnings.len(), 1);
+    let problem = warnings[0]
+        .strip_prefix("invalid_frontmatter.md:2: invalid frontmatter: ")
+        .unwrap();
+    assert!(!problem.is_empty());
+}
+
+#[test]
+fn ts4_7_non_utf8_card_is_read_only() {
+    let (c, warnings) = fixture_parse("non_utf8.md");
+    assert_eq!(c.title, "non utf8");
+    assert!(!c.writable);
+    assert_eq!(warnings, ["non_utf8.md: not UTF-8, read only"]);
+}
+
+#[test]
+fn ts4_7_conflict_markers_make_card_read_only() {
+    let (c, warnings) = fixture_parse("conflict_markers.md");
+    assert!(!c.writable);
+    assert_eq!(
+        warnings,
+        ["conflict_markers.md:9: conflict marker, read only"]
+    );
+}
+
+#[test]
+fn ts4_7_crlf_card_reads_like_lf() {
+    let lf = fixture("w12_4_9.md");
+    let crlf = lf.replace('\n', "\r\n");
+    let (a, _) = parse_file("W-12.md", lf.as_bytes());
+    let (b, warnings) = parse_file("W-12.md", crlf.as_bytes());
+    assert_eq!(view(&b), view(&a));
+    assert!(warnings.is_empty());
+}
+
+#[test]
+fn ts4_4_fenced_headings_do_not_split_timeline() {
+    let (c, _) = fixture_parse("fenced_headings.md");
+    assert_eq!(c.notes.len(), 2);
+    assert!(c.body.contains("```text\n## Timeline\n```"));
+    assert_eq!(c.notes[0].extra, ["```sh", "## x", "```"]);
+    assert_eq!(c.notes[1].doing, "d");
+}
+
+#[test]
+fn ts4_7_card_without_timeline_has_no_notes() {
+    let (c, _) = fixture_parse("no_timeline.md");
+    assert!(c.notes.is_empty());
+    assert!(c.body.ends_with("## Goal\nlast line\n"));
+}
+
+#[test]
+fn ts4_4_post_section_is_outside_timeline() {
+    let (c, _) = fixture_parse("post_section.md");
+    assert_eq!(c.notes.len(), 2);
+    for n in &c.notes {
+        assert!(n.extra.iter().all(|l| !l.contains("ppendix")), "{n:?}");
+    }
+}
+
+#[test]
+fn ts4_2_check_writable_refuses_read_only_files() {
+    for name in [
+        "invalid_frontmatter.md",
+        "non_utf8.md",
+        "conflict_markers.md",
+    ] {
+        let bytes = fixture_bytes(name);
+        let (_, warnings) = parse_file(name, &bytes);
+        match check_writable(name, &bytes) {
+            Err(Error::Unreadable(m)) => assert_eq!([m], warnings.as_slice(), "{name}"),
+            other => panic!("{name}: {other:?}"),
+        }
+    }
+    assert!(check_writable("W-12.md", &fixture_bytes("w12_4_9.md")).is_ok());
+}
+
+#[test]
+fn ts12_1_parsing_never_panics_on_any_prefix() {
+    for entry in std::fs::read_dir(FIXTURES).unwrap() {
+        let path = entry.unwrap().path();
+        let bytes = std::fs::read(&path).unwrap();
+        let name = path.file_name().unwrap().to_str().unwrap();
+        for n in 0..=bytes.len() {
+            parse_file(name, &bytes[..n]);
+        }
+    }
+    for name in ["unknown_keys.md", "hand_edited.md", "no_final_newline.md"] {
+        fixture_parse(name);
+    }
+}
+
+#[test]
+fn ts4_7_crlf_fixture_reads_like_w12() {
+    let bytes = fixture_bytes("crlf.md");
+    assert!(bytes.ends_with(b"\r\n"));
+    for line in bytes.split_inclusive(|&b| b == b'\n') {
+        assert!(
+            line.ends_with(b"\r\n"),
+            "{:?}",
+            String::from_utf8_lossy(line)
+        );
+    }
+    let (c, warnings) = fixture_parse("crlf.md");
+    let (w12, _) = parse_file("W-12.md", fixture("w12_4_9.md").as_bytes());
+    assert_eq!(view(&c), view(&w12));
+    assert!(warnings.is_empty());
+}
+
+#[test]
+fn ts4_7_conflict_marker_in_frontmatter_is_reported_as_conflict() {
+    let text = fixture("w12_4_9.md").replace(
+        "column: Doing\n",
+        "<<<<<<< HEAD\ncolumn: Doing\n=======\ncolumn: Done\n>>>>>>> other\n",
+    );
+    let (c, warnings) = parse_file("W-12.md", text.as_bytes());
+    assert!(!c.writable);
+    assert_eq!(warnings, ["W-12.md:2: conflict marker, read only"]);
+    match check_writable("W-12.md", text.as_bytes()) {
+        Err(Error::Unreadable(m)) => assert_eq!(m, warnings[0]),
+        other => panic!("{other:?}"),
+    }
 }

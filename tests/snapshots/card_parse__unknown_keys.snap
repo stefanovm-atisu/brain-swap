@@ -1,0 +1,24 @@
+---
+source: tests/card_parse.rs
+expression: parsed
+---
+(
+    Card {
+        id: CardId {
+            letter: 'W',
+            number: 12,
+        },
+        path: "unknown_keys.md",
+        title: "unknown keys",
+        column: "Doing",
+        template: None,
+        created: Some(
+            2026-10-08T10:02:11+03:00[+03:00],
+        ),
+        body: "\n",
+        notes: [],
+        writable: true,
+        mtime: None,
+    },
+    [],
+)

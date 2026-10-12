@@ -1,0 +1,24 @@
+---
+source: tests/card_parse.rs
+expression: parsed
+---
+(
+    Card {
+        id: CardId {
+            letter: 'W',
+            number: 12,
+        },
+        path: "non_utf8.md",
+        title: "non utf8",
+        column: "Doing",
+        template: None,
+        created: None,
+        body: "\ncaf� body\n\n",
+        notes: [],
+        writable: false,
+        mtime: None,
+    },
+    [
+        "non_utf8.md: not UTF-8, read only",
+    ],
+)
