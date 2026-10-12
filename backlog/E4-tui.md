@@ -436,7 +436,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F3-T3 Body, scroll and key hints
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F3-T1
 - Covers: FR-27; TECHSPEC 5.2 (Detail `scroll_down`, `scroll_up`), 7.2 (separator, scrollable body, key hint line)
 - Size: S
