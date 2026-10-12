@@ -188,3 +188,101 @@ fn fr26_detail_note_snapshots() {
         insta::assert_snapshot!(format!("detail_note_{name}"), rows(&buf).join("\n"));
     }
 }
+
+fn detail_on_w5() -> App {
+    let mut app = board_on_w5();
+    press(&mut app, &["o"]);
+    app
+}
+
+fn scroll(app: &App) -> u16 {
+    match app.mode {
+        Mode::Detail { scroll, .. } => scroll,
+        _ => panic!("not in Detail: {:?}", app.mode),
+    }
+}
+
+/// The row right after the separator, the first body row.
+fn first_body_row(app: &App) -> String {
+    let rows = rows(&render(app, 80, 24));
+    let sep = rows.iter().position(|r| r.starts_with("---")).unwrap();
+    rows[sep + 1].clone()
+}
+
+#[test]
+fn fr27_body_follows_separator() {
+    let rows = rows(&render(&detail_on_w5(), 80, 24));
+    assert_eq!(rows[6], "-".repeat(80));
+    assert_eq!(rows[7..9], [" ## Question", " line 1"]);
+}
+
+#[test]
+fn fr27_scroll_down_moves_body_by_step() {
+    let mut app = detail_on_w5();
+    assert!(press(&mut app, &["ctrl+d"]).is_empty());
+    assert_eq!(scroll(&app), 10);
+    assert_eq!(first_body_row(&app), " line 10");
+}
+
+#[test]
+fn fr27_scroll_up_clamps_at_top() {
+    let mut app = detail_on_w5();
+    press(&mut app, &["ctrl+u"]);
+    assert_eq!(scroll(&app), 0);
+    press(&mut app, &["ctrl+d"]);
+    assert_eq!(scroll(&app), 10);
+    press(&mut app, &["ctrl+u"]);
+    assert_eq!(scroll(&app), 0);
+}
+
+#[test]
+fn fr27_scroll_down_clamps_at_last_line() {
+    let mut app = detail_on_w5();
+    press(&mut app, &["ctrl+d"; 6]);
+    let body = app.selected_card().unwrap().body.trim_end().to_string();
+    let lines: Vec<&str> = body.lines().collect();
+    assert_eq!(usize::from(scroll(&app)), lines.len() - 1);
+    assert_eq!(first_body_row(&app), format!(" {}", lines[lines.len() - 1]));
+    assert_eq!(first_body_row(&app), " line 40");
+}
+
+#[test]
+fn fr27_scroll_kept_when_changing_note() {
+    let mut app = detail_on_w5();
+    press(&mut app, &["ctrl+d", "j"]);
+    assert_eq!(scroll(&app), 10);
+    assert!(note_row(&app).starts_with(" note 2/3,"));
+}
+
+#[test]
+fn ts7_2_hint_line_shows_current_keys() {
+    let mut app = detail_on_w5();
+    assert_eq!(
+        rows(&render(&app, 80, 24))[22],
+        " j older  k newer  ctrl+d down  ctrl+u up  enter jump  e edit  ? help  q back"
+    );
+    app.keys = KeyMap::build(&[("down".into(), vec!["x".into()])]).0;
+    assert!(rows(&render(&app, 80, 24))[22].starts_with(" x older"));
+}
+
+#[test]
+fn fr27_wide_body_line_cut_not_wrapped() {
+    let fx = TuiFixture::new(Some("detail"));
+    let wide = "界".repeat(60);
+    let text = format!(
+        "---\ncolumn: Doing\n---\n# wide\n{wide}\nsecond\n\n## Timeline\n\n### 2026-10-08T11:40:00+03:00\n- Doing: d\n- Next: n\n- Watch out: w\n"
+    );
+    std::fs::write(fx.board_dir.join("W-7.md"), text).unwrap();
+    let mut app = fx.app();
+    app.mode = Mode::Detail {
+        card: CardId {
+            letter: 'W',
+            number: 7,
+        },
+        note: 0,
+        scroll: 0,
+    };
+    let rows = rows(&render(&app, 80, 24));
+    let at = rows.iter().position(|r| r.starts_with(" 界")).unwrap();
+    assert_eq!(rows[at + 1], " second");
+}

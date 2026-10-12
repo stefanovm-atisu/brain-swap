@@ -8,6 +8,17 @@ use crate::core::keys::{Action, Key, KeyContext, KeyMap, KeyPress};
 use crate::core::model::{Board, BoardMeta, Card, CardId};
 use crate::core::time::Stamp;
 
+/// Lines `scroll_down` and `scroll_up` move the Detail body (A-E4-12).
+pub const SCROLL_STEP: u16 = 10;
+
+/// The card body without its leading and trailing blank lines.
+pub fn body_lines(body: &str) -> Vec<&str> {
+    body.trim_start_matches(['\r', '\n'])
+        .trim_end()
+        .lines()
+        .collect()
+}
+
 #[derive(Debug, Clone)]
 pub struct App {
     pub mode: Mode,
@@ -258,6 +269,20 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
                 *note = match a {
                     Action::Up => (*note + 1).min(last),
                     _ => note.saturating_sub(1),
+                };
+            }
+            Vec::new()
+        }
+        (Mode::Detail { .. }, Some(a @ (Action::ScrollDown | Action::ScrollUp))) => {
+            if let Mode::Detail { card, scroll, .. } = &mut app.mode {
+                let lines = app
+                    .board
+                    .card(*card)
+                    .map_or(0, |c| body_lines(&c.body).len());
+                let last = u16::try_from(lines.saturating_sub(1)).unwrap_or(u16::MAX);
+                *scroll = match a {
+                    Action::ScrollDown => scroll.saturating_add(SCROLL_STEP).min(last),
+                    _ => scroll.saturating_sub(SCROLL_STEP),
                 };
             }
             Vec::new()

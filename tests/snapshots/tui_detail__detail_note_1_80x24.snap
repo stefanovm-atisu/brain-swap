@@ -8,3 +8,20 @@ expression: "rows(&buf).join(\"\\n\")"
  Next:       try a smaller lock
  Watch out:  numbers are noisy
  Where: /w/latency (pane w4V:p3)
+--------------------------------------------------------------------------------
+ ## Question
+ line 1
+ line 2
+ line 3
+ line 4
+ line 5
+ line 6
+ line 7
+ line 8
+ line 9
+ line 10
+ line 11
+ line 12
+ line 13
+ line 14
+ j older  k newer  ctrl+d down  ctrl+u up  enter jump  e edit  ? help  q back
