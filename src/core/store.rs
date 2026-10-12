@@ -2,8 +2,9 @@
 
 use crate::core::env::{Env, encode_file_name};
 use crate::core::error::{Error, Result};
-use crate::core::log;
+use crate::core::{failpoint, log};
 use std::fs::{self, File, TryLockError};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -52,4 +53,45 @@ pub fn lock_board(env: &Env, board_dir: &Path) -> Result<BoardLock> {
         log::event(env, "lock_wait", &format!("{} {ms}", canonical.display()));
     }
     Ok(BoardLock { _file: file })
+}
+
+/// `.<file name>.bs-tmp-<pid>` beside `target`.
+pub fn temp_path(target: &Path, pid: u32) -> PathBuf {
+    let name = target.file_name().unwrap_or_default().to_string_lossy();
+    target.with_file_name(format!(".{name}.bs-tmp-{pid}"))
+}
+
+/// Verifies `bytes`, then writes them to a temp file and renames it over `target` (R7, TECHSPEC 10).
+/// Errors remove the temp file, except a failpoint, which leaves it as a crash would.
+pub fn write_atomic(
+    env: &Env,
+    target: &Path,
+    bytes: &[u8],
+    verify: &dyn Fn(&[u8]) -> bool,
+    failpoint: Option<&str>,
+) -> Result<()> {
+    if !verify(bytes) {
+        log::event(env, "verify_failed", &target.display().to_string());
+        let name = target.file_name().unwrap_or_default().to_string_lossy();
+        return Err(Error::Verify(format!("{name}: verify failed")));
+    }
+    let tmp = temp_path(target, env.pid);
+    let io = |e: std::io::Error| Error::Io(format!("{}: {e}", target.display()));
+    let written = File::create(&tmp).and_then(|mut f| {
+        f.write_all(bytes)?;
+        f.sync_all()
+    });
+    if let Err(e) = written {
+        let _ = fs::remove_file(&tmp);
+        return Err(io(e));
+    }
+    if let Some(name) = failpoint {
+        failpoint::check(env, name)?;
+    }
+    if let Err(e) = fs::rename(&tmp, target) {
+        let _ = fs::remove_file(&tmp);
+        return Err(io(e));
+    }
+    let dir = target.parent().unwrap_or(Path::new("/"));
+    File::open(dir).and_then(|d| d.sync_all()).map_err(io)
 }

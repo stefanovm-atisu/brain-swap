@@ -7,7 +7,6 @@ use crate::core::time::Stamp;
 use jiff::{SignedDuration, Timestamp};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 
 pub const WARN_NOT_SUBSTITUTED: &str = "session id not substituted";
@@ -102,7 +101,7 @@ pub mod stamp_serde {
     }
 }
 
-/// Writes the reference of `session` to a temp file beside it, syncs and renames it (6.4).
+/// Writes the reference of `session` atomically through `store::write_atomic` (6.4).
 pub fn write_reference(env: &Env, session: &str, r: &SessionRef) -> Result<()> {
     let path = reference_path(env, session).ok_or(Error::InvalidInput(WARN_INVALID.into()))?;
     let file = RefFile {
@@ -114,17 +113,9 @@ pub fn write_reference(env: &Env, session: &str, r: &SessionRef) -> Result<()> {
     };
     let text = toml::to_string(&file)
         .map_err(|e| Error::InvalidInput(format!("{}: {e}", path.display())))?;
-    let tmp = path.with_file_name(format!(".{session}.toml.bs-tmp-{}", env.pid));
-    let written = fs::create_dir_all(env.sessions_dir()).and_then(|()| {
-        let mut f = fs::File::create(&tmp)?;
-        f.write_all(text.as_bytes())?;
-        f.sync_all()?;
-        fs::rename(&tmp, &path)
-    });
-    written.map_err(|e| {
-        let _ = fs::remove_file(&tmp);
-        Error::Io(format!("{}: {e}", path.display()))
-    })
+    fs::create_dir_all(env.sessions_dir())
+        .map_err(|e| Error::Io(format!("{}: {e}", path.display())))?;
+    crate::core::store::write_atomic(env, &path, text.as_bytes(), &|_| true, None)
 }
 
 /// The reference of `session`; `None` for an invalid ID, a missing or unparsable file (6.4).

@@ -824,7 +824,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T2 Atomic write with verify
 
-- Status: doing
+- Status: done
 - Depends on: E1-F6-T1, E1-F1-T7
 - Covers: NFR-08; TECHSPEC 4.8 R7, 10 (atomic writes), 11 (verify failures), T-20
 - Size: S
