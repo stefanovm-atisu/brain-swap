@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use jiff::tz::TimeZone;
 
 use crate::core::error::Error;
-use crate::core::frontmatter::{FmRead, read};
-use crate::core::model::{Card, CardId, HerdrPlace, NewCard, Note, Place};
+use crate::core::frontmatter::{FmRead, line_ending, read};
+use crate::core::model::{Card, CardId, HerdrPlace, NewCard, NewNote, Note, Place};
 use crate::core::time::{format_stamp, parse_stamp};
 
 #[derive(Debug)]
@@ -88,6 +88,112 @@ pub fn render_new(card: &NewCard) -> (Vec<u8>, Vec<String>) {
         card.title
     );
     (text.into_bytes(), warnings)
+}
+
+/// A card's bytes after an append; `inserted` holds every added byte (R3, R5).
+#[derive(Debug)]
+pub struct Appended {
+    pub bytes: Vec<u8>,
+    pub inserted: Range<usize>,
+    pub warnings: Vec<String>,
+}
+
+/// A note block (4.4 writer) with `eol` line ends, and its warnings.
+pub fn render_note(note: &NewNote, eol: &str) -> (String, Vec<String>) {
+    let mut out = format!("\n### {}", format_stamp(&note.at));
+    if note.auto {
+        out += " auto";
+    }
+    for (label, part) in [
+        ("Doing", &note.doing),
+        ("Next", &note.next),
+        ("Watch out", &note.watch_out),
+    ] {
+        let mut lines = part.lines();
+        out += &format!("\n- {label}:");
+        if let Some(first) = lines.next().filter(|l| !l.is_empty()) {
+            out += &format!(" {first}");
+        }
+        for l in lines {
+            out += &format!("\n  {l}");
+        }
+    }
+    let h = note.herdr.as_ref();
+    let pairs = [
+        ("cwd", Some(note.cwd.to_string_lossy().into_owned())),
+        ("pane", h.map(|h| h.pane.clone())),
+        ("tab", h.and_then(|h| h.tab.clone())),
+        ("workspace", h.and_then(|h| h.workspace.clone())),
+        ("session", note.session.clone()),
+    ];
+    let mut warnings = Vec::new();
+    out += "\n<!-- where:";
+    for (k, v) in pairs {
+        let Some(v) = v else { continue };
+        if v.contains("-->") {
+            warnings.push(format!("place {k} contains '-->', dropped"));
+        } else if v.contains([' ', '"', '\\']) {
+            let v = v.replace('\\', "\\\\").replace('"', "\\\"");
+            out += &format!(" {k}=\"{v}\"");
+        } else {
+            out += &format!(" {k}={v}");
+        }
+    }
+    out += " -->\n";
+    (out.replace('\n', eol), warnings)
+}
+
+/// Splices `block` into the timeline after its last non-blank line, before trailing
+/// blank lines and the post (R3, A-E1-18); without a timeline one is appended (R5).
+pub fn append_raw(name: &str, bytes: &[u8], block: &str) -> crate::core::error::Result<Appended> {
+    check_writable(name, bytes)?;
+    let text = std::str::from_utf8(bytes).unwrap_or_default();
+    let eol = line_ending(bytes);
+    let mut add = block.replace("\r\n", "\n").replace('\n', eol);
+    let at = match layout(text).2 {
+        Some(tl) => {
+            let (mut at, mut from) = (tl.start, tl.start);
+            for raw in text[tl].split_inclusive('\n') {
+                from += raw.len();
+                if !raw.trim().is_empty() {
+                    at = from;
+                }
+            }
+            at
+        }
+        None => {
+            add = format!("{eol}## Timeline{eol}{add}");
+            text.len()
+        }
+    };
+    if !text[..at].is_empty() && !text[..at].ends_with('\n') {
+        add = format!("{eol}{add}");
+    }
+    let mut out = bytes.to_vec();
+    out.splice(at..at, add.bytes());
+    Ok(Appended {
+        bytes: out,
+        inserted: at..at + add.len(),
+        warnings: Vec::new(),
+    })
+}
+
+/// Appends a switch note; all three parts blank is `empty note` (FR-16, FR-18).
+pub fn append_note(
+    name: &str,
+    bytes: &[u8],
+    note: &NewNote,
+) -> crate::core::error::Result<Appended> {
+    if [&note.doing, &note.next, &note.watch_out]
+        .iter()
+        .all(|p| p.trim().is_empty())
+    {
+        return Err(Error::InvalidInput("empty note".to_string()));
+    }
+    let (block, warnings) = render_note(note, line_ending(bytes));
+    let mut a = append_raw(name, bytes, &block)?;
+    a.warnings = warnings;
+    Ok(a)
 }
 
 /// Refuses a read-only card (4.7): invalid frontmatter, non-UTF-8 bytes or a conflict marker.

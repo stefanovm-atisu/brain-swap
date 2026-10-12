@@ -84,6 +84,19 @@ pub struct NewCard {
     pub body: String,
 }
 
+/// The values a switch note is rendered from; stamp and cwd are required (I6).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NewNote {
+    pub at: Stamp,
+    pub auto: bool,
+    pub doing: String,
+    pub next: String,
+    pub watch_out: String,
+    pub cwd: PathBuf,
+    pub herdr: Option<HerdrPlace>,
+    pub session: Option<String>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Place {
     pub cwd: Option<PathBuf>,

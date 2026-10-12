@@ -399,7 +399,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F2-T7 Note writer and append
 
-- Status: doing
+- Status: done
 - Depends on: E1-F2-T2, E1-F2-T4, E1-F2-T5
 - Covers: FR-14, FR-16, FR-18, NFR-06, NFR-07; TECHSPEC 3 (I6), 4.4 (writer, place quoting), 4.7 (missing timeline), 4.8 R3, R5, 6.5 (`empty note`)
 - Size: M
