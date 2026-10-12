@@ -132,7 +132,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T6 Runtime loop and terminal guard
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F1-T5
 - Covers: FR-45; TECHSPEC 7.1 (`runtime.rs` draws, polls input every 250 ms, runs effects, returns results as `Input::Done`), 7.5, 12.1 (injectable terminal guard, no tty)
 - Size: M
