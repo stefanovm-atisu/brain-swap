@@ -191,7 +191,7 @@ impl Launcher for FakeLauncher {
         (self.on_launch)(copy);
         match self.code {
             Some(c) => Ok(ExitStatus::from_raw(c << 8)),
-            None => Err(io::Error::other("fake launch error")),
+            None => Err(io::ErrorKind::NotFound.into()),
         }
     }
 }

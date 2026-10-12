@@ -629,7 +629,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F5-T3 Exit and failure rules
 
-- Status: doing
+- Status: done
 - Depends on: E4-F5-T1
 - Covers: FR-31; TECHSPEC 7.1 (`Failed` for a non-zero editor exit sets the status line), 7.6 (a non-zero exit writes nothing and keeps the copy; a kept copy is overwritten by the next `e`)
 - Size: S

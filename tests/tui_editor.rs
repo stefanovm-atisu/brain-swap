@@ -2,7 +2,7 @@
 
 mod common;
 
-use brain_swap::core::card_file::render_note;
+use brain_swap::core::card_file::{check_writable, render_note};
 use brain_swap::core::config;
 use brain_swap::core::model::{CardId, NewNote};
 use brain_swap::core::store::park;
@@ -199,4 +199,117 @@ fn ts5_2_editor_string_split_without_quoting() {
         argv("\"my editor\" -f\t-x", None, None),
         ["\"my", "editor\"", "-f", "-x", "/s/c.md"]
     );
+}
+
+/// The kept or written copy of W-12 on board `work`.
+fn copy(fx: &TuiFixture) -> std::path::PathBuf {
+    fx.home.join(".local/state/brain-swap/edit/work-W-12.md")
+}
+
+/// Runs `e` on W-12 with a launcher that writes `edited` to the copy and exits 1.
+fn edit_exit_1(fx: &TuiFixture) -> Runtime<TestBackend> {
+    let e = edited(fx);
+    let launcher = FakeLauncher::new(Some(1), move |copy| fs::write(copy, &e).unwrap());
+    let mut rt = runtime(fx, &launcher);
+    rt.dispatch(Input::Key(key("e")));
+    rt
+}
+
+#[test]
+fn ts7_6_nonzero_exit_writes_nothing_and_keeps_copy() {
+    let fx = work_4_9();
+    let before = fs::read(fx.board_dir.join("W-12.md")).unwrap();
+    let rt = edit_exit_1(&fx);
+    assert_eq!(fs::read(fx.board_dir.join("W-12.md")).unwrap(), before);
+    assert_eq!(fs::read_to_string(copy(&fx)).unwrap(), edited(&fx));
+    assert_eq!(rt.app().status.as_deref(), Some("editor: exit status: 1"));
+}
+
+#[test]
+fn ts7_6_kept_copy_is_overwritten_by_next_edit() {
+    let fx = work_4_9();
+    edit_exit_1(&fx);
+    let launcher = FakeLauncher::new(Some(1), |_| {});
+    let mut rt = runtime(&fx, &launcher);
+    rt.dispatch(Input::Key(key("e")));
+    let calls = launcher.calls.borrow();
+    assert_eq!(calls[0].1, fs::read(fx.board_dir.join("W-12.md")).unwrap());
+}
+
+#[test]
+fn ts7_6_unchanged_copy_writes_nothing() {
+    let fx = work_4_9();
+    let card = fx.board_dir.join("W-12.md");
+    let (bytes, mtime) = (
+        fs::read(&card).unwrap(),
+        fs::metadata(&card).unwrap().modified().unwrap(),
+    );
+    let launcher = FakeLauncher::new(Some(0), |_| {});
+    let mut rt = runtime(&fx, &launcher);
+    rt.dispatch(Input::Key(key("e")));
+    assert_eq!(fs::read(&card).unwrap(), bytes);
+    assert_eq!(fs::metadata(&card).unwrap().modified().unwrap(), mtime);
+    assert!(!copy(&fx).exists());
+    assert_eq!(rt.app().status, None);
+}
+
+#[test]
+fn ts7_6_launch_error_sets_status_and_keeps_copy() {
+    let fx = work_4_9();
+    let before = fs::read(fx.board_dir.join("W-12.md")).unwrap();
+    let launcher = FakeLauncher::new(None, |_| {});
+    let mut rt = runtime(&fx, &launcher);
+    rt.dispatch(Input::Key(key("e")));
+    let status = rt.app().status.clone().unwrap();
+    assert!(status.starts_with("editor: "), "{status}");
+    assert_eq!(fs::read(fx.board_dir.join("W-12.md")).unwrap(), before);
+    assert!(copy(&fx).exists());
+}
+
+#[test]
+fn ts7_6_failed_merge_keeps_copy() {
+    let fx = work_4_9();
+    let e = edited(&fx).replace(
+        "# migrate invoices to v14",
+        "# migrate invoices to v14\n<<<<<<< HEAD",
+    );
+    let note = NewNote {
+        at: fx.env.now.clone(),
+        auto: false,
+        doing: "parked mid-edit".into(),
+        next: "rerun the migration test".into(),
+        watch_out: String::new(),
+        cwd: "/home/smilen/Work/ati.billing".into(),
+        herdr: None,
+        session: None,
+    };
+    let parked = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let (env, board, written, seen) = (fx.env.clone(), fx.board(), e.clone(), parked.clone());
+    let launcher = FakeLauncher::new(Some(0), move |copy| {
+        park(&env, &board, W12, &note).unwrap();
+        *seen.borrow_mut() = fs::read(board.path.join("W-12.md")).unwrap();
+        fs::write(copy, &written).unwrap();
+    });
+    let mut rt = runtime(&fx, &launcher);
+    rt.dispatch(Input::Key(key("e")));
+    let unreadable = check_writable("W-12.md", e.as_bytes())
+        .unwrap_err()
+        .to_string();
+    assert_eq!(rt.app().status.as_deref(), Some(unreadable.as_str()));
+    assert_eq!(
+        fs::read(fx.board_dir.join("W-12.md")).unwrap(),
+        *parked.borrow()
+    );
+    assert_eq!(fs::read_to_string(copy(&fx)).unwrap(), e);
+}
+
+#[test]
+fn ts7_6_missing_card_sets_status_without_launch() {
+    let fx = work_4_9();
+    let launcher = FakeLauncher::new(Some(0), |_| {});
+    let mut rt = runtime(&fx, &launcher);
+    fs::remove_file(fx.board_dir.join("W-12.md")).unwrap();
+    rt.dispatch(Input::Key(key("e")));
+    assert_eq!(rt.app().status.as_deref(), Some("W-12 not found"));
+    assert!(launcher.calls.borrow().is_empty());
 }

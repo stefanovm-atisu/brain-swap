@@ -78,11 +78,15 @@ fn edit(
     fs::write(&copy, &c0)?;
     let argv = editor_argv(config_editor, env, &copy);
     guard.leave()?;
-    let status = launcher.launch(&argv);
+    // A non-zero exit or a launch error writes nothing and keeps the copy (7.6).
+    let failed = match launcher.launch(&argv) {
+        Ok(s) if s.success() => None,
+        Ok(s) => Some(s.to_string()),
+        Err(e) => Some(e.to_string()),
+    };
     guard.enter()?;
-    let status = status?;
-    if !status.success() {
-        return Ok(Outcome::Failed(format!("editor: {status}")));
+    if let Some(why) = failed {
+        return Ok(Outcome::Failed(format!("editor: {why}")));
     }
     let edited = fs::read(&copy)?;
     Ok(match merge_edit(env, board, id, &c0, &edited) {
