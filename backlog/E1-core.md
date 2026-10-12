@@ -502,7 +502,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F3-T3 First run
 
-- Status: doing
+- Status: done
 - Depends on: E1-F3-T2
 - Covers: FR-66; TECHSPEC 5.1, 5.2 (create-new), 10 (missing config)
 - Size: S

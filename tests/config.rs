@@ -1,9 +1,15 @@
 //! TECHSPEC 5.2 and 6.2: parsing `config.toml` and looking up boards.
 
+mod common;
+
+use std::fs;
 use std::path::{Path, PathBuf};
 
-use brain_swap::core::config::{Config, parse};
+use brain_swap::core::config::{Config, default_text as text_for, load, parse, write_default};
 use brain_swap::core::error::Error;
+use common::env::core_env;
+
+const NOW: &str = "2026-10-08T11:52:00+03:00";
 
 fn default_text() -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/config/default.toml");
@@ -230,4 +236,118 @@ fn fr45_config_errors_exit_1() {
         assert!(matches!(e, Error::Config { .. }), "{e:?}");
         assert_eq!((e.exit_code(), e.code()), (1, "config"));
     }
+}
+
+#[test]
+fn fr66_missing_config_is_written_and_reported() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env = core_env(tmp.path(), NOW);
+    let loaded = load(&env).unwrap();
+    assert!(env.config_file().is_file());
+    assert_eq!(loaded.created, Some(env.config_file()));
+    assert_eq!(loaded.config.default_board, "work");
+}
+
+#[test]
+fn fr66_default_text_equals_5_2_under_default_xdg() {
+    let env = core_env(Path::new("/h"), NOW);
+    assert_eq!(text_for(&env), default_text());
+}
+
+#[test]
+fn fr66_existing_config_is_not_rewritten() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env = core_env(tmp.path(), NOW);
+    fs::create_dir_all(env.config_file().parent().unwrap()).unwrap();
+    let custom = "default_board = \"a\"\n[boards]\na = \"/a\"\n";
+    fs::write(env.config_file(), custom).unwrap();
+    let loaded = load(&env).unwrap();
+    assert_eq!(loaded.created, None);
+    assert_eq!(fs::read_to_string(env.config_file()).unwrap(), custom);
+    let broken = "default_board = \n";
+    fs::write(env.config_file(), broken).unwrap();
+    assert!(matches!(load(&env), Err(Error::Config { .. })));
+    assert_eq!(fs::read_to_string(env.config_file()).unwrap(), broken);
+}
+
+#[test]
+fn fr66_create_new_never_clobbers() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env = core_env(tmp.path(), NOW);
+    fs::create_dir_all(env.config_file().parent().unwrap()).unwrap();
+    let custom = "default_board = \"a\"\n[boards]\na = \"/a\"\n";
+    fs::write(env.config_file(), custom).unwrap();
+    let loaded = write_default(&env).unwrap();
+    assert_eq!(loaded.created, None);
+    assert_eq!(loaded.config.default_board, "a");
+    assert_eq!(fs::read_to_string(env.config_file()).unwrap(), custom);
+}
+
+#[test]
+fn fr66_first_run_creates_no_board_folder() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env = core_env(tmp.path(), NOW);
+    load(&env).unwrap();
+    assert!(!env.data_dir().join("work").exists());
+}
+
+#[test]
+fn ts5_1_custom_data_home_written_as_absolute() {
+    let mut env = core_env(Path::new("/h"), NOW);
+    env.data_home = PathBuf::from("/x/d");
+    assert!(
+        text_for(&env).contains("\nwork = \"/x/d/brain-swap/work\"\n"),
+        "{}",
+        text_for(&env)
+    );
+}
+
+fn config_dir_entries(env: &brain_swap::core::env::Env) -> Vec<String> {
+    let mut v: Vec<String> = fs::read_dir(env.config_file().parent().unwrap())
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    v.sort();
+    v
+}
+
+#[test]
+fn fr66_first_run_leaves_no_temp_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env = core_env(tmp.path(), NOW);
+    write_default(&env).unwrap();
+    assert_eq!(config_dir_entries(&env), ["config.toml"]);
+    assert_eq!(
+        fs::read_to_string(env.config_file()).unwrap(),
+        text_for(&env)
+    );
+}
+
+#[test]
+fn fr66_stale_temp_does_not_block_first_run() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env = core_env(tmp.path(), NOW);
+    let dir = env.config_file().parent().unwrap().to_path_buf();
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(format!(".config.toml.bs-tmp-{}", env.pid)), "").unwrap();
+    let loaded = load(&env).unwrap();
+    assert_eq!(loaded.created, Some(env.config_file()));
+    assert_eq!(
+        fs::read_to_string(env.config_file()).unwrap(),
+        text_for(&env)
+    );
+    assert_eq!(config_dir_entries(&env), ["config.toml"]);
+}
+
+#[test]
+fn fr45_invalid_utf8_is_config_error_at_its_line() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env = core_env(tmp.path(), NOW);
+    fs::create_dir_all(env.config_file().parent().unwrap()).unwrap();
+    let mut bytes = b"[boards]\nwork = \"/w\"\n# caf".to_vec();
+    bytes.extend_from_slice(b"\xe9\n");
+    fs::write(env.config_file(), bytes).unwrap();
+    let e = load(&env).unwrap_err();
+    let (line, col, _) = at(&e);
+    assert_eq!((line, col), (3, 6));
 }

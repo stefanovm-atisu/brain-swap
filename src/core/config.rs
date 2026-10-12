@@ -1,5 +1,6 @@
 //! `config.toml` (TECHSPEC 5.2) parsed into a `Config`.
 
+use crate::core::env::Env;
 use crate::core::error::{Error, Result};
 use std::path::{Path, PathBuf};
 use toml::Spanned;
@@ -28,6 +29,16 @@ impl Config {
     }
 }
 
+/// An `Error::Config` at the end of `before`, the text preceding the offending byte.
+fn config_error(before: &str, path: &Path, msg: String) -> Error {
+    Error::Config {
+        path: path.to_path_buf(),
+        line: before.matches('\n').count() + 1,
+        col: before.rsplit('\n').next().unwrap_or("").chars().count() + 1,
+        msg,
+    }
+}
+
 /// Parses `text` read from `path`; a leading `~/` in a board path expands to `home`.
 ///
 /// Fails `Error::Config` at the offending key (or the parser's span) with one of:
@@ -40,15 +51,7 @@ impl Config {
 ///
 /// Warns `config: unknown key '<key>'` for an unknown top-level key.
 pub fn parse(text: &str, path: &Path, home: &Path) -> Result<(Config, Vec<String>)> {
-    let fail = |start: usize, msg: String| {
-        let before = &text[..start];
-        Error::Config {
-            path: path.to_path_buf(),
-            line: before.matches('\n').count() + 1,
-            col: before.rsplit('\n').next().unwrap_or("").chars().count() + 1,
-            msg,
-        }
-    };
+    let fail = |start: usize, msg: String| config_error(&text[..start], path, msg);
     let doc = DeTable::parse(text)
         .map_err(|e| fail(e.span().map_or(0, |s| s.start), e.message().to_string()))?
         .into_inner();
@@ -134,4 +137,104 @@ pub fn parse(text: &str, path: &Path, home: &Path) -> Result<(Config, Vec<String
         keys,
     };
     Ok((config, warnings))
+}
+
+/// A loaded config; `created` is the path this process just wrote on first run (FR-66).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Loaded {
+    pub config: Config,
+    pub warnings: Vec<String>,
+    pub created: Option<PathBuf>,
+}
+
+/// The 5.2 file with each board at `<data_dir>/<name>`, as `~/...` under `HOME`.
+pub fn default_text(env: &Env) -> String {
+    let dir = |name: &str| {
+        let p = env.default_board_dir(name);
+        match p.strip_prefix(&env.home) {
+            Ok(rel) => format!("~/{}", rel.display()),
+            Err(_) => p.display().to_string(),
+        }
+    };
+    format!(
+        r#"default_board = "work"   # must be in [boards]
+editor = ""              # empty: $VISUAL, $EDITOR, vi; arguments allowed ("code --wait")
+
+[boards]                 # name = folder; names match [a-z][a-z0-9_-]*
+work = "{}"
+home = "{}"
+personal = "{}"
+
+[keys]                   # action = key or list of keys
+up = ["k", "up"]
+down = ["j", "down"]
+left = ["h", "left"]
+right = ["l", "right"]
+move_left = "H"
+move_right = "L"
+open = "o"
+jump = "enter"
+new = "n"
+edit = "e"
+switch_board = "b"
+scroll_down = "ctrl+d"
+scroll_up = "ctrl+u"
+help = "?"
+quit = ["q", "esc"]
+confirm = "enter"
+cancel = "esc"
+"#,
+        dir("work"),
+        dir("home"),
+        dir("personal")
+    )
+}
+
+/// Reads `env.config_file()`, writing `default_text` first when it is missing.
+pub fn load(env: &Env) -> Result<Loaded> {
+    if env.config_file().exists() {
+        read(env, None)
+    } else {
+        write_default(env)
+    }
+}
+
+/// Writes `default_text` to a synced temp file and hard-links it into place, so the
+/// config is never seen half-written and an existing one is never replaced (FR-66).
+#[doc(hidden)]
+pub fn write_default(env: &Env) -> Result<Loaded> {
+    let path = env.config_file();
+    let dir = path.parent().unwrap_or(Path::new("/"));
+    let tmp = dir.join(format!(".config.toml.bs-tmp-{}", env.pid));
+    let io = |e: std::io::Error| Error::Io(format!("{}: {e}", path.display()));
+    std::fs::create_dir_all(dir).map_err(io)?;
+    let mut f = std::fs::File::create(&tmp).map_err(io)?;
+    std::io::Write::write_all(&mut f, default_text(env).as_bytes()).map_err(io)?;
+    f.sync_all().map_err(io)?;
+    let linked = std::fs::hard_link(&tmp, &path);
+    let _ = std::fs::remove_file(&tmp);
+    match linked {
+        Ok(()) => read(env, Some(path.clone())),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => read(env, None),
+        Err(e) => Err(io(e)),
+    }
+}
+
+fn read(env: &Env, created: Option<PathBuf>) -> Result<Loaded> {
+    let path = env.config_file();
+    let bytes = std::fs::read(&path).map_err(|e| Error::Io(format!("{}: {e}", path.display())))?;
+    let text = String::from_utf8(bytes).map_err(|e| {
+        let valid = &e.as_bytes()[..e.utf8_error().valid_up_to()];
+        config_error(
+            std::str::from_utf8(valid).unwrap_or(""),
+            &path,
+            "invalid UTF-8".to_string(),
+        )
+    })?;
+    let (config, warnings) = parse(&text, &path, &env.home)?;
+    Ok(Loaded {
+        config,
+        warnings,
+        created,
+    })
 }
