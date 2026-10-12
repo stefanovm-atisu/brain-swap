@@ -68,7 +68,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F1-T3 herdr calls in the log
 
-- Status: doing
+- Status: done
 - Depends on: E5-F1-T2, E1-F1-T8
 - Covers: TECHSPEC 11 (herdr calls: argv, exit, ms), 6.1 (`BRAIN_SWAP_LOG`)
 - Size: S

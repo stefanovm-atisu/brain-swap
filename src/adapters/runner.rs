@@ -39,7 +39,6 @@ impl RunResult {
 /// Starts the real herdr binary, without a shell.
 #[derive(Clone, Debug)]
 pub struct ProcessRunner {
-    #[allow(dead_code)] // read by the log line (E5-F1-T3)
     env: Env,
     program: PathBuf,
 }
@@ -99,10 +98,16 @@ impl Runner for ProcessRunner {
                 }
             }
         };
-        RunResult {
-            outcome,
-            took: start.elapsed(),
-        }
+        let took = start.elapsed();
+        let code = match &outcome {
+            RunOutcome::Exited { code: Some(c), .. } => c.to_string(),
+            RunOutcome::Exited { .. } => "signal".into(),
+            RunOutcome::TimedOut => "timeout".into(),
+            RunOutcome::SpawnFailed(_) => "spawn_failed".into(),
+        };
+        let text = format!("{} exit={code} ms={}", args.join(" "), took.as_millis());
+        crate::core::log::event(&self.env, "herdr", &text);
+        RunResult { outcome, took }
     }
 }
 
