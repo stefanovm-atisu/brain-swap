@@ -164,7 +164,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F2-T3 `new --body -`
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F2-T1
 - Covers: FR-13; TECHSPEC 6.3 (`--body -`), 5.4 (`## Timeline` dropped with a warning), R4
 - Size: M
