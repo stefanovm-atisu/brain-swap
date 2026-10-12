@@ -568,7 +568,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F3-T6 Mode-specific key checks
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F3-T5
 - Covers: FR-43, FR-44; TECHSPEC 5.2 (TitleInput, template hotkeys)
 - Size: S
