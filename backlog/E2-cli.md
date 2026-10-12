@@ -521,7 +521,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T11 Process-level crash tests
 
-- Status: doing
+- Status: done
 - Depends on: E2-F3-T1, E2-F2-T1
 - Covers: FR-16; TECHSPEC 4.6, 6.1 (`BRAIN_SWAP_FAILPOINT`), 12.1 (crash, process level), I1 to I4
 - Size: M
