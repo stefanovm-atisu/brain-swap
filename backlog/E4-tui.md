@@ -54,7 +54,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T2 Key events, mode contexts and quit
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F1-T1, E1-F3-T6
 - Covers: TECHSPEC 5.2 (actions per mode, Board ignores `scroll_*`), 5.3 (SHIFT ignored for printable characters, ctrl and alt exact), 7.1 (Board `quit` emits `Quit`)
 - Size: S
