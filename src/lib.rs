@@ -23,12 +23,21 @@ pub mod cli {
     pub mod args;
     pub mod cmd;
     pub mod out;
+    pub use cmd::run;
 }
 
 pub mod tui {
     pub mod app;
     pub mod editor;
     pub mod runtime;
+
+    /// Placeholder until E4-F1-T8; without a terminal it already exits 2 (6.3).
+    pub fn run(_env: crate::core::env::Env, _board: Option<String>, terminal: bool) -> i32 {
+        if !terminal {
+            return 2;
+        }
+        todo!()
+    }
 }
 
 pub mod adapters {

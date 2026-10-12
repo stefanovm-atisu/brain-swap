@@ -1,0 +1,33 @@
+---
+source: tests/cli_templates.rs
+expression: s.redact(&stdout(&out))
+---
+template: Feature (key f)
+## Goal
+
+## Acceptance
+
+## Context
+
+template: Bug (key b)
+## Symptom
+
+## Expected
+
+## Repro
+
+## Context
+
+template: Research (key r)
+## Question
+
+## Done when
+
+## Context
+
+template: Chore (key c)
+## Task
+
+## Why
+
+## Context

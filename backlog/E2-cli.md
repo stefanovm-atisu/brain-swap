@@ -26,7 +26,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F1-T1 Binary entry, clap surface and `templates` text
 
-- Status: doing
+- Status: done
 - Depends on: E1-F1, E1-F4
 - Covers: FR-11, FR-33; TECHSPEC 2.1, 6.1, 6.3 (`templates`)
 - Size: M

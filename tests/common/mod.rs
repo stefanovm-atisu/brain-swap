@@ -2,5 +2,6 @@
 #![allow(dead_code)]
 
 pub mod bytes;
+pub mod cli;
 pub mod env;
 pub mod spawn;

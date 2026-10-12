@@ -8,6 +8,7 @@ use std::path::Path;
 /// The fake herdr script that `HERDR_BIN_PATH` always names.
 pub const FAKE_HERDR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fake_herdr/herdr");
 
+#[derive(Clone)]
 pub struct Scenario {
     vars: BTreeMap<String, String>,
 }
