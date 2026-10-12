@@ -696,7 +696,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F5-T2 Card discovery and load
 
-- Status: doing
+- Status: done
 - Depends on: E1-F5-T1, E1-F2-T5, E1-F1-T6
 - Covers: FR-01, FR-04; TECHSPEC 4.1, 4.6 (next floor), 10 (bad files, missing folder)
 - Size: M

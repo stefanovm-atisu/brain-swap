@@ -119,6 +119,16 @@ pub struct BoardMeta {
     pub next: u32,
 }
 
+/// A loaded board (TECHSPEC 3): its cards and every warning met while reading it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Board {
+    pub name: String,
+    pub path: PathBuf,
+    pub meta: BoardMeta,
+    pub cards: Vec<Card>,
+    pub warnings: Vec<String>,
+}
+
 /// A session reference (TECHSPEC 3, 6.4): the card a session last parked, linked or created.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionRef {
