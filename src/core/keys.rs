@@ -185,6 +185,11 @@ impl Action {
     pub fn config_name(self) -> &'static str {
         ACTIONS[self as usize].1
     }
+
+    /// Every action in 5.2 order.
+    pub fn all() -> impl Iterator<Item = Action> {
+        ACTIONS.iter().map(|a| a.0)
+    }
 }
 
 impl KeyContext {

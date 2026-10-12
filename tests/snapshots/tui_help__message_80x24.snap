@@ -1,0 +1,6 @@
+---
+source: tests/tui_help.rs
+expression: "rows(&buf).join(\"\\n\")"
+---
+ pane closed
+ /w

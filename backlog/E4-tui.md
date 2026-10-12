@@ -94,7 +94,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T4 Help and Message screens
 
-- Status: doing
+- Status: done
 - Depends on: E4-F1-T3
 - Covers: FR-32; TECHSPEC 7.1 (Board `help` opens Help; any key in Help or Message returns), 7.2 (Help: every action with its keys, then all warnings; Message), 11 (all warnings in Help), 12.1 (snapshots at 80x24 and 120x40)
 - Size: M

@@ -133,11 +133,23 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
         _ => return Vec::new(),
     };
     app.status = None;
+    if let Mode::Help { back } | Mode::Message { back, .. } = &mut app.mode {
+        if event.kind != KeyEventKind::Release {
+            app.mode = std::mem::replace(&mut **back, Mode::Board);
+        }
+        return Vec::new();
+    }
     let action = key_press(&event)
         .zip(context(&app.mode))
         .and_then(|(p, ctx)| app.keys.action(ctx, &p));
     match (&app.mode, action) {
         (Mode::Board, Some(Action::Quit)) => vec![Effect::Quit],
+        (Mode::Board, Some(Action::Help)) => {
+            app.mode = Mode::Help {
+                back: Box::new(Mode::Board),
+            };
+            Vec::new()
+        }
         _ => Vec::new(),
     }
 }

@@ -4,7 +4,8 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
 
-use super::app::App;
+use super::app::{App, Mode};
+use super::{view_help, view_message};
 
 /// Mode screens fill the rows above as later tasks add them.
 pub fn draw(frame: &mut Frame, app: &App) {
@@ -19,4 +20,13 @@ pub fn draw(frame: &mut Frame, app: &App) {
     };
     let status = app.status.as_deref().map(|s| format!(" {s}"));
     frame.render_widget(Paragraph::new(status.unwrap_or_default()), line);
+    let screen = Rect {
+        height: row,
+        ..area
+    };
+    match &app.mode {
+        Mode::Help { .. } => view_help::draw(frame, app, screen),
+        Mode::Message { text, .. } => view_message::draw(frame, text, screen),
+        _ => {}
+    }
 }

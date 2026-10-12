@@ -31,6 +31,8 @@ pub mod tui {
     pub mod editor;
     pub mod runtime;
     pub mod view_frame;
+    pub mod view_help;
+    pub mod view_message;
 
     /// Placeholder until E4-F1-T8; without a terminal it already exits 2 (6.3).
     pub fn run(_env: crate::core::env::Env, _board: Option<String>, terminal: bool) -> i32 {
