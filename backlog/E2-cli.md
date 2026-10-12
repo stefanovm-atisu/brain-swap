@@ -538,7 +538,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T12 Process-level concurrency and the AS-8 CLI half
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F3-T1, E2-F2-T6
 - Covers: FR-16; TECHSPEC 10 (lock, fresh reads), 12.1 (concurrency, process level), AS-8 (CLI steps)
 - Size: M
