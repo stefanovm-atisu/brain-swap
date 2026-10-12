@@ -648,7 +648,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F5-T4 Terminal and lock around the editor
 
-- Status: doing
+- Status: done
 - Depends on: E4-F5-T1
 - Covers: FR-31; TECHSPEC 7.5 (raw mode and the alternate screen restored around the editor), 10 (the lock is held for one read-modify-write, never across an editor)
 - Size: S

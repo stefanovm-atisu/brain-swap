@@ -174,6 +174,8 @@ impl<B: Backend> Runtime<B> {
                         &mut *self.parts.launcher,
                         &mut *self.parts.guard,
                     );
+                    // After `guard.enter()`: the editor drew over the screen, repaint it fully (7.5).
+                    let _ = self.terminal.clear();
                     // Reload before `Done` (A-E4-05); a failed load keeps the board.
                     if matches!(outcome, Outcome::Edited(_))
                         && let Ok(b) = board::load(&b.name, &b.path, &self.env)

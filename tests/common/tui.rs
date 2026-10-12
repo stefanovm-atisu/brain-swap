@@ -105,18 +105,19 @@ pub fn fake_runtime(
     width: u16,
     height: u16,
 ) -> (Runtime<TestBackend>, FakeGuard, FakeEvents) {
-    fake_runtime_with(env, prepared, width, height, Box::new(NoLauncher))
+    let guard = FakeGuard::default();
+    fake_runtime_with(env, prepared, width, height, Box::new(NoLauncher), guard)
 }
 
-/// Like `fake_runtime`, with `launcher` as the editor launcher.
+/// Like `fake_runtime`, with `launcher` as the editor launcher and `guard` as the guard.
 pub fn fake_runtime_with(
     env: &Env,
     prepared: Prepared,
     width: u16,
     height: u16,
     launcher: Box<dyn Launcher>,
+    guard: FakeGuard,
 ) -> (Runtime<TestBackend>, FakeGuard, FakeEvents) {
-    let guard = FakeGuard::default();
     let clock = FakeClock(Rc::new(RefCell::new(env.now.clone())));
     let events = FakeEvents {
         queue: Rc::default(),

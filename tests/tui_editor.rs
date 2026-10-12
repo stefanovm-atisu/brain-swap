@@ -5,16 +5,17 @@ mod common;
 use brain_swap::core::card_file::{check_writable, render_note};
 use brain_swap::core::config;
 use brain_swap::core::model::{CardId, NewNote};
-use brain_swap::core::store::park;
+use brain_swap::core::store::{lock_board, park};
 use brain_swap::tui::Prepared;
 use brain_swap::tui::app::{App, Effect, Input, Mode, Outcome, Selection, update};
 use brain_swap::tui::editor::editor_argv;
 use brain_swap::tui::runtime::Runtime;
 use common::env::core_env;
-use common::tui::{FakeLauncher, NOW, TuiFixture, fake_runtime_with, key, press};
-use ratatui::backend::TestBackend;
+use common::tui::{FakeGuard, FakeLauncher, NOW, TuiFixture, fake_runtime_with, key, press, rows};
+use ratatui::backend::{Backend, TestBackend};
 use std::fs;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 const W12: CardId = CardId {
     letter: 'W',
@@ -44,12 +45,21 @@ fn app(fx: &TuiFixture) -> App {
 
 /// A runtime over `app` with `launcher`.
 fn runtime(fx: &TuiFixture, launcher: &FakeLauncher) -> Runtime<TestBackend> {
+    runtime_logged(fx, launcher, FakeGuard::default())
+}
+
+/// Like `runtime`, with `guard`, whose log the launcher may share.
+fn runtime_logged(
+    fx: &TuiFixture,
+    launcher: &FakeLauncher,
+    guard: FakeGuard,
+) -> Runtime<TestBackend> {
     let prepared = Prepared {
         app: app(fx),
         config: Some(config::load(&fx.env).unwrap().config),
         templates: Vec::new(),
     };
-    fake_runtime_with(&fx.env, prepared, 80, 24, Box::new(launcher.clone())).0
+    fake_runtime_with(&fx.env, prepared, 80, 24, Box::new(launcher.clone()), guard).0
 }
 
 /// Runs `e` on W-12 with a launcher that writes `edited` to the copy and exits 0.
@@ -313,4 +323,83 @@ fn ts7_6_missing_card_sets_status_without_launch() {
     rt.dispatch(Input::Key(key("e")));
     assert_eq!(rt.app().status.as_deref(), Some("W-12 not found"));
     assert!(launcher.calls.borrow().is_empty());
+}
+
+/// A launcher exiting with `code` that logs `launch` into `guard`'s log.
+fn logging(guard: &FakeGuard, code: Option<i32>) -> FakeLauncher {
+    let log = guard.0.clone();
+    FakeLauncher::new(code, move |_| log.borrow_mut().push("launch"))
+}
+
+#[test]
+fn ts7_5_terminal_left_before_editor_and_reentered_after() {
+    let fx = work_4_9();
+    let guard = FakeGuard::default();
+    let mut rt = runtime_logged(&fx, &logging(&guard, Some(0)), guard.clone());
+    rt.draw().unwrap();
+    let frame = rows(rt.terminal.backend().buffer());
+    // The editor leaves the real screen blank; the next frame must repaint all of it.
+    rt.terminal.backend_mut().clear().unwrap();
+    rt.dispatch(Input::Key(key("e")));
+    assert_eq!(guard.0.borrow().as_slice(), ["leave", "launch", "enter"]);
+    rt.draw().unwrap();
+    assert_eq!(rows(rt.terminal.backend().buffer()), frame);
+}
+
+#[test]
+fn ts7_5_terminal_reentered_after_failed_editor() {
+    let fx = work_4_9();
+    let guard = FakeGuard::default();
+    runtime_logged(&fx, &logging(&guard, Some(1)), guard.clone()).dispatch(Input::Key(key("e")));
+    assert_eq!(guard.0.borrow().as_slice(), ["leave", "launch", "enter"]);
+    let guard = FakeGuard::default();
+    let launcher = FakeLauncher::new(None, |_| {});
+    runtime_logged(&fx, &launcher, guard.clone()).dispatch(Input::Key(key("e")));
+    assert_eq!(guard.0.borrow().as_slice(), ["leave", "enter"]);
+}
+
+#[test]
+fn ts10_no_board_lock_held_while_editor_runs() {
+    let fx = work_4_9();
+    let (env, dir) = (fx.env.clone(), fx.board_dir.clone());
+    let launcher = FakeLauncher::new(Some(0), move |_| {
+        let start = Instant::now();
+        let lock = lock_board(&env, &dir).unwrap();
+        assert!(start.elapsed() < Duration::from_millis(100));
+        drop(lock);
+    });
+    runtime(&fx, &launcher).dispatch(Input::Key(key("e")));
+    assert_eq!(launcher.calls.borrow().len(), 1);
+}
+
+#[test]
+fn fr31_edit_from_detail_returns_to_detail() {
+    let fx = work_4_9();
+    let text = fs::read_to_string(fx.board_dir.join("W-12.md")).unwrap();
+    let (old, new) = (
+        text.find("### 2026-10-08T10:31:05").unwrap(),
+        text.find("### 2026-10-08T11:12:40").unwrap(),
+    );
+    let e = format!("{}{}", &text[..old], &text[new..]);
+    let launcher = FakeLauncher::new(Some(0), move |copy| fs::write(copy, &e).unwrap());
+    let mut rt = runtime(&fx, &launcher);
+    rt.dispatch(Input::Key(key("o")));
+    assert!(matches!(
+        rt.app().mode,
+        Mode::Detail {
+            card: W12,
+            note: 1,
+            ..
+        }
+    ));
+    rt.dispatch(Input::Key(key("e")));
+    assert_eq!(rt.app().board.card(W12).unwrap().notes.len(), 1);
+    assert!(matches!(
+        rt.app().mode,
+        Mode::Detail {
+            card: W12,
+            note: 0,
+            ..
+        }
+    ));
 }
