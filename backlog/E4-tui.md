@@ -397,7 +397,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F3-T1 Open the detail view
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F1-T3
 - Covers: FR-26, FR-27; TECHSPEC 5.2 (Detail `quit` returns to Board; Board-only actions do nothing in Detail), 7.1 (Board `open`), 7.2 (Detail header, note block, `Where:` line)
 - Size: M
