@@ -184,7 +184,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F2-T4 Card lookup and the `show` block
 
-- Status: doing
+- Status: done
 - Depends on: E2-F2-T1
 - Covers: TECHSPEC 6.1 (card IDs resolve by letter), 6.2 (exit 3 for a card), 6.3 (`show`)
 - Size: M

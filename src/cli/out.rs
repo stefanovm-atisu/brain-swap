@@ -2,6 +2,7 @@
 
 use crate::core::error::Error;
 use crate::core::model::{Board, Card};
+use crate::core::time::{Age, Stamp, age, format_stamp};
 use serde::Serialize;
 use std::io::{Stderr, Stdout, Write};
 use std::path::Path;
@@ -29,6 +30,61 @@ pub fn card_json<'a>(card: &'a Card, board: &'a Board) -> CardJson<'a> {
         path: &card.path,
         latest_note: None,
     }
+}
+
+/// The session a block's `latest note:` ending is judged against.
+pub enum SessionView {
+    /// `show`: no session resolved, the ending names the note's session.
+    Unresolved,
+    /// `link` and `context`: the resolved session, if any.
+    Resolved(Option<String>),
+}
+
+/// The block from `card:` on (6.3).
+pub fn card_block(card: &Card, board: &Board, now: &Stamp, session: &SessionView) -> String {
+    let mut s = format!(
+        "card: {} {}\nboard: {}, column: {}\n",
+        card.id, card.title, board.name, card.column
+    );
+    let Some(n) = card.latest_note() else {
+        return s + "latest note: none\n";
+    };
+    let stamp = n.at.as_ref().map(format_stamp).unwrap_or_else(|| {
+        let h = n.heading.get(4..).unwrap_or_default().trim();
+        h.strip_suffix(" auto").unwrap_or(h).trim_end().to_string()
+    });
+    let age = match age(n.at.as_ref(), now) {
+        Age::Now => "now".to_string(),
+        a => format!("{a} ago"),
+    };
+    let auto = if n.auto { ", auto" } else { "" };
+    let ending = match (&n.place.session, session) {
+        (None, _) => "no session".to_string(),
+        (Some(id), SessionView::Unresolved) => format!("by session {id}"),
+        (Some(id), SessionView::Resolved(Some(me))) if id == me => "by this session".to_string(),
+        (Some(_), SessionView::Resolved(_)) => "by another session".to_string(),
+    };
+    s += &format!("latest note: {stamp}, {age}{auto}, {ending}\n");
+    for (label, part) in [
+        ("Doing", &n.doing),
+        ("Next", &n.next),
+        ("Watch out", &n.watch_out),
+    ] {
+        let part = part.replace('\n', "\n  ");
+        s += &format!("{label}:{}{part}\n", if part.is_empty() { "" } else { " " });
+    }
+    let cwd = n
+        .place
+        .cwd
+        .as_ref()
+        .map_or("none".into(), |c| c.display().to_string());
+    let pane = n
+        .place
+        .herdr
+        .as_ref()
+        .map(|h| format!(" (pane {})", h.pane))
+        .unwrap_or_default();
+    s + &format!("Where: {cwd}{pane}\n")
 }
 
 /// One `--json` object: `v` first, then the flattened body.
@@ -174,6 +230,73 @@ mod tests {
             );
             assert_eq!(text(&o.stderr), "");
         }
+    }
+
+    fn block(note: crate::core::model::Note) -> String {
+        use crate::core::model::{BoardMeta, CardId};
+        use crate::core::time::parse_stamp;
+        let card = Card {
+            id: CardId::parse("W-1").unwrap(),
+            path: "W-1.md".into(),
+            title: "t".into(),
+            column: "Todo".into(),
+            template: None,
+            created: None,
+            body: String::new(),
+            notes: vec![note],
+            writable: true,
+            mtime: None,
+        };
+        let board = Board {
+            name: "work".into(),
+            path: "work".into(),
+            meta: BoardMeta {
+                letter: 'W',
+                columns: vec!["Todo".into()],
+                next: 2,
+            },
+            cards: Vec::new(),
+            warnings: Vec::new(),
+        };
+        let now = parse_stamp("2026-10-08T11:52:00+03:00", &jiff::tz::TimeZone::UTC).unwrap();
+        card_block(&card, &board, &now, &SessionView::Unresolved)
+    }
+
+    fn note(heading: &str) -> crate::core::model::Note {
+        let at = crate::core::time::parse_stamp(&heading[4..], &jiff::tz::TimeZone::UTC);
+        crate::core::model::Note {
+            heading: heading.into(),
+            at,
+            auto: false,
+            doing: "d".into(),
+            next: "n".into(),
+            watch_out: "w".into(),
+            place: Default::default(),
+            extra: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn ts6_3_block_age_now_and_bad_stamp() {
+        let b = block(note("### 2026-10-08T11:51:40+03:00"));
+        assert!(
+            b.contains("\nlatest note: 2026-10-08T11:51:40+03:00, now, "),
+            "{b}"
+        );
+        let b = block(note("### yesterday"));
+        assert!(b.contains("\nlatest note: yesterday, ? ago, "), "{b}");
+    }
+
+    #[test]
+    fn ts6_3_block_continuation_and_missing_place() {
+        let mut n = note("### 2026-10-08T11:00:00+03:00");
+        n.next = "a\nb".into();
+        n.watch_out = String::new();
+        let b = block(n);
+        assert!(
+            b.ends_with("\nNext: a\n  b\nWatch out:\nWhere: none\n"),
+            "{b}"
+        );
     }
 
     #[test]

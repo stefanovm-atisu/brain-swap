@@ -1,0 +1,5 @@
+---
+source: tests/cli_show.rs
+expression: stdout
+---
+{"v":1,"error":{"code":"not_found","message":"W-99 not found"}}

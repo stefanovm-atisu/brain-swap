@@ -1,0 +1,5 @@
+---
+source: tests/cli_show.rs
+expression: err
+---
+brain-swap: Z-1 not found

@@ -5,7 +5,7 @@ use crate::cli::out::{self, Out};
 use crate::core::config::{self, Config};
 use crate::core::env::Env;
 use crate::core::error::Error;
-use crate::core::model::Board;
+use crate::core::model::{Board, Card, CardId};
 use crate::core::store::{self, CreateRequest};
 use crate::core::template::{self, Template};
 use std::ffi::OsString;
@@ -85,6 +85,14 @@ pub fn find_template(ctx: &Ctx, name: &str, out: &mut Out) -> Result<Template, E
     template::find(&ts, name).cloned()
 }
 
+/// Card `id` and its board, found by letter over the configured boards (6.1);
+/// an unknown card is `NotFound("<ID> not found")` (6.2).
+pub fn find_card(ctx: &Ctx, id: CardId) -> Result<(Board, Card), Error> {
+    let board = crate::core::board::find_card(&ctx.config.boards, id, &ctx.env)?;
+    let card = board.card(id).cloned().expect("find_card checked the card");
+    Ok((board, card))
+}
+
 /// Dispatches one subcommand and returns its 6.2 exit code.
 pub fn run(env: &mut Env, cli: Cli) -> i32 {
     let mut out = Out::new(cli.json);
@@ -136,6 +144,27 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                         &text,
                         Body {
                             card: out::card_json(card, &board),
+                        },
+                    );
+                    0
+                }
+                Err(e) => out.error(&e),
+            }
+        }
+        Some(Command::Show { id, .. }) => {
+            let ctx = ctx.expect("loaded above");
+            match find_card(&ctx, id) {
+                Ok((board, card)) => {
+                    board.warnings.iter().for_each(|w| out.warn(w));
+                    #[derive(serde::Serialize)]
+                    struct Body<'a> {
+                        card: out::CardJson<'a>,
+                    }
+                    let view = out::SessionView::Unresolved;
+                    out.result(
+                        &out::card_block(&card, &board, &env.now, &view),
+                        Body {
+                            card: out::card_json(&card, &board),
                         },
                     );
                     0
