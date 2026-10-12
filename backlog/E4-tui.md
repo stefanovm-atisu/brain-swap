@@ -225,7 +225,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T10 Performance
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F1-T7, E4-F1-T8
 - Covers: NFR-02; TECHSPEC 12.1 (performance, `#[ignore]` release test on 300 cards with 20 notes)
 - Size: S
