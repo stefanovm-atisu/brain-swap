@@ -490,7 +490,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F4-T1 Template picker
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F1-T8, E1-F4-T3, E1-F3-T6
 - Covers: FR-30; TECHSPEC 5.2 (pickers; template hotkeys checked after the action keys, colliding ones dropped), 5.4 (templates without a key are chosen with `up`, `down` and `confirm`; user files; load warnings), 7.1 (Board `new` opens TemplatePick; a hotkey opens TitleInput), 7.2 (template picker)
 - Size: M
