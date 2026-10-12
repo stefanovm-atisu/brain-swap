@@ -42,12 +42,107 @@ pub mod tui {
         pub config: Option<crate::core::config::Config>,
     }
 
-    /// Placeholder until E4-F1-T8; without a terminal it already exits 2 (6.3).
-    pub fn run(_env: crate::core::env::Env, _board: Option<String>, terminal: bool) -> i32 {
+    /// The checked bare invocation; a config error is carried for ConfigError (FR-45).
+    #[derive(Debug)]
+    pub struct TuiStart {
+        pub config: crate::core::error::Result<crate::core::config::Loaded>,
+        pub board: Option<String>,
+    }
+
+    /// The bare invocation, checked in the order of A-E4-27: config, `--board`, terminal.
+    pub fn gate(
+        env: &crate::core::env::Env,
+        board: Option<&str>,
+        terminal: bool,
+    ) -> crate::core::error::Result<TuiStart> {
+        let config = crate::core::config::load(env);
+        let board = match (&config, board) {
+            (Ok(l), Some(b)) => Some(l.config.board(b)?.0.to_string()),
+            (_, b) => b.map(String::from),
+        };
         if !terminal {
-            return 2;
+            return Err(crate::core::error::Error::Usage("not a terminal".into()));
         }
-        todo!()
+        Ok(TuiStart { config, board })
+    }
+
+    /// The app to start: ConfigError, or the board with its warnings (7.1, 11, A-E4-08).
+    pub fn prepare(
+        env: &mut crate::core::env::Env,
+        start: TuiStart,
+    ) -> crate::core::error::Result<Prepared> {
+        let loaded = match start.config {
+            Ok(l) => l,
+            Err(e) => {
+                return Ok(Prepared {
+                    app: app::App::config_error(e.to_string(), env.now.clone()),
+                    config: None,
+                });
+            }
+        };
+        let config = loaded.config;
+        let guard = crate::core::log::guard_board_folders(env, &config.boards);
+        let (keys, key_warnings) = crate::core::keys::KeyMap::build(&config.keys);
+        let (name, dir) = config.board(start.board.as_deref().unwrap_or(&config.default_board))?;
+        let board = crate::core::board::load(name, dir, env)?;
+        let mut app = app::App::new(board, keys, env.now.clone(), env.home.clone());
+        app.warnings = loaded
+            .warnings
+            .into_iter()
+            .chain(guard)
+            .chain(key_warnings)
+            .collect();
+        app.status = match loaded.created {
+            Some(p) => Some(format!("created config {}", p.display())),
+            None => app
+                .warnings
+                .iter()
+                .chain(&app.board.warnings)
+                .next()
+                .cloned(),
+        };
+        Ok(Prepared {
+            app,
+            config: Some(config),
+        })
+    }
+
+    /// `gate` and `prepare`, then the runtime on the real terminal (6.3, 7.5); an error
+    /// before it prints on stderr only, with the screen untouched.
+    pub fn run(mut env: crate::core::env::Env, board: Option<String>, terminal: bool) -> i32 {
+        use runtime::{
+            CrosstermEvents, CrosstermGuard, Parts, Runtime, SystemClock, TerminalGuard,
+        };
+        let prepared =
+            match gate(&env, board.as_deref(), terminal).and_then(|s| prepare(&mut env, s)) {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("brain-swap: {e}");
+                    return e.exit_code();
+                }
+            };
+        // The default hook prints the panic; leave the alternate screen first so it stays visible.
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            let _ = CrosstermGuard.leave();
+            previous(info);
+        }));
+        let terminal = match ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(
+            std::io::stdout(),
+        )) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!("brain-swap: terminal: {e}");
+                return 1;
+            }
+        };
+        let parts = Parts {
+            guard: Box::new(CrosstermGuard),
+            events: Box::new(CrosstermEvents),
+            clock: Box::new(SystemClock { tz: env.tz.clone() }),
+            launcher: Box::new(editor::ProcessLauncher),
+        };
+        Runtime::new(env, prepared, terminal, parts).run()
     }
 }
 

@@ -6,11 +6,11 @@ use brain_swap::core::env::Env;
 use brain_swap::core::keys::{Key, KeyMap, parse_binding};
 use brain_swap::core::model::Board;
 use brain_swap::core::time::Stamp;
-use brain_swap::tui::Prepared;
 use brain_swap::tui::app::{App, Effect, Input, update};
 use brain_swap::tui::editor::Launcher;
 use brain_swap::tui::runtime::{Clock, Events, Parts, Runtime, TerminalGuard};
 use brain_swap::tui::view_frame::draw;
+use brain_swap::tui::{Prepared, TuiStart, prepare};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
@@ -81,19 +81,20 @@ impl TuiFixture {
         )
     }
 
-    /// A runtime over `app()` and the loaded config on a `TestBackend`, with fakes and a
+    /// A runtime over `tui::prepare` of the default board on a `TestBackend`, with fakes and a
     /// launcher that fails the test when called.
     pub fn runtime(
         &self,
         width: u16,
         height: u16,
     ) -> (Runtime<TestBackend>, FakeGuard, FakeEvents) {
-        let config = brain_swap::core::config::load(&self.env).unwrap().config;
-        let prepared = Prepared {
-            app: self.app(),
-            config: Some(config),
+        let mut env = self.env.clone();
+        let start = TuiStart {
+            config: brain_swap::core::config::load(&env),
+            board: None,
         };
-        fake_runtime(&self.env, prepared, width, height)
+        let prepared = prepare(&mut env, start).unwrap();
+        fake_runtime(&env, prepared, width, height)
     }
 }
 
