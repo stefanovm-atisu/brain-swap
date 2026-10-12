@@ -1,0 +1,19 @@
+---
+source: tests/tui_app.rs
+expression: both
+---
+[
+    Selection {
+        column: 1,
+        card: Some(
+            CardId {
+                letter: 'W',
+                number: 2,
+            },
+        ),
+    },
+    Selection {
+        column: 0,
+        card: None,
+    },
+]

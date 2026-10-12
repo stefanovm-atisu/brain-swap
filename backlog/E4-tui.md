@@ -35,7 +35,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T1 App state and initial selection
 
-- Status: doing
+- Status: done
 - Depends on: E1-F5-T3, E1-F3-T5, E1-F3-T3, E1-F1-T6
 - Covers: FR-19; TECHSPEC 7.1 (`App`, `Mode`, `Input`, `Outcome`, `Effect`, `update`, start selection), 3 (I5); PRD A-27
 - Size: M
