@@ -971,7 +971,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T9 In-process crash tests
 
-- Status: doing
+- Status: done
 - Depends on: E1-F6-T6, E1-F6-T7, E1-F6-T8
 - Covers: NFR-08; TECHSPEC 3 (I1 to I4), 4.6 (crash safety), 12.1 (crash, in-process layer)
 - Size: M
