@@ -1,0 +1,8 @@
+---
+source: tests/tui_pick.rs
+expression: text
+---
+ switch board
+>work  ~/.local/share/brain-swap/work
+ home  ~/.local/share/brain-swap/home
+ personal  ~/.local/share/brain-swap/personal

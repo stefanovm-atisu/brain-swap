@@ -32,6 +32,8 @@ pub struct App {
     pub home: PathBuf,
     /// Name and final hotkey, in load order; `App::new` starts with the built-ins.
     pub templates: Vec<(String, Option<char>)>,
+    /// Name and folder of each configured board, in config order.
+    pub boards: Vec<(String, PathBuf)>,
 }
 
 /// `column` indexes `Board::column_list()`.
@@ -113,6 +115,7 @@ impl App {
                 .into_iter()
                 .map(|t| (t.name, t.key))
                 .collect(),
+            boards: Vec::new(),
         }
     }
 
@@ -240,6 +243,13 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             }
             return Vec::new();
         }
+        // Another board, after `LoadBoard`: the start selection (A-27, A-E4-05).
+        Input::Reloaded(board) => {
+            app.sel = initial_selection(&board);
+            app.board = board;
+            app.mode = Mode::Board;
+            return Vec::new();
+        }
         // Selects the card and focuses its column; the mode stays (A-E4-13).
         Input::Done(Outcome::Moved(id) | Outcome::Edited(id)) => {
             if let Some(column) = (0..app.board.column_list().len())
@@ -303,6 +313,32 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
                 _ => Mode::TemplatePick { sel },
             };
             Vec::new()
+        }
+        (Mode::Board, Some(Action::SwitchBoard)) => {
+            let sel = app.boards.iter().position(|b| b.0 == app.board.name);
+            app.mode = Mode::BoardPick {
+                sel: sel.unwrap_or(0),
+            };
+            Vec::new()
+        }
+        (&Mode::BoardPick { sel }, a) => {
+            let last = app.boards.len().saturating_sub(1);
+            let mut effects = Vec::new();
+            app.mode = match a {
+                Some(Action::Up) => Mode::BoardPick {
+                    sel: sel.saturating_sub(1),
+                },
+                Some(Action::Down) => Mode::BoardPick {
+                    sel: (sel + 1).min(last),
+                },
+                Some(Action::Confirm) => {
+                    effects.extend(app.boards.get(sel).map(|b| Effect::LoadBoard(b.0.clone())));
+                    Mode::Board
+                }
+                Some(Action::Cancel) => Mode::Board,
+                _ => Mode::BoardPick { sel },
+            };
+            effects
         }
         (Mode::Board, Some(Action::Open)) => {
             if let Some(card) = app.selected_card() {

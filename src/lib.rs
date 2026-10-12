@@ -99,6 +99,7 @@ pub mod tui {
         }
         let mut app = app::App::new(board, keys, env.now.clone(), env.home.clone());
         app.templates = templates.iter().map(|t| (t.name.clone(), t.key)).collect();
+        app.boards = config.boards.clone();
         app.warnings = loaded
             .warnings
             .into_iter()

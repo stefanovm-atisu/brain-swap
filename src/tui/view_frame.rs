@@ -28,6 +28,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         Mode::Board => view_board::draw(frame, screen, app),
         Mode::Detail { .. } => view_detail::draw(frame, screen, app),
         Mode::TemplatePick { .. } => view_pick::draw_templates(frame, screen, app),
+        Mode::BoardPick { .. } => view_pick::draw_boards(frame, screen, app),
         Mode::Help { .. } => view_help::draw(frame, app, screen),
         Mode::Message { text, .. } | Mode::ConfigError(text) => {
             view_message::draw(frame, text, screen)

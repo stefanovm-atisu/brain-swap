@@ -1,4 +1,4 @@
-//! The template picker (TECHSPEC 7.2, A-E4-17).
+//! The template and board pickers (TECHSPEC 7.2, A-E4-17).
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -31,6 +31,28 @@ pub fn draw_templates(frame: &mut Frame, area: Rect, app: &App) {
         };
         let key = key.unwrap_or(' ');
         lines.push(Line::styled(format!("{mark}{key}  {name}"), style));
+    }
+    frame.render_widget(Paragraph::new(lines), area);
+}
+
+/// ` switch board`, then ` <name>  <path>` per board with HOME as `~`; the selected row starts `>`, reversed.
+pub fn draw_boards(frame: &mut Frame, area: Rect, app: &App) {
+    let sel = match app.mode {
+        Mode::BoardPick { sel } => sel,
+        _ => 0,
+    };
+    let mut lines = vec![Line::from(" switch board")];
+    for (i, (name, path)) in app.boards.iter().enumerate() {
+        let (mark, style) = if i == sel {
+            ('>', Style::default().add_modifier(Modifier::REVERSED))
+        } else {
+            (' ', Style::default())
+        };
+        let path = match path.strip_prefix(&app.home) {
+            Ok(rel) => format!("~/{}", rel.display()),
+            Err(_) => path.display().to_string(),
+        };
+        lines.push(Line::styled(format!("{mark}{name}  {path}"), style));
     }
     frame.render_widget(Paragraph::new(lines), area);
 }

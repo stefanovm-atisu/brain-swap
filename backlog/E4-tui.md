@@ -554,7 +554,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F4-T4 Board picker and switching boards
 
-- Status: doing
+- Status: done
 - Depends on: E4-F1-T8, E4-F1-T7
 - Covers: FR-24; TECHSPEC 7.1 (Board `switch_board` opens BoardPick; `confirm` emits `LoadBoard`; `cancel`; the start selection after `LoadBoard`), 7.2 (board picker), 7.4 (the runtime fingerprints the new board); PRD A-27
 - Size: M

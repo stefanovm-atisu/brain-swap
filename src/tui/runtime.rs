@@ -184,6 +184,20 @@ impl<B: Backend> Runtime<B> {
                     }
                     self.dispatch(Input::Done(outcome));
                 }
+                // A failed load keeps the current board (A-E4-18); the new folder is the baseline.
+                Effect::LoadBoard(name) => {
+                    let Some((_, dir)) = self.app.boards.iter().find(|b| b.0 == name) else {
+                        continue;
+                    };
+                    let input = match board::load(&name, dir, &self.env) {
+                        Ok(b) => {
+                            self.print = fingerprint(&b.path, b.meta.letter);
+                            Input::Reloaded(b)
+                        }
+                        Err(e) => Input::Done(Outcome::Failed(e.to_string())),
+                    };
+                    self.dispatch(input);
+                }
                 _ => {}
             }
         }

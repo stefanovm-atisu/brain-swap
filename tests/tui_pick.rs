@@ -1,13 +1,17 @@
-//! TECHSPEC 5.2, 5.4, 7.1 and 7.2: the template picker (FR-30, NFR-10).
+//! TECHSPEC 5.2, 5.4, 7.1, 7.2 and 7.4: the template and board pickers (FR-24, FR-30, NFR-10).
 
 mod common;
 
 use brain_swap::core::config::load;
-use brain_swap::tui::app::{App, Mode};
+use brain_swap::core::model::CardId;
+use brain_swap::tui::app::{App, Effect, Input, Mode};
+use brain_swap::tui::runtime::Runtime;
 use brain_swap::tui::{TuiStart, prepare};
-use common::tui::{TuiFixture, assert_no_colour, press, render, rows};
+use common::tui::{TuiFixture, assert_no_colour, key, press, render, rows, write_card};
+use ratatui::backend::TestBackend;
 use ratatui::style::Modifier;
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 
 fn work_4_9() -> App {
     TuiFixture::new(Some("work_4_9")).app()
@@ -134,5 +138,168 @@ fn fr30_template_pick_snapshots() {
         assert!(buf[(0, 1)].modifier.contains(Modifier::REVERSED));
         assert!(!buf[(0, 2)].modifier.contains(Modifier::REVERSED));
         insta::assert_snapshot!(format!("template_pick_{w}x{h}"), rows(&buf).join("\n"));
+    }
+}
+
+/// The `work_4_9` app through `tui::prepare` with the default config, on `board`.
+fn prepared_on(board: Option<&str>) -> App {
+    let mut fx = TuiFixture::new(Some("work_4_9"));
+    let start = TuiStart {
+        config: load(&fx.env),
+        board: board.map(String::from),
+    };
+    prepare(&mut fx.env, start).unwrap().app
+}
+
+fn board_picker() -> App {
+    let mut app = prepared_on(None);
+    press(&mut app, &["b"]);
+    app
+}
+
+fn at(time: &str) -> String {
+    format!("2026-10-08T{time}+03:00")
+}
+
+/// The fixture with H-1 (Todo, created 09:00) and H-2 (Doing, a note at 11:00) in the home board.
+fn with_home(fx: &TuiFixture) {
+    let d = fx.env.default_board_dir("home");
+    write_card(&d, "H-1", "Todo", &at("09:00:00"), &[]);
+    write_card(
+        &d,
+        "H-2",
+        "Doing",
+        &at("08:00:00"),
+        &[(&at("11:00:00"), "n")],
+    );
+}
+
+fn dispatch_keys(rt: &mut Runtime<TestBackend>, keys: &[&str]) {
+    for k in keys {
+        rt.dispatch(Input::Key(key(k)));
+    }
+}
+
+/// The number of `reload` lines in `env.log`.
+fn reload_lines(fx: &TuiFixture) -> usize {
+    fs::read_to_string(fx.env.log.as_ref().unwrap())
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| l.split(' ').nth(1) == Some("reload"))
+        .count()
+}
+
+#[test]
+fn fr24_switch_board_lists_configured_boards() {
+    let app = board_picker();
+    assert_eq!(app.mode, Mode::BoardPick { sel: 0 });
+    let frame = rows(&render(&app, 80, 24));
+    let names: Vec<&str> = frame[1..4]
+        .iter()
+        .map(|r| r[1..].split_whitespace().next().unwrap_or(""))
+        .collect();
+    assert_eq!(names, ["work", "home", "personal"], "{frame:?}");
+}
+
+#[test]
+fn fr24_confirm_emits_load_board() {
+    let mut app = board_picker();
+    assert_eq!(
+        press(&mut app, &["j", "enter"]),
+        [Effect::LoadBoard("home".into())]
+    );
+    assert_eq!(app.mode, Mode::Board);
+}
+
+#[test]
+fn ts5_2_cancel_in_board_pick_returns() {
+    let mut app = board_picker();
+    assert!(press(&mut app, &["esc"]).is_empty());
+    assert_eq!(app.mode, Mode::Board);
+}
+
+#[test]
+fn fr24_pick_starts_on_current_board() {
+    let mut app = prepared_on(Some("home"));
+    press(&mut app, &["b"]);
+    assert_eq!(app.mode, Mode::BoardPick { sel: 1 });
+}
+
+#[test]
+fn fr24_switched_board_opens_with_initial_selection() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    with_home(&fx);
+    let (mut rt, _, _) = fx.runtime(80, 24);
+    dispatch_keys(&mut rt, &["b", "j", "enter"]);
+    assert_eq!(rt.app().board.name, "home");
+    assert_eq!(rt.app().mode, Mode::Board);
+    assert_eq!(rt.app().sel.column, 1);
+    let h2 = CardId {
+        letter: 'H',
+        number: 2,
+    };
+    assert_eq!(rt.app().sel.card, Some(h2));
+}
+
+#[test]
+fn ts7_4_polling_follows_switched_board() {
+    let mut fx = TuiFixture::new(Some("work_4_9"));
+    fx.env.log = Some(fx.home.join("bs.log"));
+    with_home(&fx);
+    let (mut rt, _, _) = fx.runtime(80, 24);
+    dispatch_keys(&mut rt, &["b", "j", "enter"]);
+    let home = fx.env.default_board_dir("home");
+    write_card(&home, "H-3", "Todo", &at("09:30:00"), &[]);
+    rt.tick();
+    let h3 = CardId {
+        letter: 'H',
+        number: 3,
+    };
+    assert!(rt.app().board.card(h3).is_some());
+    let before = reload_lines(&fx);
+    let w12 = fx.board_dir.join("W-12.md");
+    let text = fs::read_to_string(&w12).unwrap();
+    fs::write(&w12, text + "\nmore\n").unwrap();
+    rt.tick();
+    assert_eq!(reload_lines(&fx), before);
+}
+
+#[test]
+fn fr24_switch_failure_keeps_current_board() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    with_home(&fx);
+    let home = fx.env.default_board_dir("home");
+    let (mut rt, _, _) = fx.runtime(80, 24);
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read_dir(&home).is_ok() {
+        // Root ignores permissions; nothing to check.
+        fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+    dispatch_keys(&mut rt, &["b", "j", "enter"]);
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
+    let status = rt.app().status.clone().unwrap_or_default();
+    assert!(status.starts_with("board home: "), "{status}");
+    assert_eq!(rt.app().board.name, "work");
+}
+
+#[test]
+fn fr24_board_pick_snapshots() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    let mut env = fx.env.clone();
+    let start = TuiStart {
+        config: load(&env),
+        board: None,
+    };
+    let mut app = prepare(&mut env, start).unwrap().app;
+    press(&mut app, &["b"]);
+    let root = fx.home.parent().unwrap().display().to_string();
+    for (w, h) in [(80, 24), (120, 40)] {
+        let buf = render(&app, w, h);
+        assert_no_colour(&buf);
+        assert!(buf[(0, 1)].modifier.contains(Modifier::REVERSED));
+        assert!(!buf[(0, 2)].modifier.contains(Modifier::REVERSED));
+        let text = rows(&buf).join("\n").replace(&root, "<root>");
+        insta::assert_snapshot!(format!("board_pick_{w}x{h}"), text);
     }
 }
