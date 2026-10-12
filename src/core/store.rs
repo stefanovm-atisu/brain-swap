@@ -4,8 +4,8 @@ use crate::core::env::{Env, encode_file_name};
 use crate::core::error::{Error, Result};
 use crate::core::model::{Board, Card, CardId, NewCard, NewNote};
 use crate::core::template::Template;
-use crate::core::{board_file, card_file, failpoint, frontmatter, log};
-use jiff::tz::TimeZone;
+use crate::core::{board_file, card_file, failpoint, frontmatter, log, session};
+use jiff::{SignedDuration, Timestamp, tz::TimeZone};
 use std::fs::{self, File, TryLockError};
 use std::io::{ErrorKind, Write};
 use std::ops::Range;
@@ -100,6 +100,27 @@ pub fn write_atomic(
     File::open(dir).and_then(|d| d.sync_all()).map_err(io)
 }
 
+/// Prunes old session files and removes `.*.bs-tmp-*` entries in `board_dir` over an hour old
+/// (4.6, 10); every error is ignored. Callers run it after releasing the board lock.
+pub fn cleanup(env: &Env, board_dir: &Path) {
+    session::prune(env);
+    let now = env.now.timestamp();
+    for entry in fs::read_dir(board_dir).into_iter().flatten().flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let stale = name.starts_with('.')
+            && name.contains(".bs-tmp-")
+            && entry
+                .metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| Timestamp::try_from(t).ok())
+                .is_some_and(|t| now.duration_since(t) > SignedDuration::from_hours(1));
+        if stale {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+}
+
 // Create (TECHSPEC 4.6 steps 1 to 3, 4.3, R4, R7).
 
 /// Maps a `hard_link` error other than `AlreadyExists` to `Error::Io` for board `board` (4.6, T-13).
@@ -139,7 +160,7 @@ pub fn create(env: &Env, board: &Board, req: &CreateRequest) -> Result<Created> 
         Some(c) => board.column(c)?,
         None => &board.meta.columns[0],
     };
-    let _lock = lock_board(env, &board.path)?;
+    let lock = lock_board(env, &board.path)?;
     let md_path = board.path.join("board.md");
     let md = match fs::read(&md_path) {
         Err(e) if e.kind() == ErrorKind::NotFound => None,
@@ -213,6 +234,8 @@ pub fn create(env: &Env, board: &Board, req: &CreateRequest) -> Result<Created> 
         }
         failpoint::check(env, "create:after_link")?;
         fs::remove_file(&tmp).map_err(io)?;
+        drop(lock);
+        cleanup(env, &board.path);
         return Ok(Created { card, warnings });
     }
     Err(Error::Io(format!(
@@ -231,7 +254,7 @@ pub struct Moved {
 /// Moves card `id` to `column`, re-reading its file inside the lock (6.2, 10, R2, R7).
 pub fn move_card(env: &Env, board: &Board, id: CardId, column: &str) -> Result<Moved> {
     let column = board.column(column)?;
-    let _lock = lock_board(env, &board.path)?;
+    let lock = lock_board(env, &board.path)?;
     let name = id.file_name();
     let path = board.path.join(&name);
     let before = match fs::read(&path) {
@@ -257,6 +280,8 @@ pub fn move_card(env: &Env, board: &Board, id: CardId, column: &str) -> Result<M
         &|a| verify_move(&before, a, column),
         None,
     )?;
+    drop(lock);
+    cleanup(env, &board.path);
     Ok(Moved {
         card: parse(&after),
         changed: true,
@@ -312,7 +337,7 @@ pub fn park(env: &Env, board: &Board, id: CardId, note: &NewNote) -> Result<Park
     {
         return Err(Error::InvalidInput("empty note".to_string()));
     }
-    let _lock = lock_board(env, &board.path)?;
+    let lock = lock_board(env, &board.path)?;
     let path = board.path.join(id.file_name());
     let before = fs::read(&path).map_err(|e| match e.kind() {
         ErrorKind::NotFound => Error::NotFound(format!("{id} not found")),
@@ -321,6 +346,8 @@ pub fn park(env: &Env, board: &Board, id: CardId, note: &NewNote) -> Result<Park
     let a = card_file::append_note(&id.file_name(), &before, note)?;
     let verify = |after: &[u8]| verify_park(&before, after, a.inserted.clone());
     write_atomic(env, &path, &a.bytes, &verify, Some("park:after_tmp"))?;
+    drop(lock);
+    cleanup(env, &board.path);
     let card = card_file::parse(id, &path, &a.bytes, &board.meta.columns[0], &env.tz).card;
     Ok(Parked {
         card,
@@ -353,7 +380,7 @@ pub fn merge_edit(
             added_notes: 0,
         });
     }
-    let _lock = lock_board(env, &board.path)?;
+    let lock = lock_board(env, &board.path)?;
     let name = id.file_name();
     let path = board.path.join(&name);
     let f = match fs::read(&path) {
@@ -402,6 +429,8 @@ pub fn merge_edit(
         added.iter().all(|a| t.contains(&lf(a)))
     };
     write_atomic(env, &path, &out, &verify, Some("edit:after_tmp"))?;
+    drop(lock);
+    cleanup(env, &board.path);
     log::event(env, "merge", &format!("{id} +{} notes", added.len()));
     Ok(Merged {
         written: true,
