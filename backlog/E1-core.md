@@ -865,7 +865,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T4 Park
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F6-T2, E1-F5-T4, E1-F2-T8
 - Covers: FR-16, NFR-06, NFR-08; TECHSPEC 4.7 (missing timeline), 4.8 R3, R7, 12.1 (`park:after_tmp`, R7 per fixture)
 - Size: M
