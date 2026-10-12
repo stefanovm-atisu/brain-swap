@@ -7,8 +7,8 @@ use jiff::tz::TimeZone;
 
 use crate::core::error::Error;
 use crate::core::frontmatter::{FmRead, read};
-use crate::core::model::{Card, CardId, HerdrPlace, Note, Place};
-use crate::core::time::parse_stamp;
+use crate::core::model::{Card, CardId, HerdrPlace, NewCard, Note, Place};
+use crate::core::time::{format_stamp, parse_stamp};
 
 #[derive(Debug)]
 pub struct Parsed {
@@ -51,6 +51,43 @@ pub fn parse(id: CardId, path: &Path, bytes: &[u8], default_column: &str, tz: &T
         card,
         warnings: problem.into_iter().collect(),
     }
+}
+
+/// A new card's canonical bytes (R4, A-E1-19) and its warnings; the ID is never written (I2).
+pub fn render_new(card: &NewCard) -> (Vec<u8>, Vec<String>) {
+    let mut warnings = Vec::new();
+    let (mut body, mut fence) = (String::new(), None);
+    for line in card.body.lines() {
+        if fence.is_some_and(|f| line.starts_with(f)) {
+            fence = None;
+        } else if fence.is_none() {
+            fence = ["```", "~~~"].into_iter().find(|f| line.starts_with(f));
+            if line.trim_end() == "## Timeline" {
+                warnings = vec!["## Timeline in body dropped".to_string()];
+                continue;
+            }
+        }
+        body += line;
+        body += "\n";
+    }
+    // An unclosed fence would swallow the timeline (layout), so close it.
+    if let Some(f) = fence {
+        body += f;
+    }
+    let body = body.trim_end();
+    let body = if body.is_empty() {
+        String::new()
+    } else {
+        format!("{body}\n\n")
+    };
+    let text = format!(
+        "---\ncolumn: {}\ntemplate: {}\ncreated: {}\n---\n# {}\n\n{body}## Timeline\n",
+        card.column,
+        card.template,
+        format_stamp(&card.created),
+        card.title
+    );
+    (text.into_bytes(), warnings)
 }
 
 /// Refuses a read-only card (4.7): invalid frontmatter, non-UTF-8 bytes or a conflict marker.

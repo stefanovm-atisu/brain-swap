@@ -381,7 +381,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F2-T6 Render a new card
 
-- Status: doing
+- Status: done
 - Depends on: E1-F2-T3
 - Covers: FR-07, NFR-06; TECHSPEC 4.8 R4, 5.4 (new card shape), 6.3 (`## Timeline` in a supplied body), I2
 - Size: S

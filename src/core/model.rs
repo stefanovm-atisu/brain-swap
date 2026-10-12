@@ -74,6 +74,16 @@ pub struct Note {
     pub extra: Vec<String>,
 }
 
+/// The values a new card file is rendered from (R4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NewCard {
+    pub title: String,
+    pub template: String,
+    pub column: String,
+    pub created: Stamp,
+    pub body: String,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Place {
     pub cwd: Option<PathBuf>,
