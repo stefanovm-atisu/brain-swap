@@ -1,0 +1,6 @@
+---
+source: tests/session_store.rs
+expression: text
+---
+card = "W-12"
+session = "s1"

@@ -6,7 +6,8 @@ use brain_swap::core::env::Env;
 use brain_swap::core::error::Error;
 use brain_swap::core::model::{CardId, SessionRef};
 use brain_swap::core::session::{
-    IdCheck, Resolution, check_id, read_reference, resolve, write_reference,
+    IdCheck, PaneHint, Resolution, check_id, read_pane_hint, read_reference, resolve,
+    valid_pane_id, write_reference,
 };
 use brain_swap::core::time::{format_stamp, parse_stamp};
 use common::env::core_env;
@@ -308,4 +309,103 @@ fn ts6_4_read_creates_nothing() {
     let env = core_env(home.path(), NOW);
     assert_eq!(read_reference(&env, "s1"), None);
     assert!(!env.state_dir().exists());
+}
+
+fn hint(card: &str, session: &str) -> Option<PaneHint> {
+    Some(PaneHint {
+        card: CardId::parse(card).unwrap(),
+        session: session.to_string(),
+    })
+}
+
+#[test]
+fn ts6_4_reference_with_pane_writes_hint() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    write_reference(&env, "s1", &full()).unwrap();
+    assert_eq!(read_pane_hint(&env, "w4V:p9"), hint("W-12", "s1"));
+    assert_eq!(
+        files(&env.panes_dir()),
+        [home.path().join(".local/state/brain-swap/panes/w4V:p9")]
+    );
+}
+
+#[test]
+fn ts6_4_pane_hint_file_format() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    write_reference(&env, "s1", &full()).unwrap();
+    let text = fs::read_to_string(env.panes_dir().join("w4V:p9")).unwrap();
+    assert_eq!(files(&env.panes_dir()).len(), 1);
+    insta::assert_snapshot!(text);
+}
+
+#[test]
+fn ts6_4_reference_without_pane_writes_no_hint() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    write_reference(&env, "s1", &sref("W-12", None, None)).unwrap();
+    assert_eq!(files(&env.panes_dir()), Vec::<PathBuf>::new());
+}
+
+#[test]
+fn ts6_4_last_reference_in_pane_wins() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    write_reference(&env, "s1", &sref("W-12", Some("w4V:p9"), None)).unwrap();
+    write_reference(&env, "s2", &sref("W-7", Some("w4V:p9"), None)).unwrap();
+    assert_eq!(read_pane_hint(&env, "w4V:p9"), hint("W-7", "s2"));
+    assert_eq!(
+        read_reference(&env, "s1").unwrap().card,
+        CardId::parse("W-12").unwrap()
+    );
+    assert_eq!(files(&env.panes_dir()).len(), 1);
+}
+
+#[test]
+fn ts6_4_pane_id_outside_pattern_writes_no_hint() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    let long = "x".repeat(129);
+    for (i, pane) in ["w4V p9", "a/b", "%", &long].into_iter().enumerate() {
+        let session = format!("s{i}");
+        write_reference(&env, &session, &sref("W-12", Some(pane), None)).unwrap();
+        assert!(env.sessions_dir().join(format!("{session}.toml")).is_file());
+        assert_eq!(read_pane_hint(&env, pane), None, "{pane}");
+    }
+    assert_eq!(files(&env.panes_dir()), Vec::<PathBuf>::new());
+}
+
+#[test]
+fn ts6_4_dot_pane_ids_write_no_hint() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    for pane in [".", ".."] {
+        assert!(!valid_pane_id(pane), "{pane}");
+        assert_eq!(
+            write_reference(&env, "s1", &sref("W-12", Some(pane), None)),
+            Ok(())
+        );
+    }
+    assert_eq!(files(&env.panes_dir()), Vec::<PathBuf>::new());
+}
+
+#[test]
+fn ts6_4_unparsable_hint_reads_as_none() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    fs::create_dir_all(env.panes_dir()).unwrap();
+    for text in ["card = 3\n", "card = \"W12\"\nsession = \"s1\"\n"] {
+        fs::write(env.panes_dir().join("w4V:p9"), text).unwrap();
+        assert_eq!(read_pane_hint(&env, "w4V:p9"), None, "{text}");
+    }
+}
+
+#[test]
+fn fr57_hint_outlives_session_change_without_park() {
+    let home = tempfile::tempdir().unwrap();
+    let env = core_env(home.path(), NOW);
+    write_reference(&env, "old", &sref("W-11", Some("w4V:p11"), None)).unwrap();
+    assert_eq!(read_reference(&env, "new"), None);
+    assert_eq!(read_pane_hint(&env, "w4V:p11"), hint("W-11", "old"));
 }

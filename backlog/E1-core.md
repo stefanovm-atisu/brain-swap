@@ -1070,7 +1070,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F7-T3 Pane hints
 
-- Status: doing
+- Status: done
 - Depends on: E1-F7-T2
 - Covers: FR-05, FR-57; TECHSPEC 5.1 (`panes/`), 6.4 (pane hint, file name encoding, pane ID pattern), 10 (name encoding), T-19
 - Size: S

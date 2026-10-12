@@ -1,6 +1,6 @@
 //! Session identity (TECHSPEC 3 I8, 6.4 steps 1, 2 and 4).
 
-use crate::core::env::Env;
+use crate::core::env::{Env, encode_file_name};
 use crate::core::error::{Error, Result};
 use crate::core::model::{CardId, SessionRef};
 use crate::core::time::Stamp;
@@ -113,9 +113,23 @@ pub fn write_reference(env: &Env, session: &str, r: &SessionRef) -> Result<()> {
     };
     let text = toml::to_string(&file)
         .map_err(|e| Error::InvalidInput(format!("{}: {e}", path.display())))?;
-    fs::create_dir_all(env.sessions_dir())
-        .map_err(|e| Error::Io(format!("{}: {e}", path.display())))?;
-    crate::core::store::write_atomic(env, &path, text.as_bytes(), &|_| true, None)
+    write(env, &env.sessions_dir(), &path, &text)?;
+    let Some(hint) = r.pane.as_deref().and_then(|p| hint_path(env, p)) else {
+        return Ok(());
+    };
+    let file = HintFile {
+        card: r.card.to_string(),
+        session: session.to_string(),
+    };
+    let text = toml::to_string(&file)
+        .map_err(|e| Error::InvalidInput(format!("{}: {e}", hint.display())))?;
+    write(env, &env.panes_dir(), &hint, &text)
+}
+
+/// Creates `dir` and writes `text` to `path` in it through `write_atomic`, accepting any bytes.
+fn write(env: &Env, dir: &std::path::Path, path: &std::path::Path, text: &str) -> Result<()> {
+    fs::create_dir_all(dir).map_err(|e| Error::Io(format!("{}: {e}", path.display())))?;
+    crate::core::store::write_atomic(env, path, text.as_bytes(), &|_| true, None)
 }
 
 /// The reference of `session`; `None` for an invalid ID, a missing or unparsable file (6.4).
@@ -128,6 +142,42 @@ pub fn read_reference(env: &Env, session: &str) -> Option<SessionRef> {
         pane: f.pane,
         cwd: f.cwd,
         set_at: f.set_at,
+    })
+}
+
+/// The pane hint `panes/<pane>`: the card and session last set in that pane (6.4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PaneHint {
+    pub card: CardId,
+    pub session: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct HintFile {
+    card: String,
+    session: String,
+}
+
+/// 6.4: `[A-Za-z0-9:._-]{1,128}`, but neither `.` nor `..`, which name folders.
+pub fn valid_pane_id(p: &str) -> bool {
+    (1..=128).contains(&p.len())
+        && p != "."
+        && p != ".."
+        && p.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b":._-".contains(&b))
+}
+
+/// `panes/<encoded pane>` for a valid pane ID, else `None`.
+pub fn hint_path(env: &Env, pane: &str) -> Option<PathBuf> {
+    valid_pane_id(pane).then(|| env.panes_dir().join(encode_file_name(pane)))
+}
+
+/// The hint of `pane`; `None` for an invalid ID, a missing or unparsable file.
+pub fn read_pane_hint(env: &Env, pane: &str) -> Option<PaneHint> {
+    let f: HintFile = toml::from_str(&fs::read_to_string(hint_path(env, pane)?).ok()?).ok()?;
+    Some(PaneHint {
+        card: CardId::parse(&f.card)?,
+        session: f.session,
     })
 }
 
