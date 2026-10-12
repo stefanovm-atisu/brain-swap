@@ -76,7 +76,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T3 Frame, status line and failed outcomes
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F1-T2
 - Covers: NFR-10; TECHSPEC 7.1 (`Failed` sets the status line), 7.2 (status line), 7.3 (nothing relies on colour), 11 (action errors in the status line)
 - Size: S
