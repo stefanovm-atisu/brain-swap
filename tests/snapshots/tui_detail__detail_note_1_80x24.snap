@@ -1,0 +1,10 @@
+---
+source: tests/tui_detail.rs
+expression: "rows(&buf).join(\"\\n\")"
+---
+ W-5 measure merge latency (Doing, work)
+ note 1/3, 2026-10-07T09:00:00+03:00, 1 d ago, auto
+ Doing:      profiled the merge
+ Next:       try a smaller lock
+ Watch out:  numbers are noisy
+ Where: /w/latency (pane w4V:p3)

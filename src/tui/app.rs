@@ -186,6 +186,19 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             }
             Vec::new()
         }
+        (Mode::Detail { .. }, Some(a @ (Action::Up | Action::Down))) => {
+            if let Mode::Detail { card, note, .. } = &mut app.mode {
+                let last = app
+                    .board
+                    .card(*card)
+                    .map_or(0, |c| c.notes.len().saturating_sub(1));
+                *note = match a {
+                    Action::Up => (*note + 1).min(last),
+                    _ => note.saturating_sub(1),
+                };
+            }
+            Vec::new()
+        }
         (Mode::Detail { .. }, Some(Action::Quit)) => {
             app.mode = Mode::Board;
             Vec::new()

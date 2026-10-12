@@ -2,6 +2,7 @@
 
 mod common;
 
+use brain_swap::core::keys::KeyMap;
 use brain_swap::core::model::CardId;
 use brain_swap::tui::app::{App, Mode, Selection};
 use common::tui::{TuiFixture, assert_no_colour, press, render, rows};
@@ -104,4 +105,86 @@ fn ts5_2_board_keys_do_nothing_in_detail() {
     let mut app = detail_on_w12();
     assert!(press(&mut app, &["n", "H", "L", "b", "l"]).is_empty());
     assert_eq!(app.mode, w12_detail());
+}
+
+fn note_row(app: &App) -> String {
+    rows(&render(app, 80, 24))[1].clone()
+}
+
+/// The `detail` fixture with W-5 (Doing) selected, still on the board.
+fn board_on_w5() -> App {
+    let mut app = TuiFixture::new(Some("detail")).app();
+    app.sel = Selection {
+        column: 1,
+        card: Some(CardId {
+            letter: 'W',
+            number: 5,
+        }),
+    };
+    app
+}
+
+#[test]
+fn as1_j_shows_older_note_and_k_newest_again() {
+    let mut app = detail_on_w12();
+    assert!(press(&mut app, &["j"]).is_empty());
+    let rows = rows(&render(&app, 80, 24));
+    assert_eq!(
+        rows[1],
+        " note 1/2, 2026-10-08T10:31:05+03:00, 1 h ago, auto"
+    );
+    assert_eq!(
+        rows[2],
+        " Doing:      switched InvoiceRepository to v13, unit tests green"
+    );
+    press(&mut app, &["k"]);
+    assert!(note_row(&app).starts_with(" note 2/2,"));
+}
+
+#[test]
+fn fr26_note_navigation_clamps() {
+    let mut app = detail_on_w12();
+    press(&mut app, &["k"]);
+    assert!(note_row(&app).starts_with(" note 2/2,"));
+    press(&mut app, &["j", "j"]);
+    assert!(note_row(&app).starts_with(" note 1/2,"));
+}
+
+#[test]
+fn fr26_indicator_counts_from_oldest() {
+    let mut app = board_on_w5();
+    for (k, want) in [
+        ("o", " note 3/3,"),
+        ("j", " note 2/3,"),
+        ("j", " note 1/3,"),
+    ] {
+        press(&mut app, &[k]);
+        assert!(note_row(&app).starts_with(want), "{k} {want}");
+    }
+}
+
+#[test]
+fn ts5_2_rebound_detail_keys() {
+    let mut app = detail_on_w12();
+    app.keys = KeyMap::build(&[("down".into(), vec!["x".into()])]).0;
+    press(&mut app, &["x"]);
+    assert!(note_row(&app).starts_with(" note 1/2,"));
+    press(&mut app, &["k"]);
+    assert!(press(&mut app, &["j"]).is_empty());
+    assert!(note_row(&app).starts_with(" note 2/2,"));
+}
+
+#[test]
+fn fr26_detail_note_snapshots() {
+    let mut app = board_on_w5();
+    press(&mut app, &["o"]);
+    let mut frames = vec![("3_120x40".to_string(), render(&app, 120, 40))];
+    for n in [3, 2, 1] {
+        frames.push((format!("{n}_80x24"), render(&app, 80, 24)));
+        press(&mut app, &["j"]);
+    }
+    for (name, buf) in frames {
+        assert_no_colour(&buf);
+        insta::assert_snapshot!(format!("detail_note_{name}"), rows(&buf).join("\n"));
+    }
 }

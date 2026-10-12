@@ -1,0 +1,11 @@
+---
+source: tests/tui_detail.rs
+expression: "rows(&buf).join(\"\\n\")"
+---
+ W-5 measure merge latency (Doing, work)
+ note 2/3, 2026-10-08T10:00:00+03:00, 1 h ago
+ Doing:      two runs done
+             third run pending
+ Next:       compare with v12
+ Watch out:  nothing
+ Where: /w/latency
