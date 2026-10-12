@@ -455,7 +455,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F3-T4 Detail edge cases
 
-- Status: todo
+- Status: doing
 - Depends on: E4-F3-T2, E4-F3-T3, E4-F1-T4, E4-F1-T7
 - Covers: FR-26, FR-27; TECHSPEC 4.7 (bad stamp shows `?`, a note without a place), 7.1 (Detail `help`), 7.4 (reload while in Detail)
 - Size: S
