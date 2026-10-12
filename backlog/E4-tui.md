@@ -698,7 +698,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F5-T7 Process-level crash at edit:after_tmp
 
-- Status: doing
+- Status: done
 - Depends on: E4-F5-T5, E1-F6-T9, E4-F1-T8
 - Covers: FR-31; TECHSPEC 3 (I1 to I4), 4.6 (crash safety), 6.1 (`BRAIN_SWAP_FAILPOINT` read into `Env`), 12.1 (crash, process level, `edit:after_tmp` through the editor merge)
 - Size: M
