@@ -212,3 +212,256 @@ fn ts4_9_work_board_guess_order() {
         ]
     );
 }
+
+fn at(pane: Option<&str>, cwd: &str, home: &str) -> GuessInput {
+    GuessInput {
+        pane: pane.map(str::to_string),
+        cwd: PathBuf::from(cwd),
+        home: PathBuf::from(home),
+        hint: None,
+    }
+}
+
+fn guess_at(board: &Board, input: &GuessInput) -> Vec<(String, Tier)> {
+    order(&best_guess(board, input))
+}
+
+/// The tier of the single Todo card `W-1` with `notes`.
+fn tier_of(input: &GuessInput, notes: Vec<brain_swap::core::model::Note>) -> Tier {
+    let b = mem_board(TDD, vec![mem_card("W-1", "Todo", None, notes)]);
+    guess_at(&b, input)[0].1
+}
+
+#[test]
+fn fr38_same_pane_card_comes_first() {
+    let b = mem_board(
+        TDD,
+        vec![
+            mem_card(
+                "W-7",
+                "Doing",
+                None,
+                vec![mem_note("11:00", Some("w4V:p11"), None)],
+            ),
+            mem_card(
+                "W-11",
+                "Todo",
+                None,
+                vec![mem_note("09:00", Some("w4V:p9"), None)],
+            ),
+        ],
+    );
+    assert_eq!(
+        guess_at(&b, &at(Some("w4V:p9"), "/elsewhere", "/home/u")),
+        vec![
+            ("W-11".to_string(), Tier::SamePane),
+            ("W-7".to_string(), Tier::MiddleColumn)
+        ]
+    );
+}
+
+#[test]
+fn ts6_6_same_pane_uses_latest_note_with_a_pane() {
+    let i = at(Some("w4V:p9"), "/elsewhere", "/home/u");
+    let t = tier_of(
+        &i,
+        vec![
+            mem_note("09:00", Some("w4V:p9"), None),
+            mem_note("10:00", Some("w4V:p11"), None),
+        ],
+    );
+    assert_ne!(t, Tier::SamePane);
+    let t = tier_of(
+        &i,
+        vec![
+            mem_note("09:00", Some("w4V:p9"), None),
+            mem_note("10:00", None, Some("/somewhere")),
+        ],
+    );
+    assert_eq!(t, Tier::SamePane);
+}
+
+#[test]
+fn ts6_6_no_current_pane_means_no_same_pane() {
+    let t = tier_of(
+        &at(None, "/elsewhere", "/home/u"),
+        vec![mem_note("09:00", Some("w4V:p9"), None)],
+    );
+    assert_eq!(t, Tier::Other);
+}
+
+#[test]
+fn fr38_same_folder_equal_cwd() {
+    let t = tier_of(
+        &at(None, "/work/billing", "/home/u"),
+        vec![mem_note("09:00", None, Some("/work/billing"))],
+    );
+    assert_eq!(t, Tier::SameFolder);
+}
+
+#[test]
+fn ts6_6_note_cwd_inside_current_cwd_is_same_folder() {
+    let t = tier_of(
+        &at(None, "/work/billing", "/home/u"),
+        vec![mem_note("09:00", None, Some("/work/billing/src"))],
+    );
+    assert_eq!(t, Tier::SameFolder);
+}
+
+#[test]
+fn ts6_6_current_cwd_inside_note_cwd_is_same_folder() {
+    let t = tier_of(
+        &at(None, "/work/billing/src/x", "/home/u"),
+        vec![mem_note("09:00", None, Some("/work/billing"))],
+    );
+    assert_eq!(t, Tier::SameFolder);
+}
+
+#[test]
+fn ts6_6_root_or_home_note_cwd_does_not_contain_current() {
+    let t = tier_of(
+        &at(None, "/home/u/proj", "/home/u"),
+        vec![mem_note("09:00", None, Some("/home/u"))],
+    );
+    assert_eq!(t, Tier::Other);
+    let t = tier_of(
+        &at(None, "/tmp/x", "/home/u"),
+        vec![mem_note("09:00", None, Some("/"))],
+    );
+    assert_eq!(t, Tier::Other);
+}
+
+#[test]
+fn ts6_6_inside_is_component_wise() {
+    let b = mem_board(
+        TDD,
+        vec![
+            mem_card(
+                "W-1",
+                "Todo",
+                None,
+                vec![mem_note("09:00", None, Some("/work/bill"))],
+            ),
+            mem_card(
+                "W-2",
+                "Todo",
+                None,
+                vec![mem_note("10:00", None, Some("/work/billing2"))],
+            ),
+        ],
+    );
+    let g = guess_at(&b, &at(None, "/work/billing", "/home/u"));
+    assert!(g.iter().all(|(_, t)| *t != Tier::SameFolder), "{g:?}");
+}
+
+#[test]
+fn ts6_6_same_folder_uses_latest_note_with_a_cwd() {
+    let i = at(None, "/work/billing", "/home/u");
+    let t = tier_of(
+        &i,
+        vec![
+            mem_note("09:00", None, Some("/work/billing")),
+            mem_note("10:00", None, Some("/other")),
+        ],
+    );
+    assert_ne!(t, Tier::SameFolder);
+    let t = tier_of(
+        &i,
+        vec![
+            mem_note("09:00", None, Some("/work/billing")),
+            mem_note("10:00", None, None),
+        ],
+    );
+    assert_eq!(t, Tier::SameFolder);
+}
+
+#[test]
+fn ts6_6_current_home_contains_note_cwds_below_it() {
+    let t = tier_of(
+        &at(None, "/home/u", "/home/u"),
+        vec![mem_note("09:00", None, Some("/home/u/proj"))],
+    );
+    assert_eq!(t, Tier::SameFolder);
+}
+
+#[test]
+fn ts6_6_card_takes_its_best_tier() {
+    let i = at(Some("w4V:p9"), "/work/billing", "/home/u");
+    let one = |n| {
+        let b = mem_board(TDD, vec![mem_card("W-1", "Doing", None, vec![n])]);
+        guess_at(&b, &i)[0].1
+    };
+    assert_eq!(
+        one(mem_note("09:00", Some("w4V:p9"), Some("/work/billing"))),
+        Tier::SamePane
+    );
+    assert_eq!(
+        one(mem_note("09:00", None, Some("/work/billing"))),
+        Tier::SameFolder
+    );
+}
+
+#[test]
+fn ts6_6_tier_beats_activity() {
+    let b = mem_board(
+        TDD,
+        vec![
+            mem_card(
+                "W-1",
+                "Todo",
+                None,
+                vec![mem_note("08:00", Some("w4V:p9"), None)],
+            ),
+            mem_card(
+                "W-2",
+                "Todo",
+                None,
+                vec![mem_note("09:00", None, Some("/work/billing"))],
+            ),
+            mem_card(
+                "W-3",
+                "Doing",
+                None,
+                vec![mem_note("10:00", None, Some("/other"))],
+            ),
+            mem_card(
+                "W-4",
+                "Todo",
+                None,
+                vec![mem_note("11:00", None, Some("/other"))],
+            ),
+        ],
+    );
+    let g = guess_at(&b, &at(Some("w4V:p9"), "/work/billing", "/home/u"));
+    let ids: Vec<_> = g.into_iter().map(|(id, _)| id).collect();
+    assert_eq!(ids, ["W-1", "W-2", "W-3", "W-4"]);
+}
+
+#[test]
+fn ts6_6_ties_within_same_pane_tier() {
+    let i = at(Some("w4V:p9"), "/elsewhere", "/home/u");
+    let two = |w5: &str| {
+        let b = mem_board(
+            TDD,
+            vec![
+                mem_card(
+                    "W-5",
+                    "Todo",
+                    None,
+                    vec![mem_note(w5, Some("w4V:p9"), None)],
+                ),
+                mem_card(
+                    "W-8",
+                    "Todo",
+                    None,
+                    vec![mem_note("10:00", Some("w4V:p9"), None)],
+                ),
+            ],
+        );
+        guess_at(&b, &i)
+    };
+    let same = two("10:00");
+    assert!(same.iter().all(|(_, t)| *t == Tier::SamePane));
+    assert_eq!(same[0].0, "W-8");
+    assert_eq!(two("10:01")[0].0, "W-5");
+}

@@ -1,7 +1,7 @@
 //! Best guess: the order of a board's open cards (TECHSPEC 6.6, FR-38).
 
 use std::cmp::Reverse;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::core::model::{Board, Card, CardId};
 
@@ -54,7 +54,7 @@ pub struct GuessInput {
 }
 
 /// The open cards of `board` in 6.6 order; pure: no `Env`, no I/O, no clock.
-pub fn best_guess<'a>(board: &'a Board, _input: &GuessInput) -> Vec<Candidate<'a>> {
+pub fn best_guess<'a>(board: &'a Board, input: &GuessInput) -> Vec<Candidate<'a>> {
     let cols = &board.meta.columns;
     let middle = cols
         .get(1..cols.len().saturating_sub(1))
@@ -62,13 +62,19 @@ pub fn best_guess<'a>(board: &'a Board, _input: &GuessInput) -> Vec<Candidate<'a
     let mut v: Vec<Candidate> = board
         .open_cards()
         .into_iter()
-        .map(|card| Candidate {
-            card,
-            tier: if middle.contains(&card.column) {
+        .map(|card| {
+            let pane = card.notes.iter().rev().find_map(|n| n.place.herdr.as_ref());
+            let cwd = card.notes.iter().rev().find_map(|n| n.place.cwd.as_deref());
+            let tier = if pane.is_some_and(|h| input.pane.as_deref() == Some(h.pane.as_str())) {
+                Tier::SamePane
+            } else if cwd.is_some_and(|c| same_folder(c, input)) {
+                Tier::SameFolder
+            } else if middle.contains(&card.column) {
                 Tier::MiddleColumn
             } else {
                 Tier::Other
-            },
+            };
+            Candidate { card, tier }
         })
         .collect();
     // No activity is `None`, which `Reverse` sorts after every instant (A-E1-43).
@@ -77,4 +83,10 @@ pub fn best_guess<'a>(board: &'a Board, _input: &GuessInput) -> Vec<Candidate<'a
         (c.tier, Reverse(k))
     });
     v
+}
+
+/// 6.6 tier 2, lexical and component-wise (`Path::starts_with`); a `/` or `$HOME` note cwd never contains the current one.
+fn same_folder(c: &Path, input: &GuessInput) -> bool {
+    c.starts_with(&input.cwd)
+        || (input.cwd.starts_with(c) && c != Path::new("/") && c != input.home)
 }
