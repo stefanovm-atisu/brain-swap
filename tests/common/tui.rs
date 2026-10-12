@@ -6,7 +6,12 @@ use brain_swap::core::env::Env;
 use brain_swap::core::keys::{Key, KeyMap, parse_binding};
 use brain_swap::core::model::Board;
 use brain_swap::tui::app::{App, Effect, Input, update};
+use brain_swap::tui::view_frame::draw;
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
+use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::style::Color;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -118,4 +123,28 @@ pub fn press(app: &mut App, keys: &[&str]) -> Vec<Effect> {
     keys.iter()
         .flat_map(|k| update(app, Input::Key(key(k))))
         .collect()
+}
+
+/// One `TestBackend` frame of `view_frame::draw`.
+pub fn render(app: &App, width: u16, height: u16) -> Buffer {
+    let mut t = Terminal::new(TestBackend::new(width, height)).unwrap();
+    t.draw(|f| draw(f, app)).unwrap();
+    t.backend().buffer().clone()
+}
+
+/// The buffer's rows, trailing blanks trimmed.
+pub fn rows(buf: &Buffer) -> Vec<String> {
+    let w = buf.area.width as usize;
+    let cells: Vec<&str> = buf.content.iter().map(|c| c.symbol()).collect();
+    cells
+        .chunks(w)
+        .map(|r| r.concat().trim_end().to_string())
+        .collect()
+}
+
+/// Every cell has fg and bg `Color::Reset` (NFR-10).
+pub fn assert_no_colour(buf: &Buffer) {
+    for (i, c) in buf.content.iter().enumerate() {
+        assert_eq!((c.fg, c.bg), (Color::Reset, Color::Reset), "cell {i}");
+    }
 }

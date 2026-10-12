@@ -124,9 +124,15 @@ pub fn initial_selection(board: &Board) -> Selection {
 }
 
 pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
-    let Input::Key(event) = input else {
-        return Vec::new();
+    let event = match input {
+        Input::Key(event) => event,
+        Input::Done(Outcome::Failed(text)) => {
+            app.status = Some(text);
+            return Vec::new();
+        }
+        _ => return Vec::new(),
     };
+    app.status = None;
     let action = key_press(&event)
         .zip(context(&app.mode))
         .and_then(|(p, ctx)| app.keys.action(ctx, &p));
