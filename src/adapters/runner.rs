@@ -4,6 +4,7 @@ use crate::core::env::Env;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -61,7 +62,7 @@ impl ProcessRunner {
 }
 
 impl Runner for ProcessRunner {
-    fn run(&self, args: &[&str], _timeout: Duration) -> RunResult {
+    fn run(&self, args: &[&str], timeout: Duration) -> RunResult {
         let start = Instant::now();
         let spawned = Command::new(&self.program)
             .args(args)
@@ -74,11 +75,27 @@ impl Runner for ProcessRunner {
             Ok(mut child) => {
                 let out = drain(child.stdout.take());
                 let err = drain(child.stderr.take());
-                let code = child.wait().ok().and_then(|s| s.code());
-                RunOutcome::Exited {
-                    code,
-                    stdout: out.join().unwrap_or_default(),
-                    stderr: err.join().unwrap_or_default(),
+                let rest = || timeout.saturating_sub(start.elapsed());
+                loop {
+                    match child.try_wait() {
+                        Ok(None) if start.elapsed() < timeout => {
+                            thread::sleep(Duration::from_millis(10))
+                        }
+                        Ok(Some(status)) => {
+                            break RunOutcome::Exited {
+                                code: status.code(),
+                                // A stream still held open past the deadline reads as empty.
+                                stdout: out.recv_timeout(rest()).unwrap_or_default(),
+                                stderr: err.recv_timeout(rest()).unwrap_or_default(),
+                            };
+                        }
+                        // Readers are left detached: a grandchild may still hold the pipes.
+                        _ => {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            break RunOutcome::TimedOut;
+                        }
+                    }
                 }
             }
         };
@@ -90,12 +107,14 @@ impl Runner for ProcessRunner {
 }
 
 /// Reads a child's stream to its end on its own thread, so a full pipe cannot stall the child.
-fn drain(stream: Option<impl Read + Send + 'static>) -> thread::JoinHandle<String> {
+fn drain(stream: Option<impl Read + Send + 'static>) -> mpsc::Receiver<String> {
+    let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
         let mut buf = Vec::new();
         if let Some(mut s) = stream {
             let _ = s.read_to_end(&mut buf);
         }
-        String::from_utf8_lossy(&buf).into_owned()
-    })
+        let _ = tx.send(String::from_utf8_lossy(&buf).into_owned());
+    });
+    rx
 }

@@ -51,7 +51,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F1-T2 Call timeout kills the child
 
-- Status: doing
+- Status: done
 - Depends on: E5-F1-T1, E1-F1-T9
 - Covers: TECHSPEC 9.3 (a timeout that kills the child), T-15 (2 seconds)
 - Size: S
