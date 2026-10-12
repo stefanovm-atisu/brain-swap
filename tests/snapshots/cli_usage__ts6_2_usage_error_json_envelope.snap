@@ -1,0 +1,5 @@
+---
+source: tests/cli_usage.rs
+expression: s.redact(&stdout)
+---
+{"v":1,"error":{"code":"usage","message":"unrecognized subcommand 'frobnicate'"}}

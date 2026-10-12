@@ -7,7 +7,9 @@ use jiff::tz::TimeZone;
 use std::io::IsTerminal;
 
 fn main() {
-    let cli = Cli::try_parse_from(std::env::args_os()).unwrap_or_else(|e| e.exit());
+    let argv: Vec<_> = std::env::args_os().collect();
+    let cli = Cli::try_parse_from(&argv)
+        .unwrap_or_else(|e| std::process::exit(brain_swap::cli::parse_failure(e, &argv)));
     let code = match env() {
         Err(e) => brain_swap::cli::out::Out::new(cli.json).error(&e),
         Ok(env) if cli.command.is_none() => brain_swap::tui::run(

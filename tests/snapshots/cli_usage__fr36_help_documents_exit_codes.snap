@@ -1,0 +1,36 @@
+---
+source: tests/cli_usage.rs
+expression: s.redact(&stdout)
+---
+Keyboard-first kanban with switch notes
+
+Usage: brain-swap [OPTIONS] [COMMAND]
+
+Commands:
+  new        Create a card
+  park       Append a switch note to a card
+  context    Print the re-entry context of a session
+  show       Print a card
+  ls         List cards
+  link       Link a session to a card
+  move       Move a card to a column
+  locate     Report where a card's pane is
+  jump       Focus a card's pane
+  templates  List card templates
+  install    Install an adapter
+  help       Print this message or the help of the given subcommand(s)
+
+Options:
+      --board <BOARD>  Board for commands without a card ID (default: default_board)
+      --json           Print one JSON object
+  -h, --help           Print help
+  -V, --version        Print version
+
+Exit codes:
+  0 success
+  1 runtime error
+  2 usage
+  3 not found
+  4 no reference
+  5 busy
+  6 jump not performed

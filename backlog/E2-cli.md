@@ -71,7 +71,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F1-T3 Usage errors and the exit code table in help
 
-- Status: doing
+- Status: done
 - Depends on: E2-F1-T2
 - Covers: FR-36; TECHSPEC 6.2 (exit 2, code `usage`)
 - Size: S

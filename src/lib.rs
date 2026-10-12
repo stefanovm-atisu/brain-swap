@@ -23,7 +23,7 @@ pub mod cli {
     pub mod args;
     pub mod cmd;
     pub mod out;
-    pub use cmd::run;
+    pub use cmd::{parse_failure, run};
 }
 
 pub mod tui {

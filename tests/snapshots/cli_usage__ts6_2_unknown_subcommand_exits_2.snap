@@ -1,0 +1,11 @@
+---
+source: tests/cli_usage.rs
+expression: s.redact(&err)
+---
+brain-swap: unrecognized subcommand 'frobnicate'
+
+  tip: a similar subcommand exists: 'locate'
+
+Usage: brain-swap [OPTIONS] [COMMAND]
+
+For more information, try '--help'.

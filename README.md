@@ -10,3 +10,15 @@ Each card is a task. When you leave a session, you park a short note on the card
 - Optional herdr integration: open the board with a key, jump from a card to its pane.
 
 Status: idea stage, no code yet. See [idea.md](idea.md) for the product idea. Written in Rust.
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | success |
+| 1 | runtime error |
+| 2 | usage |
+| 3 | not found |
+| 4 | no reference |
+| 5 | busy |
+| 6 | jump not performed |

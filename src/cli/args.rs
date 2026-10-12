@@ -8,11 +8,22 @@ fn card_id(s: &str) -> Result<CardId, String> {
     CardId::parse(s).ok_or_else(|| format!("invalid card ID '{s}'"))
 }
 
+/// The TECHSPEC 6.2 exit code table, also in README.
+const EXIT_CODES: &str = "Exit codes:
+  0 success
+  1 runtime error
+  2 usage
+  3 not found
+  4 no reference
+  5 busy
+  6 jump not performed";
+
 #[derive(Parser, Debug)]
 #[command(
     name = "brain-swap",
     version,
-    about = "Keyboard-first kanban with switch notes"
+    about = "Keyboard-first kanban with switch notes",
+    after_help = EXIT_CODES
 )]
 pub struct Cli {
     /// Board for commands without a card ID (default: default_board)
