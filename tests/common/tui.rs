@@ -147,7 +147,7 @@ pub fn rows(buf: &Buffer) -> Vec<String> {
         .collect()
 }
 
-/// Every cell has fg and bg `Color::Reset` (NFR-10).
+/// Every cell has fg and bg `Color::Reset` (NFR-10); every TUI snapshot test calls it.
 pub fn assert_no_colour(buf: &Buffer) {
     for (i, c) in buf.content.iter().enumerate() {
         assert_eq!((c.fg, c.bg), (Color::Reset, Color::Reset), "cell {i}");
