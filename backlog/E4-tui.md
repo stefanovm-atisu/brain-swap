@@ -258,7 +258,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F2-T1 Columns and cards
 
-- Status: doing
+- Status: done
 - Depends on: E4-F1-T3
 - Covers: FR-20; TECHSPEC 4.9 (header, columns, cards), 7.2 (Board header), 7.3 (card, header count, focus marker, reverse-video selection, nothing relies on colour)
 - Size: M

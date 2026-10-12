@@ -1,5 +1,7 @@
 //! TUI state machine (TECHSPEC 7.1): pure, no I/O.
 
+use std::path::PathBuf;
+
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::core::keys::{Action, Key, KeyContext, KeyMap, KeyPress};
@@ -15,6 +17,8 @@ pub struct App {
     pub status: Option<String>,
     pub now: Stamp,
     pub warnings: Vec<String>,
+    /// Shown as `~` in the board header (A-E4-09).
+    pub home: PathBuf,
 }
 
 /// `column` indexes `Board::column_list()`.
@@ -82,7 +86,7 @@ pub enum Effect {
 }
 
 impl App {
-    pub fn new(board: Board, keys: KeyMap, now: Stamp) -> App {
+    pub fn new(board: Board, keys: KeyMap, now: Stamp, home: PathBuf) -> App {
         App {
             mode: Mode::Board,
             sel: initial_selection(&board),
@@ -91,6 +95,7 @@ impl App {
             status: None,
             now,
             warnings: Vec::new(),
+            home,
         }
     }
 
@@ -109,7 +114,7 @@ impl App {
         };
         App {
             mode: Mode::ConfigError(text),
-            ..App::new(board, KeyMap::defaults(), now)
+            ..App::new(board, KeyMap::defaults(), now, PathBuf::new())
         }
     }
 

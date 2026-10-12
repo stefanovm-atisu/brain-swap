@@ -1,0 +1,161 @@
+//! TECHSPEC 4.9, 7.2 and 7.3: the board's header, columns and cards (FR-20, NFR-10).
+
+mod common;
+
+use brain_swap::core::model::{Card, CardId};
+use brain_swap::tui::app::{App, Selection};
+use brain_swap::tui::view_board::card_lines;
+use common::tui::{TuiFixture, assert_no_colour, render, rows};
+use ratatui::style::Modifier;
+
+fn app(fixture: &str) -> App {
+    TuiFixture::new(Some(fixture)).app()
+}
+
+fn id(s: &str) -> CardId {
+    CardId::parse(s).unwrap()
+}
+
+fn card(app: &App, s: &str) -> Card {
+    app.board.card(id(s)).unwrap().clone()
+}
+
+fn w12_selected() -> App {
+    let mut app = app("work_4_9");
+    app.sel = Selection {
+        column: 1,
+        card: Some(id("W-12")),
+    };
+    app
+}
+
+/// W-12 with its latest note's Doing and Next replaced.
+fn second_line(doing: &str, next: &str) -> String {
+    let app = app("work_4_9");
+    let mut c = card(&app, "W-12");
+    let n = c.notes.last_mut().unwrap();
+    (n.doing, n.next) = (doing.into(), next.into());
+    card_lines(&c, &app.now).1
+}
+
+#[test]
+fn fr20_card_lines_show_id_title_age_and_next() {
+    let app = app("work_4_9");
+    assert_eq!(
+        card_lines(&card(&app, "W-12"), &app.now),
+        (
+            "W-12 migrate invoices to v13".to_string(),
+            "  39 min  open the MR, ask the DBA for the v13 deploy list".to_string()
+        )
+    );
+}
+
+#[test]
+fn fr20_card_without_notes_shows_no_note() {
+    let app = app("work_4_9");
+    assert_eq!(card_lines(&card(&app, "W-11"), &app.now).1, "  no note");
+}
+
+#[test]
+fn fr20_preview_falls_back_to_doing() {
+    assert_eq!(second_line("first\nsecond", ""), "  39 min  first");
+}
+
+#[test]
+fn fr20_preview_is_first_line_of_next() {
+    assert!(second_line("doing", "a\nb").ends_with("  a"));
+}
+
+#[test]
+fn fr20_empty_next_and_doing_show_only_age() {
+    assert_eq!(second_line("", ""), "  39 min");
+}
+
+#[test]
+fn ts7_2_header_shows_board_path_and_help_key() {
+    let rows = rows(&render(&app("work_4_9"), 80, 24));
+    assert!(
+        rows[0].starts_with(" work  ~/.local/share/brain-swap/work"),
+        "{}",
+        rows[0]
+    );
+    assert!(rows[0].ends_with("? help"), "{}", rows[0]);
+}
+
+#[test]
+fn ts7_3_column_headers_show_counts_and_focus() {
+    let row = &rows(&render(&w12_selected(), 80, 24))[1];
+    let at: Vec<usize> = ["Todo (1)", "> Doing (1)", "Done (1)"]
+        .iter()
+        .map(|h| row.find(h).unwrap_or_else(|| panic!("{h} in {row}")))
+        .collect();
+    assert!(at.is_sorted(), "{row}");
+}
+
+#[test]
+fn ts7_3_selection_is_reverse_video_and_focus_bold() {
+    let buf = render(&w12_selected(), 80, 24);
+    let rows = rows(&buf);
+    let (x0, next) = (
+        rows[2].find("W-12").unwrap() as u16,
+        rows[2].find("W-9").unwrap() as u16,
+    );
+    for y in 0..24 {
+        for x in 0..80 {
+            let inside = (2..=3).contains(&y) && (x0..next - 2).contains(&x);
+            let reversed = buf[(x, y)].modifier.contains(Modifier::REVERSED);
+            assert_eq!(reversed, inside, "cell ({x}, {y})");
+        }
+    }
+    let h = rows[1].find("> Doing (1)").unwrap() as u16;
+    for x in h..h + "> Doing (1)".len() as u16 {
+        assert!(
+            buf[(x, 1)].modifier.contains(Modifier::BOLD),
+            "cell ({x}, 1)"
+        );
+    }
+}
+
+#[test]
+fn ts7_3_text_is_cut_at_column_width() {
+    let rows = rows(&render(&app("work_4_9"), 80, 24));
+    let next = rows[2].find("W-12").unwrap();
+    let todo = rows[2][..next].trim();
+    let rest = todo.strip_prefix("W-11 ").unwrap();
+    assert!(!rest.is_empty(), "{todo}");
+    assert!(
+        "invoice PDF shows the wrong VAT".starts_with(rest),
+        "{todo}"
+    );
+    assert_ne!(rest, "invoice PDF shows the wrong VAT", "{todo}");
+    assert!(rows.iter().all(|r| r.chars().count() <= 80));
+}
+
+#[test]
+fn ts4_7_extra_column_renders_last() {
+    let rows = rows(&render(&app("as7"), 120, 40));
+    assert!(rows[1].ends_with("Doign (unknown) (1)"), "{}", rows[1]);
+}
+
+#[test]
+fn nfr10_board_uses_no_colour() {
+    let buf = render(&w12_selected(), 80, 24);
+    assert!(
+        rows(&buf)[1].contains("> Doing (1)"),
+        "the board of test 7 is drawn"
+    );
+    assert_no_colour(&buf);
+}
+
+#[test]
+fn fr20_preview_skips_blank_first_line_of_next() {
+    assert_eq!(
+        second_line("doing", "\nopen the MR"),
+        "  39 min  open the MR"
+    );
+}
+
+#[test]
+fn fr20_blank_next_falls_back_to_doing() {
+    assert_eq!(second_line("first", "\n  \n"), "  39 min  first");
+}

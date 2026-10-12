@@ -62,7 +62,12 @@ impl TuiFixture {
     }
 
     pub fn app(&self) -> App {
-        App::new(self.board(), KeyMap::defaults(), self.env.now.clone())
+        App::new(
+            self.board(),
+            KeyMap::defaults(),
+            self.env.now.clone(),
+            self.home.clone(),
+        )
     }
 }
 
