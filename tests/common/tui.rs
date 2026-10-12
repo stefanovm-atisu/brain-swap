@@ -1,13 +1,14 @@
 //! `TuiFixture` and card writers for the TUI tests.
 
 use super::env::core_env;
+use super::spawn::Scenario;
 use brain_swap::core::board::load;
 use brain_swap::core::env::Env;
 use brain_swap::core::keys::{Key, KeyMap, parse_binding};
 use brain_swap::core::model::Board;
 use brain_swap::core::time::Stamp;
 use brain_swap::tui::app::{App, Effect, Input, update};
-use brain_swap::tui::editor::Launcher;
+use brain_swap::tui::editor::{Launcher, ProcessLauncher};
 use brain_swap::tui::runtime::{Clock, Events, Parts, Runtime, TerminalGuard};
 use brain_swap::tui::view_frame::draw;
 use brain_swap::tui::{Prepared, TuiStart, prepare};
@@ -96,6 +97,51 @@ impl TuiFixture {
         let prepared = prepare(&mut env, start).unwrap();
         fake_runtime(&env, prepared, width, height)
     }
+
+    /// Writes `editor` as the config's `editor` value and re-prepares: an 80x24 runtime with
+    /// `ProcessLauncher` and a `FakeGuard`.
+    pub fn set_editor(&self, editor: &str) -> Runtime<TestBackend> {
+        let path = self.env.config_file();
+        let text = fs::read_to_string(&path).unwrap();
+        let line = text.lines().find(|l| l.starts_with("editor =")).unwrap();
+        fs::write(&path, text.replace(line, &format!("editor = {editor:?}"))).unwrap();
+        let mut env = self.env.clone();
+        let start = TuiStart {
+            config: brain_swap::core::config::load(&env),
+            board: None,
+        };
+        let prepared = prepare(&mut env, start).unwrap();
+        let guard = FakeGuard::default();
+        fake_runtime_with(&env, prepared, 80, 24, Box::new(ProcessLauncher), guard).0
+    }
+}
+
+/// Writes `<dir>/scripted_editor.sh`: each step a shell line (`@BS@` the brain-swap binary),
+/// then `cat <edited> > "$1"` and `exit <code>`; returns the config `editor` value running it
+/// under `env -i` with exactly the scenario's variables (A-E4-21).
+pub fn scripted_editor(
+    scenario: &Scenario,
+    dir: &Path,
+    steps: &[&str],
+    edited: &Path,
+    code: i32,
+) -> String {
+    let script = dir.join("scripted_editor.sh");
+    let mut text = steps
+        .join("\n")
+        .replace("@BS@", env!("CARGO_BIN_EXE_brain-swap"));
+    text += &format!("\ncat {} > \"$1\"\nexit {code}\n", edited.display());
+    fs::write(&script, text).unwrap();
+    let vars: Vec<String> = scenario
+        .vars()
+        .into_iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect();
+    format!(
+        "/usr/bin/env -i {} /bin/sh {}",
+        vars.join(" "),
+        script.display()
+    )
 }
 
 /// A runtime over `prepared` with a `FakeGuard`, an empty `FakeEvents` and a `FakeClock` at `env.now`.

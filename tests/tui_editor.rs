@@ -11,7 +11,10 @@ use brain_swap::tui::app::{App, Effect, Input, Mode, Outcome, Selection, update}
 use brain_swap::tui::editor::editor_argv;
 use brain_swap::tui::runtime::Runtime;
 use common::env::core_env;
-use common::tui::{FakeGuard, FakeLauncher, NOW, TuiFixture, fake_runtime_with, key, press, rows};
+use common::spawn::Scenario;
+use common::tui::{
+    FakeGuard, FakeLauncher, NOW, TuiFixture, fake_runtime_with, key, press, rows, scripted_editor,
+};
 use ratatui::backend::{Backend, TestBackend};
 use std::fs;
 use std::path::Path;
@@ -402,4 +405,97 @@ fn fr31_edit_from_detail_returns_to_detail() {
             ..
         }
     ));
+}
+
+/// Parks on W-12 through the real CLI, the note on a quoted heredoc.
+const PARK: &str = "@BS@ park --card W-12 --session test <<'EOF'
+Doing: parked mid-edit
+Next: check the merge
+Watch out: nothing
+EOF";
+
+/// Runs `e` on W-12 under the scripted editor with `steps`, saving `edited` and exiting 0.
+fn scripted(fx: &TuiFixture, steps: &[&str], edited: &str) -> Runtime<TestBackend> {
+    let tmp = fx.home.parent().unwrap();
+    let path = tmp.join("edited.md");
+    fs::write(&path, edited).unwrap();
+    let editor = scripted_editor(&Scenario::new(tmp), tmp, steps, &path, 0);
+    let mut rt = fx.set_editor(&editor);
+    rt.dispatch(Input::Key(key("l")));
+    assert_eq!(rt.app().sel.card, Some(W12));
+    rt.dispatch(Input::Key(key("e")));
+    rt
+}
+
+#[test]
+fn fr31_note_parked_mid_edit_survives() {
+    let fx = work_4_9();
+    let e = edited(&fx);
+    let rt = scripted(&fx, &[PARK], &e);
+    let text = fs::read_to_string(fx.board_dir.join("W-12.md")).unwrap();
+    let block = text
+        .strip_prefix(e.as_str())
+        .expect("bytes outside the note");
+    assert!(block.starts_with("\n### "), "{block}");
+    assert_eq!(block.matches("### ").count(), 1);
+    assert!(
+        block.contains("- Doing: parked mid-edit\n- Next: check the merge\n- Watch out: nothing\n")
+    );
+    assert!(!copy(&fx).exists());
+    let card = rt.app().board.card(W12).unwrap();
+    assert_eq!(card.title, "migrate invoices to v14");
+    assert_eq!(card.notes.len(), 3);
+    assert_eq!(card.notes[2].doing, "parked mid-edit");
+    assert_eq!(rt.app().sel.card, Some(W12));
+}
+
+#[test]
+fn r6_file_column_change_mid_edit_is_kept() {
+    let fx = work_4_9();
+    let e = fs::read_to_string(fx.board_dir.join("W-12.md"))
+        .unwrap()
+        .replace("the SQL only.", "the SQL and the deploy list.");
+    scripted(&fx, &["@BS@ move W-12 Done"], &e);
+    let text = fs::read_to_string(fx.board_dir.join("W-12.md")).unwrap();
+    assert_eq!(text, e.replace("column: Doing", "column: Done"));
+}
+
+#[test]
+fn r6_user_column_change_wins_over_file() {
+    let fx = work_4_9();
+    let e = fs::read_to_string(fx.board_dir.join("W-12.md"))
+        .unwrap()
+        .replace("column: Doing", "column: Todo");
+    scripted(&fx, &["@BS@ move W-12 Done"], &e);
+    let text = fs::read_to_string(fx.board_dir.join("W-12.md")).unwrap();
+    assert!(text.starts_with("---\ncolumn: Todo\n"), "{text}");
+}
+
+#[test]
+fn ts12_1_scripted_editor_is_hermetic() {
+    let fx = work_4_9();
+    let tmp = fx.home.parent().unwrap();
+    let out = tmp.join("env.txt");
+    let e = fs::read_to_string(fx.board_dir.join("W-12.md")).unwrap();
+    scripted(&fx, &[&format!("env > {}", out.display())], &e);
+    // `/bin/sh` exports its own `PWD` (dash) or also `SHLVL`, `_` and `OLDPWD` (bash).
+    let shell = ["PWD", "OLDPWD", "SHLVL", "_"];
+    let got: Vec<String> = fs::read_to_string(&out)
+        .unwrap()
+        .lines()
+        .filter(|l| !shell.iter().any(|v| l.starts_with(&format!("{v}="))))
+        .map(String::from)
+        .collect();
+    let want: Vec<String> = Scenario::new(tmp)
+        .vars()
+        .into_iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect();
+    let mut sorted = got.clone();
+    sorted.sort();
+    assert_eq!(sorted, want);
+    let leaked = |l: &&String| {
+        l.starts_with("CLAUDE_") || (l.starts_with("HERDR_") && !l.starts_with("HERDR_BIN_PATH="))
+    };
+    assert_eq!(got.iter().filter(leaked).count(), 0, "{got:?}");
 }
