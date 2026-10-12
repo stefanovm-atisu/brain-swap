@@ -122,6 +122,166 @@ impl fmt::Display for Binding {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action {
+    Up,
+    Down,
+    Left,
+    Right,
+    MoveLeft,
+    MoveRight,
+    Open,
+    Jump,
+    New,
+    Edit,
+    SwitchBoard,
+    ScrollDown,
+    ScrollUp,
+    Help,
+    Quit,
+    Confirm,
+    Cancel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyContext {
+    Board,
+    Detail,
+    Picker,
+    TitleInput,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyMap(Vec<Vec<Binding>>);
+
+use Action::*;
+
+const ACTIONS: [(Action, &str, &[&str]); 17] = [
+    (Up, "up", &["k", "up"]),
+    (Down, "down", &["j", "down"]),
+    (Left, "left", &["h", "left"]),
+    (Right, "right", &["l", "right"]),
+    (MoveLeft, "move_left", &["H"]),
+    (MoveRight, "move_right", &["L"]),
+    (Open, "open", &["o"]),
+    (Jump, "jump", &["enter"]),
+    (New, "new", &["n"]),
+    (Edit, "edit", &["e"]),
+    (SwitchBoard, "switch_board", &["b"]),
+    (ScrollDown, "scroll_down", &["ctrl+d"]),
+    (ScrollUp, "scroll_up", &["ctrl+u"]),
+    (Help, "help", &["?"]),
+    (Quit, "quit", &["q", "esc"]),
+    (Confirm, "confirm", &["enter"]),
+    (Cancel, "cancel", &["esc"]),
+];
+
+impl Action {
+    pub fn config_name(self) -> &'static str {
+        ACTIONS[self as usize].1
+    }
+}
+
+impl KeyContext {
+    fn actions(self) -> &'static [Action] {
+        match self {
+            KeyContext::Board => &[
+                Up,
+                Down,
+                Left,
+                Right,
+                MoveLeft,
+                MoveRight,
+                Open,
+                Jump,
+                New,
+                Edit,
+                SwitchBoard,
+                Help,
+                Quit,
+            ],
+            KeyContext::Detail => &[Up, Down, ScrollDown, ScrollUp, Jump, Edit, Help, Quit],
+            KeyContext::Picker => &[Up, Down, Confirm, Cancel],
+            KeyContext::TitleInput => &[Confirm, Cancel],
+        }
+    }
+
+    /// First pair of actions sharing a binding in this context, with that binding.
+    fn conflict(self, m: &KeyMap) -> Option<(Action, Action, Binding)> {
+        let acts = self.actions();
+        acts.iter().enumerate().find_map(|(i, &a)| {
+            acts[i + 1..].iter().find_map(|&b| {
+                m.keys(a)
+                    .iter()
+                    .find(|k| m.keys(b).contains(k))
+                    .map(|&k| (a, b, k))
+            })
+        })
+    }
+}
+
+impl KeyMap {
+    pub fn defaults() -> KeyMap {
+        KeyMap(
+            ACTIONS
+                .iter()
+                .map(|(_, _, ks)| ks.iter().map(|k| parse_binding(k).unwrap()).collect())
+                .collect(),
+        )
+    }
+
+    pub fn build(user: &[(String, Vec<String>)]) -> (KeyMap, Vec<String>) {
+        let defaults = KeyMap::defaults();
+        let mut map = defaults.clone();
+        let mut user_set = [false; 17];
+        let mut warnings = Vec::new();
+        for (name, strs) in user {
+            let Some(i) = ACTIONS.iter().position(|(_, n, _)| n == name) else {
+                warnings.push(format!("key config: {name}: unknown action"));
+                continue;
+            };
+            match strs.iter().map(|s| parse_binding(s)).collect() {
+                Ok(bs) => (map.0[i], user_set[i]) = (bs, true),
+                Err(e) => warnings.push(format!("key config: {name}: {e}")),
+            }
+        }
+        // Defaults are conflict-free, so every conflict involves a user-set action and each round drops one.
+        while let Some((a, b, k)) = [
+            KeyContext::Board,
+            KeyContext::Detail,
+            KeyContext::Picker,
+            KeyContext::TitleInput,
+        ]
+        .iter()
+        .find_map(|c| c.conflict(&map))
+        {
+            for (x, y) in [(a, b), (b, a)] {
+                if user_set[x as usize] {
+                    user_set[x as usize] = false;
+                    map.0[x as usize] = defaults.0[x as usize].clone();
+                    warnings.push(format!(
+                        "key config: {}: conflicts with {} on '{k}'",
+                        x.config_name(),
+                        y.config_name()
+                    ));
+                }
+            }
+        }
+        (map, warnings)
+    }
+
+    pub fn action(&self, ctx: KeyContext, press: &KeyPress) -> Option<Action> {
+        ctx.actions()
+            .iter()
+            .copied()
+            .find(|&a| self.keys(a).iter().any(|k| k.matches(press)))
+    }
+
+    pub fn keys(&self, action: Action) -> &[Binding] {
+        &self.0[action as usize]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,5 +410,144 @@ mod tests {
         for s in ["ctrl+d", "H", "enter", "f5"] {
             assert_eq!(parse_binding(s).unwrap().to_string(), s);
         }
+    }
+
+    fn user(entries: &[(&str, &[&str])]) -> Vec<(String, Vec<String>)> {
+        entries
+            .iter()
+            .map(|(a, ks)| (a.to_string(), ks.iter().map(|k| k.to_string()).collect()))
+            .collect()
+    }
+
+    fn bs(keys: &[&str]) -> Vec<Binding> {
+        keys.iter().map(|k| parse_binding(k).unwrap()).collect()
+    }
+
+    fn p(k: &str) -> KeyPress {
+        let b = parse_binding(k).unwrap();
+        press(b.key, b.ctrl, b.alt, b.shift)
+    }
+
+    #[test]
+    fn ts5_3_defaults_are_conflict_free() {
+        let m = KeyMap::defaults();
+        for ctx in [
+            KeyContext::Board,
+            KeyContext::Detail,
+            KeyContext::Picker,
+            KeyContext::TitleInput,
+        ] {
+            let mut seen: Vec<(Binding, Action)> = Vec::new();
+            for &a in ctx.actions() {
+                for &k in m.keys(a) {
+                    if let Some((_, other)) = seen.iter().find(|(b, _)| *b == k) {
+                        panic!("{ctx:?}: '{k}' bound to {other:?} and {a:?}");
+                    }
+                    seen.push((k, a));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fr43_user_entry_replaces_defaults() {
+        let (m, w) = KeyMap::build(&user(&[("open", &["x"])]));
+        assert!(w.is_empty());
+        assert_eq!(m.keys(Action::Open), bs(&["x"]));
+        assert_eq!(m.action(KeyContext::Board, &p("o")), None);
+    }
+
+    #[test]
+    fn fr44_bad_binding_warns_and_keeps_default() {
+        let (m, w) = KeyMap::build(&user(&[("open", &["foo"])]));
+        assert_eq!(m.keys(Action::Open), bs(&["o"]));
+        assert_eq!(w, ["key config: open: unknown key 'foo'"]);
+    }
+
+    #[test]
+    fn fr44_unknown_action_warns() {
+        let (m, w) = KeyMap::build(&user(&[("jumpp", &["x"])]));
+        assert_eq!(m, KeyMap::defaults());
+        assert_eq!(w, ["key config: jumpp: unknown action"]);
+    }
+
+    #[test]
+    fn fr44_swap_of_two_keys_is_accepted() {
+        let (m, w) = KeyMap::build(&user(&[("open", &["n"]), ("new", &["o"])]));
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(m.action(KeyContext::Board, &p("n")), Some(Action::Open));
+        assert_eq!(m.action(KeyContext::Board, &p("o")), Some(Action::New));
+    }
+
+    #[test]
+    fn fr44_user_binding_colliding_with_default_reverts_only_user_action() {
+        let (m, w) = KeyMap::build(&user(&[("new", &["j"])]));
+        assert_eq!(m.keys(Action::New), bs(&["n"]));
+        assert_eq!(m.keys(Action::Down), bs(&["j", "down"]));
+        assert_eq!(w, ["key config: new: conflicts with down on 'j'"]);
+    }
+
+    #[test]
+    fn fr44_both_user_set_actions_revert_on_conflict() {
+        let (m, w) = KeyMap::build(&user(&[("open", &["x"]), ("edit", &["x"])]));
+        assert_eq!(m.keys(Action::Open), bs(&["o"]));
+        assert_eq!(m.keys(Action::Edit), bs(&["e"]));
+        assert_eq!(
+            w,
+            [
+                "key config: open: conflicts with edit on 'x'",
+                "key config: edit: conflicts with open on 'x'"
+            ]
+        );
+    }
+
+    #[test]
+    fn ts5_3_conflict_is_checked_per_context() {
+        let (m, w) = KeyMap::build(&user(&[("scroll_down", &["o"])]));
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(m.keys(Action::ScrollDown), bs(&["o"]));
+        let (m, w) = KeyMap::build(&user(&[("scroll_down", &["e"])]));
+        assert_eq!(m.keys(Action::ScrollDown), bs(&["ctrl+d"]));
+        assert_eq!(w, ["key config: scroll_down: conflicts with edit on 'e'"]);
+    }
+
+    #[test]
+    fn ts5_3_reverted_action_returns_to_defaults_in_every_context() {
+        let (m, w) = KeyMap::build(&user(&[("up", &["o"])]));
+        assert_eq!(m.keys(Action::Up), bs(&["k", "up"]));
+        assert_eq!(w, ["key config: up: conflicts with open on 'o'"]);
+        for ctx in [KeyContext::Detail, KeyContext::Picker] {
+            assert_eq!(m.action(ctx, &p("o")), None, "{ctx:?}");
+            assert_eq!(m.action(ctx, &p("k")), Some(Action::Up), "{ctx:?}");
+        }
+    }
+
+    #[test]
+    fn ts5_3_conflict_check_repeats_until_clean() {
+        let (m, w) = KeyMap::build(&user(&[
+            ("new", &["o"]),
+            ("open", &["x"]),
+            ("edit", &["x"]),
+        ]));
+        assert_eq!(m, KeyMap::defaults());
+        assert_eq!(
+            w,
+            [
+                "key config: open: conflicts with edit on 'x'",
+                "key config: edit: conflicts with open on 'x'",
+                "key config: new: conflicts with open on 'o'"
+            ]
+        );
+    }
+
+    #[test]
+    fn fr43_action_lookup_by_context() {
+        let m = KeyMap::defaults();
+        assert_eq!(m.action(KeyContext::Detail, &p("j")), Some(Action::Down));
+        assert_eq!(
+            m.action(KeyContext::Picker, &p("enter")),
+            Some(Action::Confirm)
+        );
+        assert_eq!(m.action(KeyContext::Board, &p("enter")), Some(Action::Jump));
     }
 }
