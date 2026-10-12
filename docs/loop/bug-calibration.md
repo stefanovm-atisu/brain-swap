@@ -15,3 +15,9 @@ Entry format: task, the finding in one line, why it is irrelevant, the general r
 - Finding: a title with a trailing space (`new "fix rounding "`) is written verbatim but parses back trimmed, so the parsed title differs from `NewCard.title` by that space.
 - Why irrelevant: the space is invisible on the board and in every message, the file keeps the bytes the owner typed, and no later read or write depends on it. Nothing a user would notice changes.
 - Rule: leading or trailing whitespace that the reader trims and that never shows to the user is not a round-trip finding; round trips are judged on visible values.
+
+## E4-F3-T3 Body, scroll and key hints (2026-10-12)
+
+- Finding: an emoji written with the presentation selector (`⚠️` = U+26A0 U+FE0F) is measured one column narrow when a body line is cut, so a line made of forty of them wraps one row instead of being cut.
+- Why irrelevant: the width of emoji presentation sequences differs between terminals and Unicode versions, so no measurement is right everywhere; the outcome is a cosmetic extra row, no text is lost or changed, and plain CJK and combining marks are already cut correctly.
+- Rule: display-width disagreements on emoji variation or presentation sequences, where terminals themselves differ, are not findings; wide characters with a fixed width (CJK) still are.
