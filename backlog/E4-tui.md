@@ -207,7 +207,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F1-T9 Keyboard accessibility
 
-- Status: blocked tests-only task, all five tests pass on main so none can be committed red; owner to waive TDD, branch wip/E4-F1-T9
+- Status: doing
 - Depends on: E4-F1-T4, E4-F1-T5
 - Covers: NFR-10; TECHSPEC 5.2 (defaults), 7.3 (nothing relies on colour)
 - Size: S
@@ -305,7 +305,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F2-T3 Ages and refresh
 
-- Status: blocked tests-only task, all three tests pass on main so none can be committed red; owner to waive TDD, branch wip/E4-F2-T3
+- Status: doing
 - Depends on: E4-F2-T1, E4-F1-T7
 - Covers: FR-21; TECHSPEC 7.3 (age: `now`, `N min`, `N h`, `N d`, `?`, floored, redrawn at least every 30 seconds)
 - Size: S

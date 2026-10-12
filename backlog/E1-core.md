@@ -971,7 +971,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T9 In-process crash tests
 
-- Status: blocked tests-only task, all six crash tests pass on main so none can be committed red; owner to waive TDD, branch wip/E1-F6-T9
+- Status: doing
 - Depends on: E1-F6-T6, E1-F6-T7, E1-F6-T8
 - Covers: NFR-08; TECHSPEC 3 (I1 to I4), 4.6 (crash safety), 12.1 (crash, in-process layer)
 - Size: M
@@ -990,7 +990,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T10 In-process concurrency tests
 
-- Status: blocked tests-only task, behaviour already on main so the tests cannot be committed red; owner to waive TDD, branch wip/E1-F6-T10
+- Status: doing
 - Depends on: E1-F6-T3, E1-F6-T4, E1-F6-T5
 - Covers: NFR-08; TECHSPEC 10 (fresh reads), 12.1 (concurrency, threads); AS-8 (store half)
 - Size: M
