@@ -15,6 +15,9 @@ use crate::core::time::{Age, Stamp, age};
 /// Narrowest column before the board shows a window of columns (A-E4-09).
 pub const MIN_COLUMN_WIDTH: u16 = 20;
 
+/// Terminal rows below which the preview panel is hidden (7.3, A-19).
+pub const PANEL_MIN_ROWS: u16 = 20;
+
 /// The columns drawn at `width`, a window around `focused` when not all fit (A-E4-09).
 pub fn visible_columns(count: usize, focused: usize, width: u16) -> Range<usize> {
     let fit = ((width.saturating_sub(1) / MIN_COLUMN_WIDTH).max(1) as usize).min(count);
@@ -46,6 +49,33 @@ pub fn age_ago(at: Option<&Stamp>, now: &Stamp) -> String {
     }
 }
 
+/// The preview panel's rows after the separator, without the margin (FR-22, A-E4-10).
+pub fn panel_lines(card: Option<&Card>, now: &Stamp) -> Vec<String> {
+    let Some(card) = card else {
+        return Vec::new();
+    };
+    let Some(n) = card.latest_note() else {
+        return vec![format!("{} no note yet", card.id)];
+    };
+    let mut head = format!("{} latest: {}", card.id, age_ago(n.at.as_ref(), now));
+    if n.auto {
+        head += ", auto";
+    }
+    if let Some(h) = &n.place.herdr {
+        head += &format!(", pane {}", h.pane);
+    }
+    if let Some(cwd) = &n.place.cwd {
+        head += &format!(", {}", cwd.display());
+    }
+    let first = |s: &str| s.lines().next().unwrap_or_default().to_string();
+    vec![
+        head,
+        format!("Doing:      {}", first(&n.doing)),
+        format!("Next:       {}", first(&n.next)),
+        format!("Watch out:  {}", first(&n.watch_out)),
+    ]
+}
+
 /// Columns split the width after a one-character margin, each ending in a two-character gap (A-E4-09).
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let row = |x: u16, y: u16, width: u16| Rect {
@@ -69,7 +99,9 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let shown = visible_columns(columns.len(), app.sel.column, area.width);
     let w = area.width.saturating_sub(1) / shown.len().max(1) as u16;
     let text = w.saturating_sub(2);
-    let slots = area.height.saturating_sub(2) as usize / 2;
+    // The panel takes the separator and four rows above the status line (7.3).
+    let panel = 5 * u16::from(frame.area().height >= PANEL_MIN_ROWS);
+    let slots = area.height.saturating_sub(2 + panel) as usize / 2;
     for (k, i) in shown.enumerate() {
         let (x, column) = (area.x + 1 + k as u16 * w, &columns[i]);
         let cards = board.cards_in(i);
@@ -96,5 +128,16 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
             frame.render_widget(Paragraph::new(a).style(style), row(x, y, text));
             frame.render_widget(Paragraph::new(b).style(style), row(x, y + 1, text));
         }
+    }
+    if panel == 0 {
+        return;
+    }
+    let y = area.bottom() - panel;
+    let line = "-".repeat(area.width.saturating_sub(2).into());
+    frame.render_widget(Paragraph::new(line), row(area.x + 1, y, area.width - 1));
+    let card = app.sel.card.and_then(|id| board.card(id));
+    for (k, l) in panel_lines(card, &app.now).into_iter().enumerate() {
+        let r = row(area.x + 1, y + 1 + k as u16, area.width.saturating_sub(1));
+        frame.render_widget(Paragraph::new(l), r);
     }
 }

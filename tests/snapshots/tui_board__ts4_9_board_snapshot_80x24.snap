@@ -1,0 +1,27 @@
+---
+source: tests/tui_board.rs
+expression: text
+---
+ work  ~/.local/share/brain-swap/work                                    ? help
+ Todo (1)                  > Doing (1)               Done (1)
+ W-11 invoice PDF shows t  W-12 migrate invoices to  W-9 bump rust-version to
+   no note                   39 min  open the MR, a    1 d  nothing left
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ ------------------------------------------------------------------------------
+ W-12 latest: 39 min ago, pane w4V:p9, /home/smilen/Work/ati.billing
+ Doing:      migration test passes on staging
+ Next:       open the MR, ask the DBA for the v13 deploy list
+ Watch out:  nothing new

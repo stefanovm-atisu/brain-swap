@@ -4,7 +4,7 @@ mod common;
 
 use brain_swap::core::model::{Card, CardId};
 use brain_swap::tui::app::{App, Input, Selection, update};
-use brain_swap::tui::view_board::card_lines;
+use brain_swap::tui::view_board::{card_lines, panel_lines};
 use common::tui::{Ev, TuiFixture, assert_no_colour, render, rows, write_card};
 use ratatui::style::Modifier;
 use std::time::Duration;
@@ -217,4 +217,133 @@ fn fr21_idle_runtime_refreshes_ages_within_30_seconds() {
     rt.run();
     let last = rows(rt.terminal.backend().buffer());
     assert!(w12_second_row(&last).contains("40 min"));
+}
+
+#[test]
+fn fr22_panel_shows_latest_note_with_pane_and_cwd() {
+    let app = app("work_4_9");
+    assert_eq!(
+        panel_lines(Some(&card(&app, "W-12")), &app.now),
+        [
+            "W-12 latest: 39 min ago, pane w4V:p9, /home/smilen/Work/ati.billing",
+            "Doing:      migration test passes on staging",
+            "Next:       open the MR, ask the DBA for the v13 deploy list",
+            "Watch out:  nothing new",
+        ]
+    );
+}
+
+#[test]
+fn fr22_panel_marks_auto() {
+    let app = app("work_4_9");
+    let mut c = card(&app, "W-12");
+    let n = c.notes.last_mut().unwrap();
+    n.auto = true;
+    n.at = app.now.checked_sub(Duration::from_secs(12 * 60)).ok();
+    n.place.herdr = None;
+    assert_eq!(
+        panel_lines(Some(&c), &app.now)[0],
+        "W-12 latest: 12 min ago, auto, /home/smilen/Work/ati.billing"
+    );
+}
+
+#[test]
+fn fr22_panel_without_pane_shows_cwd_only() {
+    let app = app("work_4_9");
+    assert_eq!(
+        panel_lines(Some(&card(&app, "W-9")), &app.now)[0],
+        "W-9 latest: 1 d ago, /home/smilen/Work/private/brain-swap"
+    );
+}
+
+#[test]
+fn fr22_panel_without_notes_says_no_note_yet() {
+    let app = app("work_4_9");
+    assert_eq!(
+        panel_lines(Some(&card(&app, "W-11")), &app.now),
+        ["W-11 no note yet"]
+    );
+}
+
+#[test]
+fn fr22_panel_shows_first_line_of_each_part() {
+    let app = app("work_4_9");
+    let mut c = card(&app, "W-12");
+    c.notes.last_mut().unwrap().doing = "first\nsecond".into();
+    assert_eq!(panel_lines(Some(&c), &app.now)[1], "Doing:      first");
+}
+
+/// A row of only `-` after the margin.
+fn is_separator(row: &str) -> bool {
+    let r = row.trim();
+    !r.is_empty() && r.chars().all(|c| c == '-')
+}
+
+#[test]
+fn fr22_panel_with_no_selection_shows_only_separator() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    std::fs::remove_file(fx.board_dir.join("W-11.md")).unwrap();
+    let mut app = fx.app();
+    app.sel = Selection {
+        column: 0,
+        card: None,
+    };
+    let rows = rows(&render(&app, 80, 24));
+    assert!(rows.iter().any(|r| is_separator(r)), "{rows:#?}");
+    assert!(!rows.iter().any(|r| r.contains("latest:")), "{rows:#?}");
+}
+
+#[test]
+fn fr22_panel_hidden_below_20_rows() {
+    let app = w12_selected();
+    let low = rows(&render(&app, 80, 19));
+    assert!(!low.iter().any(|r| is_separator(r)), "{low:#?}");
+    assert!(!low.iter().any(|r| r.contains("latest:")), "{low:#?}");
+    let high = rows(&render(&app, 80, 20));
+    assert!(high.iter().any(|r| is_separator(r)), "{high:#?}");
+    assert!(high.iter().any(|r| r.contains("latest:")), "{high:#?}");
+}
+
+#[test]
+fn ts4_9_board_snapshot_80x24() {
+    let buf = render(&w12_selected(), 80, 24);
+    let rows = rows(&buf);
+    let text = rows.join("\n");
+    for want in [
+        " work  ~/.local/share/brain-swap/work",
+        "> Doing (1)",
+        "no note",
+        // Equal column widths (A-E4-09) cut two characters before the drawing's `ask`.
+        "39 min  open the MR, a",
+        "1 d  nothing left",
+        " W-12 latest: 39 min ago, pane w4V:p9, /home/smilen/Work/ati.billing",
+        " Doing:      migration test passes on staging",
+        " Next:       open the MR, ask the DBA for the v13 deploy list",
+        " Watch out:  nothing new",
+    ] {
+        assert!(text.contains(want), "{want} in {text}");
+    }
+    assert!(!text.contains("39 min  open the MR, as"), "{text}");
+    assert!(rows.iter().any(|r| is_separator(r)), "{text}");
+    assert_no_colour(&buf);
+    insta::assert_snapshot!(text);
+}
+
+#[test]
+fn ts4_9_board_snapshot_120x40() {
+    let buf = render(&w12_selected(), 120, 40);
+    assert_no_colour(&buf);
+    insta::assert_snapshot!(rows(&buf).join("\n"));
+}
+
+#[test]
+fn nfr10_panel_uses_no_colour() {
+    for (w, h) in [(80, 24), (120, 40)] {
+        let buf = render(&w12_selected(), w, h);
+        assert!(
+            rows(&buf).iter().any(|r| r.contains("W-12 latest:")),
+            "the panel of tests 8 and 9 is drawn"
+        );
+        assert_no_colour(&buf);
+    }
 }

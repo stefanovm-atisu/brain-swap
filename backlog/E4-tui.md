@@ -321,7 +321,7 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
 
 ### E4-F2-T4 Preview panel and the 4.9 snapshots
 
-- Status: doing
+- Status: done
 - Depends on: E4-F2-T3
 - Covers: FR-22; TECHSPEC 4.9 (the drawing), 7.3 (preview panel, hidden below 20 rows), 12.1 (snapshots at 80x24 and 120x40); PRD A-19
 - Size: M
