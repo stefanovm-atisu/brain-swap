@@ -886,7 +886,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T5 Create
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F6-T2, E1-F5-T4, E1-F4-T3, E1-F2-T6
 - Covers: FR-04, FR-06, FR-13, NFR-06; TECHSPEC 3 (I3, I4, new stamps in the local zone), 4.3 (board.md writes), 4.6 steps 1 to 3, 4.8 R4, R7, 12.1 (`create:*` failpoints)
 - Size: M
