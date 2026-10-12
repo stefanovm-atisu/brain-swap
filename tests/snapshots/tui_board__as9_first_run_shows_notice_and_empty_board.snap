@@ -1,0 +1,28 @@
+---
+source: tests/tui_board.rs
+expression: "rows.join(\"\\n\").replace(&root, \"<tmp>\")"
+---
+ work  ~/.local/share/brain-swap/work                                    ? help
+ > Todo (0)                Doing (0)                 Done (0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ ------------------------------------------------------------------------------
+
+
+
+
+ created config <tmp>/home/.config/brain-swap/config.toml

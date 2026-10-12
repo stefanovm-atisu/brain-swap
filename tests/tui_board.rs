@@ -5,7 +5,8 @@ mod common;
 use brain_swap::core::model::{Card, CardId};
 use brain_swap::tui::app::{App, Input, Selection, update};
 use brain_swap::tui::view_board::{card_lines, panel_lines};
-use common::tui::{Ev, TuiFixture, assert_no_colour, render, rows, write_card};
+use brain_swap::tui::{gate, prepare};
+use common::tui::{Ev, TuiFixture, assert_no_colour, key, render, rows, write_card};
 use ratatui::style::Modifier;
 use std::time::Duration;
 
@@ -346,4 +347,77 @@ fn nfr10_panel_uses_no_colour() {
         );
         assert_no_colour(&buf);
     }
+}
+
+#[test]
+fn as7_hand_made_card_renders_in_first_column_with_no_note() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    let (mut rt, _, _) = fx.runtime(80, 24);
+    std::fs::write(fx.board_dir.join("W-20.md"), "# spike on caching\n").unwrap();
+    rt.tick();
+    rt.draw().unwrap();
+    let rows = rows(rt.terminal.backend().buffer());
+    let i = rows
+        .iter()
+        .position(|r| r.contains("W-20 spike on caching"))
+        .unwrap_or_else(|| panic!("{rows:#?}"));
+    let x = rows[i].find("W-20").unwrap();
+    assert!(x < rows[1].find("Doing").unwrap(), "{rows:#?}");
+    assert!(rows[i + 1][x..].starts_with("  no note"), "{rows:#?}");
+}
+
+#[test]
+fn as7_misspelt_column_renders_as_unknown_extra_column() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    // At 80 columns the window around the focused Doing hides the fourth column (A-E4-09).
+    let (mut rt, _, _) = fx.runtime(120, 40);
+    std::fs::write(
+        fx.board_dir.join("W-13.md"),
+        "---\ncolumn: Doign\n---\n# retry flaky export job\n",
+    )
+    .unwrap();
+    rt.tick();
+    rt.draw().unwrap();
+    let header = rows(rt.terminal.backend().buffer())[1].clone();
+    assert!(header.ends_with("Doign (unknown) (1)"), "{header}");
+    rt.dispatch(Input::Key(key("?")));
+    rt.draw().unwrap();
+    let rows = rows(rt.terminal.backend().buffer());
+    assert!(
+        rows.iter()
+            .any(|r| r.trim() == "W-13: unknown column 'Doign'"),
+        "{rows:#?}"
+    );
+}
+
+#[test]
+fn as7_board_snapshot_80x24() {
+    // The mtimes of W-13 and W-20 decide the initial selection; pin it to the hand-made card.
+    let mut app = app("as7");
+    app.sel = Selection {
+        column: 0,
+        card: Some(id("W-20")),
+    };
+    let buf = render(&app, 80, 24);
+    assert_no_colour(&buf);
+    insta::assert_snapshot!(rows(&buf).join("\n"));
+}
+
+#[test]
+fn as9_first_run_shows_notice_and_empty_board() {
+    let mut fx = TuiFixture::without_config(None);
+    let start = gate(&fx.env, None, true).unwrap();
+    let path = start.config.as_ref().unwrap().created.clone().unwrap();
+    let app = prepare(&mut fx.env, start).unwrap().app;
+    let mut rows = rows(&render(&app, 80, 24));
+    for want in ["> Todo (0)", "Doing (0)", "Done (0)"] {
+        assert!(rows[1].contains(want), "{want} in {}", rows[1]);
+    }
+    // A long temp root (macOS TMPDIR) is cut at 80 columns: compare the cut, pin the full notice.
+    let notice = format!(" created config {}", path.display());
+    assert_eq!(rows[23], notice.chars().take(80).collect::<String>());
+    rows[23] = notice;
+    let root = fx.home.parent().unwrap().display().to_string();
+    insta::assert_snapshot!(rows.join("\n").replace(&root, "<tmp>"));
+    assert!(!fx.board_dir.exists());
 }

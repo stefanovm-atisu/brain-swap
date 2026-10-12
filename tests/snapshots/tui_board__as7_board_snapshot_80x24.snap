@@ -1,0 +1,24 @@
+---
+source: tests/tui_board.rs
+expression: "rows(&buf).join(\"\\n\")"
+---
+ work  ~/.local/share/brain-swap/work                                    ? help
+ > Todo (2)                Doing (1)                 Done (1)
+ W-20 spike on caching     W-12 migrate invoices to  W-9 bump rust-version to
+   no note                   39 min  open the MR, a    1 d  nothing left
+ W-11 invoice PDF shows t
+   no note
+
+
+
+
+
+
+
+
+
+
+
+
+ ------------------------------------------------------------------------------
+ W-20 no note yet
