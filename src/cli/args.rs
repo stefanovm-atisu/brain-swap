@@ -97,14 +97,14 @@ pub enum Command {
         id: CardId,
         /// Locate note <n> (1 is the oldest) instead of the latest note with a place
         #[arg(long)]
-        note: Option<usize>,
+        note: Option<u32>,
     },
     /// Focus a card's pane
     Jump {
         #[arg(value_parser = card_id)]
         id: CardId,
         #[arg(long)]
-        note: Option<usize>,
+        note: Option<u32>,
     },
     /// List card templates
     Templates,

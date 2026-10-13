@@ -172,3 +172,80 @@ fn ts6_2_locate_unknown_card_exits_3() {
     assert_eq!(v["error"]["code"], "not_found");
     assert!(log(&s).is_empty());
 }
+
+/// The jump sandbox plus `tests/fixtures/jump/W-14.md` in the `work` board.
+fn sandbox_w14(scenario: &str, inside: bool) -> Sandbox {
+    let s = sandbox(scenario, inside);
+    let from = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/jump/W-14.md");
+    std::fs::copy(from, s.root().join("boards/work/W-14.md")).unwrap();
+    s
+}
+
+/// Runs `args`, asserts exit 3 and returns stderr.
+fn locate_fails(s: &Sandbox, args: &[&str]) -> String {
+    text(&s.cmd(args).assert().code(3).get_output().stderr)
+}
+
+#[test]
+fn ts6_3_locate_card_without_notes_prints_no_note_yet() {
+    let s = sandbox("live-agent", true);
+    let (out, _) = locate(&s, &["locate", "W-11"]);
+    assert_eq!(out, "no note yet\n");
+    assert!(log(&s).is_empty());
+}
+
+#[test]
+fn ts6_7_locate_no_note_json() {
+    let s = sandbox("live-agent", true);
+    let (out, _) = locate(&s, &["--json", "locate", "W-11"]);
+    assert_eq!(
+        out,
+        "{\"v\":1,\"status\":\"no_note\",\"pane\":null,\"cwd\":null}\n"
+    );
+}
+
+#[test]
+fn ts6_3_default_target_is_the_last_placed_note() {
+    let s = sandbox_w14("live-agent", false);
+    let (out, _) = locate(&s, &["locate", "W-14"]);
+    assert_eq!(out, "not in herdr\nWhere: /work/b\n");
+}
+
+#[test]
+fn ts6_3_note_flag_counts_from_the_oldest() {
+    let s = sandbox_w14("live-agent", false);
+    let (out, _) = locate(&s, &["locate", "W-14", "--note", "1"]);
+    assert_eq!(out, "not in herdr\nWhere: /work/a\n");
+}
+
+#[test]
+fn ts6_3_note_without_place_prints_where_none() {
+    let s = sandbox_w14("live-agent", true);
+    let (out, _) = locate(&s, &["locate", "W-14", "--note", "3"]);
+    assert_eq!(out, "no pane recorded\nWhere: none\n");
+    assert!(log(&s).is_empty());
+}
+
+#[test]
+fn ts6_3_note_out_of_range_exits_3() {
+    let s = sandbox_w14("live-agent", false);
+    for n in ["4", "0"] {
+        let err = locate_fails(&s, &["locate", "W-14", "--note", n]);
+        assert_eq!(err, "brain-swap: W-14 has 3 notes\n");
+        let out = s
+            .cmd(&["--json", "locate", "W-14", "--note", n])
+            .assert()
+            .code(3)
+            .get_output()
+            .clone();
+        let v: Value = serde_json::from_slice(&out.stdout).unwrap();
+        assert_eq!(v["error"]["code"], "not_found");
+    }
+}
+
+#[test]
+fn ts6_3_note_on_card_without_notes_exits_3() {
+    let s = sandbox("live-agent", true);
+    let err = locate_fails(&s, &["locate", "W-11", "--note", "1"]);
+    assert_eq!(err, "brain-swap: W-11 has 0 notes\n");
+}

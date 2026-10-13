@@ -378,20 +378,49 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             session.as_deref(),
             &mut out,
         ),
-        Some(Command::Locate { id, .. }) => locate(env, &ctx.expect("loaded above"), id, &mut out),
+        Some(Command::Locate { id, note }) => {
+            locate(env, &ctx.expect("loaded above"), id, note, &mut out)
+        }
         _ => todo!(),
     }
 }
 
-/// `locate` (6.3): the jump note's pane status and its `Where:` line; exit 0 for every status.
-pub fn locate(env: &Env, ctx: &Ctx, id: CardId, out: &mut Out) -> i32 {
+/// The note `locate` and `jump` target (6.3): the jump note, or note `n` counted from the
+/// oldest; `n` outside 1 to the note count is `NotFound`.
+pub fn target_note(card: &Card, note: Option<u32>) -> Result<Option<usize>, Error> {
+    match note {
+        None => Ok(card.jump_note()),
+        Some(n) if (1..=card.notes.len()).contains(&(n as usize)) => Ok(Some(n as usize - 1)),
+        Some(_) => Err(Error::NotFound(format!(
+            "{} has {} notes",
+            card.id,
+            card.notes.len()
+        ))),
+    }
+}
+
+/// `locate` (6.3): the target note's pane status and its `Where:` line, or `no note yet`;
+/// exit 0 for every status.
+pub fn locate(env: &Env, ctx: &Ctx, id: CardId, note: Option<u32>, out: &mut Out) -> i32 {
     let (board, card) = match find_card(ctx, id) {
         Ok(found) => found,
         Err(e) => return out.error(&e),
     };
     board.warnings.iter().for_each(|w| out.warn(w));
-    // The card without a jump note and `--note` are E5-F2-T7.
-    let place = &card.notes[card.jump_note().expect("todo: no jump note")].place;
+    let i = match target_note(&card, note) {
+        Ok(Some(i)) => i,
+        Ok(None) => {
+            let json = out::LocateJson {
+                status: "no_note",
+                pane: None,
+                cwd: None,
+            };
+            out.result("no note yet\n", json);
+            return 0;
+        }
+        Err(e) => return out.error(&e),
+    };
+    let place = &card.notes[i].place;
     let status = herdr::locate(place, env, &ProcessRunner::new(env));
     let text = out::locate_lines(&status, place);
     out.result(&text, out::LocateJson::new(&status, place));
