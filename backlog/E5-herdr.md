@@ -393,7 +393,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F2-T9 The `jump` subcommand: exit 6
 
-- Status: todo
+- Status: doing
 - Depends on: E5-F2-T8
 - Covers: FR-61, FR-62, FR-63, NFR-05; TECHSPEC 6.2 (exit 6, no error object), 6.3 (`jump` failures)
 - Size: M
