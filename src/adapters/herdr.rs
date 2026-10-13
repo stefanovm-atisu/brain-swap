@@ -1,6 +1,6 @@
 //! The herdr adapter (TECHSPEC 9): herdr runs through its public CLI only.
 
-use crate::adapters::runner::Runner;
+use crate::adapters::runner::{RunOutcome, Runner};
 use crate::core::env::Env;
 use crate::core::model::HerdrPlace;
 use serde_json::Value;
@@ -20,6 +20,22 @@ pub fn capture(env: &Env, _runner: &dyn Runner) -> Option<HerdrPlace> {
         tab: set(&env.herdr_tab_id),
         workspace: set(&env.herdr_workspace_id),
     })
+}
+
+/// The current pane's `agent_session.value` (9.2, 6.4 step 3); `None` outside herdr or on any failure.
+pub fn pane_session(env: &Env, runner: &dyn Runner) -> Option<String> {
+    let pane = env.herdr_pane_id.as_deref().filter(|p| !p.is_empty());
+    let pane = pane.filter(|_| env.herdr_active())?;
+    let RunOutcome::Exited {
+        code: Some(0),
+        stdout,
+        ..
+    } = runner.run(&["pane", "get", pane], CALL_TIMEOUT).outcome
+    else {
+        return None;
+    };
+    let v: Value = serde_json::from_str(&stdout).ok()?;
+    Some(PaneJson::from_response(&v)?.session()?.to_string())
 }
 
 /// A tolerant reader over one herdr pane object (9.3); no serde-derived herdr types.
