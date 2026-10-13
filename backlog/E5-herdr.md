@@ -225,7 +225,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F2-T1 PaneStatus and locate: outside herdr, no pane, live
 
-- Status: todo
+- Status: doing
 - Depends on: E5-F1-T4, E5-F1-T6, E1-F1-T3
 - Covers: FR-40, FR-60, FR-62, NFR-05; TECHSPEC 3 (`LivePane`, `PaneStatus`), 9.1 (old IDs of moved panes), 9.3 (existence first, live IDs, `LivePane.agent`), 9.5, T-16
 - Size: S
