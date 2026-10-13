@@ -49,7 +49,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T2 Performance board and NFR-01 test
 
-- Status: blocked NFR-01 p95 is 50 to 67 ms on the cloud box (8 of 9 subcommands over 50 ms); card_file::parse is about 90% of ls; needs an E1 parse speedup or an author-machine run; harness on wip/E6-F1-T2
+- Status: doing
 - Depends on: E2-F3, E4-F1-T10
 - Covers: NFR-01; TECHSPEC 12.1 (Performance); PRD SM-5
 - Size: M
