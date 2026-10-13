@@ -1,0 +1,5 @@
+---
+source: tests/cli_locate.rs
+expression: out
+---
+{"v":1,"status":"none","pane":null,"cwd":"/home/smilen/Work/private/brain-swap"}

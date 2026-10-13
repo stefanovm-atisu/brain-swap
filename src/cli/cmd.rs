@@ -390,8 +390,24 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             session.as_deref(),
             &mut out,
         ),
+        Some(Command::Locate { id, .. }) => locate(env, &ctx.expect("loaded above"), id, &mut out),
         _ => todo!(),
     }
+}
+
+/// `locate` (6.3): the jump note's pane status and its `Where:` line; exit 0 for every status.
+pub fn locate(env: &Env, ctx: &Ctx, id: CardId, out: &mut Out) -> i32 {
+    let (board, card) = match find_card(ctx, id) {
+        Ok(found) => found,
+        Err(e) => return out.error(&e),
+    };
+    board.warnings.iter().for_each(|w| out.warn(w));
+    // The card without a jump note and `--note` are E5-F2-T7.
+    let place = &card.notes[card.jump_note().expect("todo: no jump note")].place;
+    let status = herdr::locate(place, env, &ProcessRunner::new(env));
+    let text = out::locate_lines(&status, place);
+    out.result(&text, out::LocateJson::new(&status, place));
+    0
 }
 
 /// `context` (6.3, 6.7) with a reference that resolves (I9): the header lines and the

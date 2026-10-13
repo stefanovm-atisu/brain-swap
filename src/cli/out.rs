@@ -1,8 +1,9 @@
 //! Result, error and warning output (TECHSPEC 6.2, 6.7).
 
+use crate::adapters::herdr::PaneStatus;
 use crate::cli::cmd::Ctx;
 use crate::core::error::Error;
-use crate::core::model::{Board, Card, Note};
+use crate::core::model::{Board, Card, Note, Place};
 use crate::core::time::{Age, Stamp, age, age_minutes, format_stamp};
 use serde::Serialize;
 use std::io::{Stderr, Stdout, Write};
@@ -198,6 +199,46 @@ pub fn preview(note: &Note) -> String {
         .collect::<String>()
         .trim_end()
         .to_string()
+}
+
+/// The `locate` lines (6.3): the status, then `Where: <cwd>`.
+pub fn locate_lines(status: &PaneStatus, place: &Place) -> String {
+    let head = match status {
+        PaneStatus::Live(p) => format!("live {}", p.pane),
+        PaneStatus::Moved(p) => format!("moved {}", p.pane),
+        PaneStatus::Closed => format!("closed {}", place.herdr.as_ref().map_or("", |h| &h.pane)),
+        PaneStatus::OutsideHerdr => "not in herdr".into(),
+        PaneStatus::NoPane => "no pane recorded".into(),
+        PaneStatus::NotResponding => "herdr not responding".into(),
+        PaneStatus::HerdrError(m) => format!("herdr: {m}"),
+    };
+    let cwd = place
+        .cwd
+        .as_ref()
+        .map_or("none".into(), |c| c.display().to_string());
+    format!("{head}\nWhere: {cwd}\n")
+}
+
+/// The 6.7 `locate` object: `pane` is the live pane for `live` and `moved`, else the recorded one.
+#[derive(Serialize)]
+pub struct LocateJson<'a> {
+    pub status: &'static str,
+    pub pane: Option<&'a str>,
+    pub cwd: Option<&'a Path>,
+}
+
+impl<'a> LocateJson<'a> {
+    pub fn new(status: &'a PaneStatus, place: &'a Place) -> LocateJson<'a> {
+        let pane = match status {
+            PaneStatus::Live(p) | PaneStatus::Moved(p) => Some(p.pane.as_str()),
+            _ => place.herdr.as_ref().map(|h| h.pane.as_str()),
+        };
+        LocateJson {
+            status: status.json_status(),
+            pane,
+            cwd: place.cwd.as_deref(),
+        }
+    }
 }
 
 /// One `--json` object: `v` first, then the flattened body.

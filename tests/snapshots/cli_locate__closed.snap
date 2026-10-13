@@ -1,0 +1,5 @@
+---
+source: tests/cli_locate.rs
+expression: out
+---
+{"v":1,"status":"closed","pane":"w4V:p9","cwd":"/home/smilen/Work/ati.billing"}

@@ -95,6 +95,7 @@ pub enum Command {
     Locate {
         #[arg(value_parser = card_id)]
         id: CardId,
+        /// Locate note <n> (1 is the oldest) instead of the latest note with a place
         #[arg(long)]
         note: Option<usize>,
     },
