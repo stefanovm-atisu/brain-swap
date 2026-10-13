@@ -8,6 +8,21 @@ use std::process::Stdio;
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/pack");
 
+/// The 12.1 Pack context states an inline command must survive.
+#[derive(Clone, Copy, Debug)]
+pub enum ContextState {
+    NoConfig,
+    BrokenConfig,
+    MissingFolder,
+    NoReference,
+    DeletedCard,
+    EmptySession,
+    Unsubstituted,
+    Placeholder,
+    WithNote,
+    WithoutNote,
+}
+
 pub struct PackEnv {
     tmp: tempfile::TempDir,
     scenario: Scenario,
@@ -51,6 +66,52 @@ impl PackEnv {
             .now("2026-10-08T11:12:00+03:00")
             .path(&format!("{}:/usr/bin:/bin", bin.display()));
         PackEnv { tmp, scenario }
+    }
+
+    /// The env of `state` (from `new().with_w12()`) and the text that replaces
+    /// `${CLAUDE_SESSION_ID}` in the inline command (`substitute`).
+    pub fn for_state(state: ContextState) -> (PackEnv, &'static str) {
+        use super::skill_md::SESSION_A;
+        let env = PackEnv::new().with_w12();
+        let root = env.tmp.path();
+        let config = root.join("config/brain-swap/config.toml");
+        let edit = |from: &str, to: &str| {
+            let text = fs::read_to_string(&config).unwrap();
+            fs::write(&config, text.replacen(from, to, 1)).unwrap();
+        };
+        let session = match state {
+            ContextState::NoConfig => {
+                fs::remove_file(&config).unwrap();
+                SESSION_A
+            }
+            ContextState::BrokenConfig => {
+                edit("\n\n[boards]", "\n[boards");
+                SESSION_A
+            }
+            ContextState::MissingFolder => {
+                let work = root.join("boards/work").display().to_string();
+                edit(&work, &root.join("absent").display().to_string());
+                SESSION_A
+            }
+            ContextState::NoReference => SESSION_A,
+            ContextState::DeletedCard => {
+                env.link("W-12", SESSION_A);
+                fs::remove_file(root.join("boards/work/W-12.md")).unwrap();
+                SESSION_A
+            }
+            ContextState::EmptySession => "",
+            ContextState::Unsubstituted => "${CLAUDE_SESSION_ID}",
+            ContextState::Placeholder => "\\${CLAUDE_SESSION_ID}",
+            ContextState::WithNote => {
+                env.link("W-12", SESSION_A);
+                SESSION_A
+            }
+            ContextState::WithoutNote => {
+                env.link("W-11", SESSION_A);
+                SESSION_A
+            }
+        };
+        (env, session)
     }
 
     pub fn with_w12(self) -> PackEnv {

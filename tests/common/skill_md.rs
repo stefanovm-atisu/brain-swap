@@ -116,3 +116,23 @@ pub fn shell_words(cmd: &str) -> Vec<String> {
     words.extend(word);
     words
 }
+
+/// Each fenced block whose first line contains `<<'BS_EOF'`, whole: command line, body
+/// and `BS_EOF`.
+pub fn heredoc_commands(text: &str) -> Vec<String> {
+    text.split("```")
+        .skip(1)
+        .step_by(2)
+        .map(|b| b.trim_start_matches(|c| c != '\n').trim_start_matches('\n'))
+        .filter(|b| b.lines().next().is_some_and(|l| l.contains("<<'BS_EOF'")))
+        .map(String::from)
+        .collect()
+}
+
+/// `block` with the `...` after `Doing: `, `Next: ` and `Watch out: ` replaced.
+pub fn fill_park_heredoc(block: &str, doing: &str, next: &str, watch_out: &str) -> String {
+    block
+        .replace("Doing: ...", &format!("Doing: {doing}"))
+        .replace("Next: ...", &format!("Next: {next}"))
+        .replace("Watch out: ...", &format!("Watch out: {watch_out}"))
+}
