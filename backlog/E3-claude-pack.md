@@ -52,7 +52,7 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 
 ### E3-F1-T2 Runtime pack harness and bs-link command runs
 
-- Status: todo
+- Status: doing
 - Depends on: E3-F1-T1, E2-F3
 - Covers: FR-54, FR-55; TECHSPEC 8.5, 12.1 (hermetic spawning)
 - Size: M
