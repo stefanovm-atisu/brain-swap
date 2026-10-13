@@ -322,3 +322,132 @@ fn fr15_park_records_env_session() {
         "<!-- where: cwd=<sandbox>/elsewhere session=s2 -->"
     );
 }
+
+/// Parks `Doing: x` on W-12 with `args` appended, exit 0; returns stderr and the place line.
+fn park_session(s: &Sandbox, args: &[&str]) -> (String, String) {
+    let mut all = vec!["park", "--card", "W-12"];
+    all.extend(args);
+    let out = park(s, &all, "Doing: x", "elsewhere", 0);
+    (text(&out.stderr), i6_place_line(s))
+}
+
+/// The fake herdr pane `w4V:p9` answering per `scenario`.
+fn in_herdr(s: &mut Sandbox, scenario: &str) {
+    let sc = s.scenario_mut();
+    *sc = sc
+        .clone()
+        .herdr("w4V:p9", "w4V:t1", "w4V")
+        .fake_scenario(scenario);
+}
+
+fn herdr_calls(s: &Sandbox) -> Vec<String> {
+    common::fake_herdr::calls(&s.root().join("home"))
+}
+
+#[test]
+fn fr41_flag_session_wins_over_env() {
+    let mut s = sandbox();
+    let sc = s.scenario_mut();
+    *sc = sc.clone().session("b");
+    let (err, place) = park_session(&s, &["--session", "a"]);
+    assert!(place.ends_with(" session=a -->"), "{place}");
+    assert_eq!(err, "");
+}
+
+#[test]
+fn fr41_missing_flag_uses_env_without_warning() {
+    let mut s = sandbox();
+    let sc = s.scenario_mut();
+    *sc = sc.clone().session("b");
+    let (err, place) = park_session(&s, &[]);
+    assert!(place.ends_with(" session=b -->"), "{place}");
+    assert_eq!(err, "");
+}
+
+#[test]
+fn fr41_empty_flag_warns_and_falls_back() {
+    let mut s = sandbox();
+    let sc = s.scenario_mut();
+    *sc = sc.clone().session("b");
+    let (err, place) = park_session(&s, &["--session", ""]);
+    assert_eq!(err, "warning: session id not substituted\n");
+    assert!(place.ends_with(" session=b -->"), "{place}");
+}
+
+#[test]
+fn fr41_placeholder_flag_warns_and_degrades_to_none() {
+    let s = sandbox();
+    let (err, place) = park_session(&s, &["--session", "${CLAUDE_SESSION_ID}"]);
+    assert_eq!(err, "warning: session id not substituted\n");
+    assert!(!place.contains("session="), "{place}");
+}
+
+#[test]
+fn fr41_invalid_flag_warns_invalid_session_id() {
+    let s = sandbox();
+    let (err, place) = park_session(&s, &["--session", "a b"]);
+    assert_eq!(err, "warning: invalid session id\n");
+    assert!(!place.contains("session="), "{place}");
+}
+
+#[test]
+fn fr41_inside_herdr_falls_back_to_pane_session() {
+    let mut s = sandbox();
+    in_herdr(&mut s, "pane-session");
+    let (_, place) = park_session(&s, &["--session", ""]);
+    assert!(place.ends_with(" session=herdr-s1 -->"), "{place}");
+    // TECHSPEC 16 SP-4: no moved-pane check, so only step 3 calls herdr.
+    assert_eq!(herdr_calls(&s), ["pane get w4V:p9"]);
+}
+
+#[test]
+fn fr41_valid_env_session_never_calls_herdr() {
+    let mut s = sandbox();
+    in_herdr(&mut s, "pane-session");
+    let sc = s.scenario_mut();
+    *sc = sc.clone().session("b");
+    park_session(&s, &[]);
+    assert!(herdr_calls(&s).is_empty());
+}
+
+#[test]
+fn fr41_pane_without_agent_session_resolves_none() {
+    let mut s = sandbox();
+    in_herdr(&mut s, "pane-no-agent");
+    let (_, place) = park_session(&s, &["--session", ""]);
+    assert!(!place.contains("session="), "{place}");
+}
+
+#[test]
+fn ts6_1_brain_swap_log_receives_herdr_call() {
+    let mut s = sandbox();
+    in_herdr(&mut s, "pane-session");
+    let log = s.root().join("bs.log");
+    let sc = s.scenario_mut();
+    *sc = sc.clone().log(&log);
+    park_session(&s, &["--session", ""]);
+    let calls = herdr_calls(&s);
+    assert!(!calls.is_empty());
+    let text = fs::read_to_string(&log).unwrap_or_default();
+    let lines: Vec<_> = text.lines().filter(|l| l.contains(" herdr ")).collect();
+    assert_eq!(lines.len(), calls.len(), "{text}");
+    for (line, call) in lines.iter().zip(&calls) {
+        assert!(line.contains(&format!(" herdr {call} exit=")), "{line}");
+    }
+}
+
+#[test]
+fn ts11_cli_ignores_log_inside_board_folder() {
+    let mut s = sandbox();
+    in_herdr(&mut s, "pane-session");
+    let log = s.root().join("boards/work/bs.log");
+    let sc = s.scenario_mut();
+    *sc = sc.clone().log(&log);
+    let (err, _) = park_session(&s, &["--session", ""]);
+    assert!(!herdr_calls(&s).is_empty());
+    assert!(
+        err.contains("warning: BRAIN_SWAP_LOG inside board work, ignored"),
+        "{err}"
+    );
+    assert!(!log.exists());
+}

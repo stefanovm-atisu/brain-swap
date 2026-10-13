@@ -370,7 +370,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T4 Session resolution for `new`, `park`, `link` and `context`
 
-- Status: doing
+- Status: done
 - Depends on: E2-F3-T3, E5-F1
 - Covers: FR-41; TECHSPEC 6.1 (`BRAIN_SWAP_LOG`), 6.4 (steps 1 to 4, warnings), 9.2 (as called), 11 (`BRAIN_SWAP_LOG` inside a board folder, with a herdr call)
 - Size: M

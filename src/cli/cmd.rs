@@ -1,7 +1,7 @@
 //! One function per subcommand (TECHSPEC 2.1).
 
 use crate::adapters::herdr;
-use crate::adapters::runner::ProcessRunner;
+use crate::adapters::runner::{ProcessRunner, Runner};
 use crate::cli::args::{Cli, Command};
 use crate::cli::out::{self, Out};
 use crate::core::config::{self, Config};
@@ -94,6 +94,21 @@ pub fn find_card(ctx: &Ctx, id: CardId) -> Result<(Board, Card), Error> {
     let board = crate::core::board::find_card(&ctx.config.boards, id, &ctx.env)?;
     let card = board.card(id).cloned().expect("find_card checked the card");
     Ok((board, card))
+}
+
+/// TECHSPEC 6.4: steps 1 and 2 with their warnings, then herdr's pane session (step 3) when
+/// it passes I8, else none; never fails.
+pub fn resolve_session(
+    env: &Env,
+    flag: Option<&str>,
+    runner: &dyn Runner,
+) -> (Option<String>, Vec<String>) {
+    use crate::core::session::{IdCheck, check_id, resolve};
+    let r = resolve(flag, env);
+    let session = r
+        .session
+        .or_else(|| herdr::pane_session(env, runner).filter(|s| check_id(s) == IdCheck::Valid));
+    (session, r.warnings)
 }
 
 /// Dispatches one subcommand and returns its 6.2 exit code.
@@ -299,9 +314,9 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             auto,
         }) => {
             let ctx = ctx.expect("loaded above");
-            let resolved = crate::core::session::resolve(session.as_deref(), env);
-            resolved.warnings.iter().for_each(|w| out.warn(w));
             let runner = ProcessRunner::new(env);
+            let (session, warnings) = resolve_session(env, session.as_deref(), &runner);
+            warnings.iter().for_each(|w| out.warn(w));
             let parked = find_card(&ctx, id).and_then(|(board, _)| {
                 let stdin = std::io::stdin();
                 let terminal = std::io::IsTerminal::is_terminal(&stdin);
@@ -314,7 +329,7 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                     watch_out: n.watch_out,
                     cwd: env.cwd.clone(),
                     herdr: herdr::capture(env, &runner),
-                    session: resolved.session,
+                    session,
                 };
                 Ok((store::park(env, &board, id, &note)?, board))
             });
