@@ -168,7 +168,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F1-T8 Agent session of the current pane
 
-- Status: todo
+- Status: doing
 - Depends on: E5-F1-T2, E5-F1-T4, E5-F1-T6
 - Covers: FR-41, FR-58; TECHSPEC 6.4 (step 3), 9.2, T-15
 - Size: S
