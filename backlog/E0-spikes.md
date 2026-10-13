@@ -19,14 +19,14 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 - Provides: TECHSPEC 16 answer lines `SP-1`, `SP-3`, `SP-4`, `SP-6` (read by E3-F1, E3-F2, E5-F1, E5-F2); under `SP-4`, trimmed JSON samples of `herdr pane get` (agent pane, shell pane, `pane_not_found` stderr), `herdr workspace list` and `herdr pane list --workspace <id>` for the E5-F1 fake herdr script to answer with; under `SP-1`, the literal text a failed `${CLAUDE_SESSION_ID}` substitution arrives as, checked against I8.
 - Requires: none
 - Feature DoD:
-  - [ ] SP-1 answered in TECHSPEC 16; 6.4 and the `--session` rule of 8.1 updated if the fallback is taken (E0-F1-T1).
+  - [x] SP-1 answered in TECHSPEC 16; 6.4 and the `--session` rule of 8.1 updated if the fallback is taken (E0-F1-T1).
   - [ ] SP-3 answered in TECHSPEC 16; 8.1 and 8.8 updated if a fallback is taken (E0-F1-T2).
   - [x] SP-4 answered in TECHSPEC 16 with the JSON samples; 9.1 and the `pane current` clause of 2.2 updated (E0-F1-T3).
   - [ ] SP-6 answered in TECHSPEC 16; 8.8 updated if the fallback is taken (E0-F1-T4).
 
 ### E0-F1-T1 SP-1 session ID in skills
 
-- Status: todo
+- Status: done
 - Depends on: none
 - Covers: FR-41, FR-57; TECHSPEC 14 SP-1, 6.4, 8.1, 8.7, 16
 - Size: S
@@ -42,10 +42,10 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
   7. Decide: if steps 1 to 3 hold, the 6.4 chain stays as written and no fallback is needed; if expansion fails anywhere the pack runs, the fallback is the 6.4 chain (`BRAIN_SWAP_SESSION`, then herdr's agent session), and 6.4 and the `--session` rule of 8.1 say which step the pack relies on.
   8. Remove `~/.claude/skills/bs-probe-sid/` and the generated file.
 - DoD:
-  - [ ] TECHSPEC 16 gains the line `SP-1 (<date>, herdr 0.8.2, Claude Code 2.1.294)` answering each of: inline expands, body expands, equals herdr, survives `/compact`, survives auto-compaction (or `not reached`), changes on `/clear`, unsubstituted text and its I8 verdict, fallback taken or `none`; `SP-1` is removed from the `Open until the spikes answer` sentence (A-E0-01).
-  - [ ] If the fallback is taken, 6.4 and 8.1 are updated in the same commit; an answer that contradicts FR-41, FR-57 or A-14 is named in the line and the PRD is left for the owner (A-E0-02).
-  - [ ] The probe skill is gone from `~/.claude/skills/`; no file under `src/`, `pack/`, `templates/` or `tests/` changed.
-  - [ ] One commit saying what was found and why, with no AI attribution.
+  - [x] TECHSPEC 16 gains the line `SP-1 (<date>, herdr 0.8.2, Claude Code 2.1.294)` answering each of: inline expands, body expands, equals herdr, survives `/compact`, survives auto-compaction (or `not reached`), changes on `/clear`, unsubstituted text and its I8 verdict, fallback taken or `none`; `SP-1` is removed from the `Open until the spikes answer` sentence (A-E0-01).
+  - [x] If the fallback is taken, 6.4 and 8.1 are updated in the same commit; an answer that contradicts FR-41, FR-57 or A-14 is named in the line and the PRD is left for the owner (A-E0-02).
+  - [x] The probe skill is gone from `~/.claude/skills/`; no file under `src/`, `pack/`, `templates/` or `tests/` changed.
+  - [x] One commit saying what was found and why, with no AI attribution.
 
 ### E0-F1-T2 SP-3 permissions and PATH in Claude
 
