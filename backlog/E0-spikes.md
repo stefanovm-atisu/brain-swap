@@ -20,7 +20,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 - Requires: none
 - Feature DoD:
   - [x] SP-1 answered in TECHSPEC 16; 6.4 and the `--session` rule of 8.1 updated if the fallback is taken (E0-F1-T1).
-  - [ ] SP-3 answered in TECHSPEC 16; 8.1 and 8.8 updated if a fallback is taken (E0-F1-T2).
+  - [x] SP-3 answered in TECHSPEC 16; 8.1 and 8.8 updated if a fallback is taken (E0-F1-T2).
   - [x] SP-4 answered in TECHSPEC 16 with the JSON samples; 9.1 and the `pane current` clause of 2.2 updated (E0-F1-T3).
   - [ ] SP-6 answered in TECHSPEC 16; 8.8 updated if the fallback is taken (E0-F1-T4).
 
@@ -49,7 +49,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 
 ### E0-F1-T2 SP-3 permissions and PATH in Claude
 
-- Status: todo
+- Status: done
 - Depends on: none
 - Covers: FR-46; TECHSPEC 14 SP-3, 8.1, 8.8, 16
 - Size: S
@@ -64,9 +64,9 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
   6. Decide: no fallback when steps 2 and 3 pass; otherwise the documented allow rule (8.8 and README) against prompts, and absolute paths in the installed copies (8.8) against a missing `PATH`.
   7. Remove the stub and `~/.claude/skills/bs-probe-perm/`.
 - DoD:
-  - [ ] TECHSPEC 16 gains the line `SP-3 (<date>, Claude Code 2.1.294)` with a yes or no for: inline pre-approved, heredoc pre-approved, later move pre-approved, `~/.cargo/bin` on the inline `PATH`, on the Bash tool `PATH`, absolute path pre-approved (or `not tried`); `SP-3` is removed from the `Open until the spikes answer` sentence.
-  - [ ] If a fallback is taken, 8.1 and 8.8 say which one (allow rule, absolute paths) in the same commit.
-  - [ ] Stub and probe skill removed; no product file changed; one commit with no AI attribution.
+  - [x] TECHSPEC 16 gains the line `SP-3 (<date>, Claude Code 2.1.294)` with a yes or no for: inline pre-approved, heredoc pre-approved, later move pre-approved, `~/.cargo/bin` on the inline `PATH`, on the Bash tool `PATH`, absolute path pre-approved (or `not tried`); `SP-3` is removed from the `Open until the spikes answer` sentence.
+  - [x] If a fallback is taken, 8.1 and 8.8 say which one (allow rule, absolute paths) in the same commit.
+  - [x] Stub and probe skill removed; no product file changed; one commit with no AI attribution.
 
 ### E0-F1-T3 SP-4 herdr from Claude
 
