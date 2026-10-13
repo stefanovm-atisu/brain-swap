@@ -267,7 +267,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F2-T3 locate: the moved search
 
-- Status: todo
+- Status: doing
 - Depends on: E5-F2-T2, E0-F1-T3
 - Covers: FR-60, FR-61, FR-63; TECHSPEC 9.3 (moved search), A-20
 - Size: M
