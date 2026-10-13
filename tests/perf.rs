@@ -49,8 +49,35 @@ fn nfr01_cmd(args: &[&str]) {
 
 /// Writes `<root>/` for the `hyperfine` runs of E6-F1-T4 (A-E6-20).
 fn write_hyperfine_board(root: &Path) {
-    let _ = root;
-    todo!()
+    let _ = fs::remove_dir_all(root);
+    let work = root.join("data/work");
+    let config = root.join("config/brain-swap/config.toml");
+    fs::create_dir_all(config.parent().unwrap()).unwrap();
+    let text = format!(
+        "default_board = \"work\"\n\n[boards]\nwork = \"{}\"\n",
+        work.display()
+    );
+    fs::write(config, text).unwrap();
+    write_big_board(&work, 300, 20);
+    let pristine = root.join("data/work.pristine");
+    fs::create_dir_all(&pristine).unwrap();
+    for e in fs::read_dir(&work).unwrap() {
+        let p = e.unwrap().path();
+        fs::copy(&p, pristine.join(p.file_name().unwrap())).unwrap();
+    }
+    fs::create_dir_all(root.join("state")).unwrap();
+    fs::write(
+        root.join("note.txt"),
+        "Doing: timing park\nNext: time it again\nWatch out: nothing\n",
+    )
+    .unwrap();
+    let r = root.display();
+    let sh = format!(
+        "export XDG_CONFIG_HOME={r}/config\nexport XDG_DATA_HOME={r}/data\n\
+         export XDG_STATE_HOME={r}/state\nexport BRAIN_SWAP_NOW={NOW}\n\
+         unset HERDR_ENV BRAIN_SWAP_SESSION BRAIN_SWAP_LOG\n"
+    );
+    fs::write(root.join("env.sh"), sh).unwrap();
 }
 
 #[test]
