@@ -254,6 +254,36 @@ pub fn locate(place: &Place, env: &Env, runner: &dyn Runner) -> PaneStatus {
     }
 }
 
+/// How `focus` reached a pane (9.3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Focused {
+    Agent,
+    Tab,
+}
+
+/// Why `focus` did not reach a pane (9.3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FocusError {
+    Failed,
+    NotResponding,
+}
+
+/// Focuses a located pane (9.3, FR-59); herdr has no focus by pane ID.
+pub fn focus(p: &LivePane, runner: &dyn Runner) -> Result<Focused, FocusError> {
+    // Ok(true) on exit 0, Ok(false) on any other failure; stderr is never read.
+    let ok = |args: &[&str]| match runner.run(args, CALL_TIMEOUT) {
+        r if r.outcome == RunOutcome::TimedOut => Err(FocusError::NotResponding),
+        r => Ok(r.succeeded()),
+    };
+    if p.agent && ok(&["agent", "focus", &p.pane])? {
+        return Ok(Focused::Agent);
+    }
+    if ok(&["workspace", "focus", &p.workspace])? && ok(&["tab", "focus", &p.tab])? {
+        return Ok(Focused::Tab);
+    }
+    Err(FocusError::Failed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

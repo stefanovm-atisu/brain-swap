@@ -2,12 +2,13 @@
 //! TECHSPEC 9.2: `pane_session` reads the current pane's agent session in at most one call.
 //! TECHSPEC 9.3: `locate` turns a note's place into a `PaneStatus`.
 //! TECHSPEC 9.3: `locate` and its callers share a 3 second budget, each call asking for `min(2 s, rest)`.
+//! TECHSPEC 9.3: `focus` uses `agent focus` for an agent pane, else `workspace focus` then `tab focus`.
 
 mod common;
 
 use brain_swap::adapters::herdr::{
-    BUDGET, Budget, CALL_TIMEOUT, LivePane, PaneStatus, capture, list_panes, locate, pane_session,
-    workspace_ids,
+    BUDGET, Budget, CALL_TIMEOUT, FocusError, Focused, LivePane, PaneStatus, capture, focus,
+    list_panes, locate, pane_session, workspace_ids,
 };
 use brain_swap::adapters::runner::{Answer, FakeRunner, RunOutcome, Runner};
 use brain_swap::core::env::Env;
@@ -543,4 +544,120 @@ fn ts9_3_outer_budget_shortens_locate() {
 fn ts9_3_budget_constants() {
     assert_eq!(BUDGET, Duration::from_secs(3));
     assert_eq!(CALL_TIMEOUT, Duration::from_secs(2));
+}
+
+fn w4v_p9(agent: bool) -> LivePane {
+    LivePane {
+        pane: "w4V:p9".into(),
+        tab: "w4V:t1".into(),
+        workspace: "w4V".into(),
+        agent,
+    }
+}
+
+const AGENT_FOCUS: &str = "agent focus w4V:p9";
+const WS_FOCUS: &str = "workspace focus w4V";
+const TAB_FOCUS: &str = "tab focus w4V:t1";
+
+#[test]
+fn fr59_agent_pane_is_focused_with_agent_focus() {
+    let fake = FakeRunner::new().on(AGENT_FOCUS, Answer::ok(""));
+    assert_eq!(focus(&w4v_p9(true), &fake), Ok(Focused::Agent));
+    assert_eq!(fake.calls(), [AGENT_FOCUS]);
+}
+
+#[test]
+fn fr59_pane_without_agent_focuses_workspace_then_tab() {
+    let fake = FakeRunner::new()
+        .on(WS_FOCUS, Answer::ok(""))
+        .on(TAB_FOCUS, Answer::ok(""));
+    assert_eq!(focus(&w4v_p9(false), &fake), Ok(Focused::Tab));
+    assert_eq!(fake.calls(), [WS_FOCUS, TAB_FOCUS]);
+}
+
+#[test]
+fn fr59_failed_agent_focus_falls_back_to_tab() {
+    let fake = FakeRunner::new()
+        .on(AGENT_FOCUS, Answer::fail(1, "x"))
+        .on(WS_FOCUS, Answer::ok(""))
+        .on(TAB_FOCUS, Answer::ok(""));
+    assert_eq!(focus(&w4v_p9(true), &fake), Ok(Focused::Tab));
+    assert_eq!(fake.calls(), [AGENT_FOCUS, WS_FOCUS, TAB_FOCUS]);
+}
+
+#[test]
+fn ts9_3_failed_workspace_focus_is_focus_failed() {
+    let fake = FakeRunner::new().on(WS_FOCUS, Answer::fail(1, "x"));
+    assert_eq!(focus(&w4v_p9(false), &fake), Err(FocusError::Failed));
+    assert_eq!(fake.calls(), [WS_FOCUS]);
+}
+
+#[test]
+fn ts9_3_failed_tab_focus_is_focus_failed() {
+    let fake = FakeRunner::new()
+        .on(WS_FOCUS, Answer::ok(""))
+        .on(TAB_FOCUS, Answer::fail(1, "x"));
+    assert_eq!(focus(&w4v_p9(false), &fake), Err(FocusError::Failed));
+    assert_eq!(fake.calls(), [WS_FOCUS, TAB_FOCUS]);
+}
+
+#[test]
+fn ts9_3_spawn_failure_in_focus_is_focus_failed() {
+    let spawn = || Answer::SpawnFailed("x".into());
+    let fake = FakeRunner::new()
+        .on(AGENT_FOCUS, spawn())
+        .on(WS_FOCUS, spawn())
+        .on(TAB_FOCUS, spawn());
+    assert_eq!(focus(&w4v_p9(true), &fake), Err(FocusError::Failed));
+    assert_eq!(fake.calls(), [AGENT_FOCUS, WS_FOCUS]);
+}
+
+#[test]
+fn ts9_3_agent_focus_timeout_is_not_responding() {
+    let fake = FakeRunner::new().on(AGENT_FOCUS, Answer::Hang);
+    assert_eq!(focus(&w4v_p9(true), &fake), Err(FocusError::NotResponding));
+    assert_eq!(fake.calls(), [AGENT_FOCUS]);
+}
+
+#[test]
+fn ts9_3_workspace_focus_timeout_is_not_responding() {
+    let fake = FakeRunner::new().on(WS_FOCUS, Answer::Hang);
+    assert_eq!(focus(&w4v_p9(false), &fake), Err(FocusError::NotResponding));
+    assert_eq!(fake.calls(), [WS_FOCUS]);
+}
+
+#[test]
+fn ts9_3_tab_focus_timeout_is_not_responding() {
+    let fake = FakeRunner::new()
+        .on(WS_FOCUS, Answer::ok(""))
+        .on(TAB_FOCUS, Answer::Hang);
+    assert_eq!(focus(&w4v_p9(false), &fake), Err(FocusError::NotResponding));
+    assert_eq!(fake.calls(), [WS_FOCUS, TAB_FOCUS]);
+}
+
+#[test]
+fn fr60_moved_pane_is_focused_by_its_new_id() {
+    let fake = FakeRunner::new().on("agent focus w7Q:p2", Answer::ok(""));
+    let p = LivePane {
+        pane: "w7Q:p2".into(),
+        tab: "w7Q:t1".into(),
+        workspace: "w7Q".into(),
+        agent: true,
+    };
+    assert_eq!(focus(&p, &fake), Ok(Focused::Agent));
+    assert_eq!(fake.calls(), ["agent focus w7Q:p2"]);
+}
+
+#[test]
+fn ts9_3_locate_and_focus_share_the_budget() {
+    let fake = FakeRunner::new()
+        .on("pane get w4V:p9", Answer::ok(AGENT).taking(ms(1500)))
+        .on(AGENT_FOCUS, Answer::Hang);
+    let budget = Budget::new(&fake, BUDGET);
+    let PaneStatus::Live(p) = locate(&w12_place(), &in_herdr(), &budget) else {
+        panic!("expected Live");
+    };
+    assert_eq!(focus(&p, &budget), Err(FocusError::NotResponding));
+    assert_eq!(fake.calls(), ["pane get w4V:p9", AGENT_FOCUS]);
+    assert_eq!(fake.timeouts()[1], ms(1500));
 }
