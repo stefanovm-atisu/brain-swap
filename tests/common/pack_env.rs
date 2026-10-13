@@ -145,6 +145,15 @@ impl PackEnv {
         )
     }
 
+    /// Inside herdr pane `pane` (tab, workspace) of the fake herdr scenario `pack_two_panes`.
+    pub fn in_pane(mut self, pane: &str, tab: &str, workspace: &str) -> PackEnv {
+        self.scenario = self
+            .scenario
+            .herdr(pane, tab, workspace)
+            .fake_scenario("pack_two_panes");
+        self
+    }
+
     /// Seeds the reference of `session` to `id`.
     pub fn link(&self, id: &str, session: &str) {
         let (code, _, err) = self.run_sh(&format!("brain-swap link {id} --session {session}"), "");

@@ -890,3 +890,152 @@ fn fr47_move_line_command_moves_the_card() {
     );
     assert_ne!(after, before);
 }
+
+// ---- AS-1, AS-2, AS-3 command replay (E3-F1-T7) ----
+
+const P9: (&str, &str, &str) = ("w4V:p9", "w4V:t1", "w4V");
+const P11: (&str, &str, &str) = ("w4V:p11", "w4V:t1", "w4V");
+
+/// `env` in pane `p` of the `pack_two_panes` fake herdr.
+fn pane(env: PackEnv, p: (&str, &str, &str)) -> PackEnv {
+    env.in_pane(p.0, p.1, p.2)
+}
+
+/// Bs-park's heredoc for `session`, parking to `id` with sample parts.
+fn park_block(session: &str, id: &str) -> String {
+    let blocks = heredoc_commands(&read_skill("bs-park"));
+    let cmd = substitute(&blocks[0], session).replace("--card W-12", &format!("--card {id}"));
+    fill_park_heredoc(
+        &cmd,
+        "switched repo to v13",
+        "rerun migration test",
+        "timeout",
+    )
+}
+
+/// Bs-park's inline command for `session`: its stdout.
+fn park_context(env: &PackEnv, session: &str) -> String {
+    let (code, out, err) = env.run_sh(&substitute(PARK_INLINE, session), "");
+    assert_eq!(code, 0, "{err}");
+    out
+}
+
+/// Runs `cmd` expecting exit 0; returns stdout.
+fn run_ok(env: &PackEnv, cmd: &str) -> String {
+    let (code, out, err) = env.run_sh(cmd, "");
+    assert_eq!(code, 0, "{cmd}: {err}");
+    out
+}
+
+/// A temp env with W-12 where `SESSION_A` linked W-12 in pane `w4V:p9`.
+fn a_linked_in_p9() -> PackEnv {
+    let env = pane(PackEnv::new().with_w12(), P9);
+    env.link("W-12", SESSION_A);
+    env
+}
+
+#[test]
+fn as1_park_records_the_pane_place() {
+    let env = a_linked_in_p9();
+    let out = run_ok(&env, &park_block(SESSION_A, "W-12"));
+    assert_eq!(out, "parked to W-12: migrate invoices to v13\n");
+    let cwd = run_ok(&env, "pwd -P");
+    let text = run_ok(&env, "cat boards/work/W-12.md");
+    let place = text
+        .lines()
+        .rfind(|l| l.starts_with("<!-- where:"))
+        .unwrap();
+    for part in [
+        format!("cwd={}", cwd.trim()),
+        "pane=w4V:p9".to_string(),
+        "tab=w4V:t1".to_string(),
+        "workspace=w4V".to_string(),
+        format!("session={SESSION_A}"),
+    ] {
+        assert!(place.split(' ').any(|w| w == part), "{part}: {place}");
+    }
+    assert_ne!(
+        place,
+        text.lines().find(|l| l.starts_with("<!-- where:")).unwrap()
+    );
+}
+
+#[test]
+fn as1_link_in_a_second_session_keeps_the_first_reference() {
+    let env = pane(a_linked_in_p9(), P11);
+    let cmd = substitute(&bs_link_command("brain-swap link "), SESSION_B).replace("W-12", "W-7");
+    let out = run_ok(&env, &cmd);
+    assert_eq!(
+        out.lines().next(),
+        Some("linked to W-7: fix rounding in act export")
+    );
+    assert!(latest_note_line(&out).contains("ago"), "{out}");
+    let ctx = park_context(&env, SESSION_A);
+    assert!(ctx.lines().any(|l| l == "reference: W-12"), "{ctx}");
+}
+
+#[test]
+fn as2_back_context_reports_a_40_min_old_note() {
+    let env = PackEnv::new().with_w12();
+    env.link("W-12", SESSION_A);
+    let inline = inline_commands(&read_skill("bs-back"));
+    let cmd = format!(
+        "BRAIN_SWAP_NOW=2026-10-08T11:40:00+03:00 {}",
+        substitute(&inline[0], SESSION_A)
+    );
+    let out = run_ok(&env, &cmd);
+    let note = latest_note_line(&out);
+    assert!(note.contains("40 min ago"), "{note}");
+}
+
+#[test]
+fn as3_after_clear_the_picker_puts_linked_here_first() {
+    let env = pane(a_linked_in_p9(), P11);
+    run_ok(&env, &park_block(SESSION_B, "W-7"));
+    let env = pane(env, P9);
+    let out = park_context(&env, SESSION_C);
+    let lines: Vec<&str> = out.lines().collect();
+    assert!(lines.contains(&"reference: none"), "{out}");
+    let i = lines
+        .iter()
+        .position(|l| *l == "open cards on work, best guess first:")
+        .unwrap_or_else(|| panic!("{out}"));
+    let first = lines[i + 1];
+    assert!(
+        first.starts_with("1. W-12 migrate invoices to v13 [Doing]"),
+        "{out}"
+    );
+    assert!(first.contains(", linked here:"), "{out}");
+    assert_eq!(lines.last(), Some(&"o. other board: home, personal"));
+}
+
+#[test]
+fn as3_a_pick_restores_the_reference_for_the_next_park() {
+    let env = pane(PackEnv::new().with_w12(), P9);
+    let out = run_ok(&env, &park_block(SESSION_C, "W-12"));
+    assert_eq!(out, "parked to W-12: migrate invoices to v13\n");
+    let ctx = park_context(&env, SESSION_C);
+    assert!(ctx.lines().any(|l| l == "reference: W-12"), "{ctx}");
+}
+
+#[test]
+fn as3_other_board_pick_sets_a_home_reference() {
+    let env = PackEnv::new().with_w12();
+    let ls = commands(&read_skill("bs-park"))
+        .into_iter()
+        .find(|c| c.starts_with("brain-swap ls "))
+        .unwrap();
+    let out = run_ok(&env, &substitute(&ls, SESSION_C));
+    assert!(
+        out.lines()
+            .any(|l| l == "1. H-3 renew car insurance [Todo] no note"),
+        "{out}"
+    );
+    let out = run_ok(&env, &park_block(SESSION_C, "H-3"));
+    assert_eq!(out, "parked to H-3: renew car insurance\n");
+    let ctx = park_context(&env, SESSION_C);
+    let lines: Vec<&str> = ctx.lines().collect();
+    for l in ["reference: H-3", "board: home, column: Todo"] {
+        assert!(lines.contains(&l), "{l}: {ctx}");
+    }
+}
