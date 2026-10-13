@@ -3,17 +3,18 @@
 mod common;
 
 use brain_swap::adapters::herdr::{BUDGET, PaneStatus};
-use brain_swap::adapters::runner::{Answer, FakeRunner};
+use brain_swap::adapters::runner::{Answer, FakeRunner, RunResult, Runner};
 use brain_swap::core::env::Env;
 use brain_swap::core::keys::KeyMap;
 use brain_swap::core::model::CardId;
 use brain_swap::tui::Prepared;
 use brain_swap::tui::app::{App, Effect, Input, Mode, Outcome, Selection, update};
-use brain_swap::tui::runtime::run_jump;
+use brain_swap::tui::runtime::{Runtime, run_jump};
 use common::tui::{
     Ev, FakeGuard, NoLauncher, TuiFixture, assert_no_colour, fake_runtime_with, key, press, render,
     rows,
 };
+use ratatui::backend::TestBackend;
 use std::time::Duration;
 
 fn id(number: u32) -> CardId {
@@ -448,4 +449,87 @@ fn fr63_tui_stays_open_after_not_responding() {
     assert!(frame.contains(BILLING), "{frame}");
     assert_eq!(rt.dispatch(Input::Key(key("x"))), None);
     assert_eq!(rt.dispatch(Input::Key(key("q"))), Some(0));
+}
+
+/// Delegates to `fake` and logs each call into `log`, interleaved with the guard's events.
+struct Recording {
+    fake: FakeRunner,
+    log: FakeGuard,
+}
+
+impl Runner for Recording {
+    fn run(&self, args: &[&str], timeout: Duration) -> RunResult {
+        let call: &'static str = Box::leak(args.join(" ").into_boxed_str());
+        self.log.0.borrow_mut().push(call);
+        self.fake.run(args, timeout)
+    }
+}
+
+/// `jump_runtime` whose guard log also records every herdr call.
+fn recording_runtime(
+    fake: FakeRunner,
+) -> (Runtime<TestBackend>, FakeGuard, common::tui::FakeEvents) {
+    let fx = work();
+    let prepared = Prepared {
+        app: board_on(&fx, 1, 12),
+        config: Some(brain_swap::core::config::load(&fx.env).unwrap().config),
+        templates: Vec::new(),
+    };
+    let guard = FakeGuard::default();
+    let log = guard.clone();
+    let runner = Box::new(Recording { fake, log });
+    let env = in_herdr(&fx);
+    fake_runtime_with(&env, prepared, 80, 24, Box::new(NoLauncher), guard, runner)
+}
+
+fn frame(rt: &mut Runtime<TestBackend>) -> String {
+    rt.draw().unwrap();
+    rows(rt.terminal.backend().buffer()).join("\n")
+}
+
+#[test]
+fn ts7_7_focus_precedes_restore() {
+    let fake = agent_pane().on("agent focus w4V:p9", Answer::ok(""));
+    let (mut rt, guard, events) = recording_runtime(fake);
+    events.push([Ev::Key("enter")]);
+    assert_eq!(rt.run(), 0);
+    assert_eq!(
+        *guard.0.borrow(),
+        ["enter", "pane get w4V:p9", "agent focus w4V:p9", "leave"]
+    );
+}
+
+#[test]
+fn ts7_7_failed_focus_never_restores() {
+    let fake = agent_pane()
+        .on("agent focus w4V:p9", Answer::fail(1, ""))
+        .on("workspace focus w4V", Answer::fail(1, ""));
+    let (mut rt, guard, _events) = recording_runtime(fake);
+    assert_eq!(rt.dispatch(Input::Key(key("enter"))), None);
+    assert!(
+        !guard.0.borrow().contains(&"leave"),
+        "{:?}",
+        guard.0.borrow()
+    );
+    let frame = frame(&mut rt);
+    assert!(frame.contains("focus failed: w4V:p9"), "{frame}");
+}
+
+#[test]
+fn ts7_7_status_without_a_live_pane_never_restores() {
+    let fake = FakeRunner::new()
+        .on("pane get w4V:p9", Answer::fail(1, NOT_FOUND))
+        .on(
+            "workspace list",
+            Answer::ok(r#"{"result":{"workspaces":[]}}"#),
+        );
+    let (mut rt, guard, _events) = recording_runtime(fake);
+    assert_eq!(rt.dispatch(Input::Key(key("enter"))), None);
+    assert!(
+        !guard.0.borrow().contains(&"leave"),
+        "{:?}",
+        guard.0.borrow()
+    );
+    let frame = frame(&mut rt);
+    assert!(frame.contains("pane closed"), "{frame}");
 }

@@ -255,7 +255,8 @@ impl<B: Backend> Runtime<B> {
                         continue;
                     };
                     let outcome = run_jump(&self.env, card, note, &*self.parts.runner);
-                    // `Jumped` quits: exit 0 through the quit path, which restores (FR-59).
+                    // Focus first, then exit (7.7, SP-2): `Jumped` quits through the quit path,
+                    // and `run` restores once on the way to exit 0; any other outcome never restores.
                     if let Some(code) = self.dispatch(Input::Done(outcome)) {
                         return Some(code);
                     }

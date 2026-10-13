@@ -504,7 +504,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F3-T4 Terminal order per SP-2
 
-- Status: doing
+- Status: done
 - Depends on: E5-F3-T3
 - Covers: FR-59, FR-63; TECHSPEC 7.7 (focus first, then restore and exit), 16 (SP-2)
 - Size: S
