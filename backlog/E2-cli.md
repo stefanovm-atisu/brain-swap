@@ -496,7 +496,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T10 `context` problems, warnings and first run
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F3-T9
 - Covers: FR-37, FR-41; TECHSPEC 4.3 (`board.md` warning), 6.2 (`context` exits 0 in every state), 6.3 (problem lines), 6.4 (warnings), 10 (Config bullet), 11 (`BRAIN_SWAP_LOG` inside a board folder), 12.1 (`context` states)
 - Size: M
