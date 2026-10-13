@@ -12,7 +12,8 @@ use brain_swap::tui::{gate, prepare};
 use common::sound::assert_board_sound;
 use common::spawn::{Scenario, command};
 use common::tui::{
-    Ev, FakeEvents, FakeGuard, FakeLauncher, TuiFixture, fake_runtime_with, key, scripted_editor,
+    Ev, FakeEvents, FakeGuard, FakeLauncher, TuiFixture, fake_runtime_with, key, no_runner,
+    scripted_editor,
 };
 use ratatui::backend::TestBackend;
 use std::fs;
@@ -33,7 +34,8 @@ fn runtime(env: &Env, launcher: Box<dyn Launcher>) -> (Runtime<TestBackend>, Fak
     let mut env = env.clone();
     let start = gate(&env, None, true).unwrap();
     let prepared = prepare(&mut env, start).unwrap();
-    let (rt, _, events) = fake_runtime_with(&env, prepared, 80, 24, launcher, FakeGuard::default());
+    let guard = FakeGuard::default();
+    let (rt, _, events) = fake_runtime_with(&env, prepared, 80, 24, launcher, guard, no_runner());
     (rt, events)
 }
 

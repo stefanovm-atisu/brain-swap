@@ -13,7 +13,8 @@ use brain_swap::tui::runtime::Runtime;
 use common::env::core_env;
 use common::spawn::{Scenario, brain_swap};
 use common::tui::{
-    FakeGuard, FakeLauncher, NOW, TuiFixture, fake_runtime_with, key, press, rows, scripted_editor,
+    FakeGuard, FakeLauncher, NOW, TuiFixture, fake_runtime_with, key, no_runner, press, rows,
+    scripted_editor,
 };
 use ratatui::backend::{Backend, TestBackend};
 use std::fs;
@@ -62,7 +63,8 @@ fn runtime_logged(
         config: Some(config::load(&fx.env).unwrap().config),
         templates: Vec::new(),
     };
-    fake_runtime_with(&fx.env, prepared, 80, 24, Box::new(launcher.clone()), guard).0
+    let launcher = Box::new(launcher.clone());
+    fake_runtime_with(&fx.env, prepared, 80, 24, launcher, guard, no_runner()).0
 }
 
 /// Runs `e` on W-12 with a launcher that writes `edited` to the copy and exits 0.

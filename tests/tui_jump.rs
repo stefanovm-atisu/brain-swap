@@ -2,11 +2,19 @@
 
 mod common;
 
-use brain_swap::adapters::herdr::PaneStatus;
+use brain_swap::adapters::herdr::{BUDGET, PaneStatus};
+use brain_swap::adapters::runner::{Answer, FakeRunner};
+use brain_swap::core::env::Env;
 use brain_swap::core::keys::KeyMap;
 use brain_swap::core::model::CardId;
+use brain_swap::tui::Prepared;
 use brain_swap::tui::app::{App, Effect, Input, Mode, Outcome, Selection, update};
-use common::tui::{TuiFixture, assert_no_colour, press, render, rows};
+use brain_swap::tui::runtime::run_jump;
+use common::tui::{
+    Ev, FakeGuard, NoLauncher, TuiFixture, assert_no_colour, fake_runtime_with, key, press, render,
+    rows,
+};
+use std::time::Duration;
 
 fn id(number: u32) -> CardId {
     CardId {
@@ -233,4 +241,211 @@ fn ts7_7_jumping_status_is_cleared() {
     assert_eq!(press(&mut app, &["enter"]), [Effect::Jump(id(12), 1)]);
     update(&mut app, not_jumped(PaneStatus::Closed, Some(BILLING)));
     assert_eq!(app.status, None);
+}
+
+const AGENT: &str = include_str!("fixtures/herdr/pane_agent.json");
+const SHELL: &str = include_str!("fixtures/herdr/pane_shell.json");
+const NOT_FOUND: &str = include_str!("fixtures/herdr/pane_not_found.stderr");
+const WS_LIST: &str = include_str!("fixtures/herdr/workspace_list.json");
+const PANES_W4V: &str = include_str!("fixtures/herdr/pane_list_w4V.json");
+const PANES_W7Q: &str = include_str!("fixtures/herdr/pane_list_w7Q.json");
+
+/// The fixture's env with `HERDR_ENV=1`.
+fn in_herdr(fx: &TuiFixture) -> Env {
+    let mut env = fx.env.clone();
+    env.herdr_env = Some("1".into());
+    env
+}
+
+/// `run_jump` on `work_4_9`'s card `card`, note `note`, inside herdr when `herdr`.
+fn jump_on(fx: &TuiFixture, card: u32, note: usize, herdr: bool, fake: &FakeRunner) -> Outcome {
+    let env = if herdr { in_herdr(fx) } else { fx.env.clone() };
+    let board = fx.board();
+    run_jump(&env, board.card(id(card)).unwrap(), note, fake)
+}
+
+/// `pane get w4V:p9` answering `pane_agent.json`.
+fn agent_pane() -> FakeRunner {
+    FakeRunner::new().on("pane get w4V:p9", Answer::ok(AGENT))
+}
+
+fn billing() -> Option<std::path::PathBuf> {
+    Some(BILLING.into())
+}
+
+#[test]
+fn fr59_live_agent_pane_is_jumped() {
+    let fake = agent_pane().on("agent focus w4V:p9", Answer::ok(""));
+    assert_eq!(jump_on(&work(), 12, 1, true, &fake), Outcome::Jumped);
+    assert_eq!(fake.calls(), ["pane get w4V:p9", "agent focus w4V:p9"]);
+}
+
+#[test]
+fn fr59_live_shell_pane_is_jumped_by_tab() {
+    let shell = SHELL
+        .replace("w4V:p3", "w4V:p9")
+        .replace("w4V:t2", "w4V:t1");
+    let fake = FakeRunner::new()
+        .on("pane get w4V:p9", Answer::ok(&shell))
+        .on("workspace focus w4V", Answer::ok(""))
+        .on("tab focus w4V:t1", Answer::ok(""));
+    assert_eq!(jump_on(&work(), 12, 1, true, &fake), Outcome::Jumped);
+    assert_eq!(
+        fake.calls(),
+        ["pane get w4V:p9", "workspace focus w4V", "tab focus w4V:t1"]
+    );
+}
+
+#[test]
+fn fr60_moved_pane_is_jumped() {
+    let fake = FakeRunner::new()
+        .on("pane get w4V:p9", Answer::fail(1, NOT_FOUND))
+        .on("workspace list", Answer::ok(WS_LIST))
+        .on("pane list --workspace w4V", Answer::ok(PANES_W4V))
+        .on("pane list --workspace w7Q", Answer::ok(PANES_W7Q))
+        .on("agent focus w7Q:p2", Answer::ok(""));
+    assert_eq!(jump_on(&work(), 12, 1, true, &fake), Outcome::Jumped);
+    assert_eq!(fake.calls().last().unwrap(), "agent focus w7Q:p2");
+}
+
+#[test]
+fn ts7_7_failed_focus_is_focus_failed_with_cwd() {
+    let fake = agent_pane()
+        .on("agent focus w4V:p9", Answer::fail(1, ""))
+        .on("workspace focus w4V", Answer::fail(1, ""));
+    assert_eq!(
+        jump_on(&work(), 12, 1, true, &fake),
+        Outcome::FocusFailed("w4V:p9".into(), billing())
+    );
+}
+
+#[test]
+fn ts7_7_timed_out_focus_is_not_responding() {
+    let fake = agent_pane().on("agent focus w4V:p9", Answer::Hang);
+    assert_eq!(
+        jump_on(&work(), 12, 1, true, &fake),
+        Outcome::NotJumped(PaneStatus::NotResponding, billing())
+    );
+}
+
+#[test]
+fn fr61_closed_pane_is_not_jumped_without_focus() {
+    let fake = FakeRunner::new()
+        .on("pane get w4V:p9", Answer::fail(1, NOT_FOUND))
+        .on(
+            "workspace list",
+            Answer::ok(r#"{"result":{"workspaces":[]}}"#),
+        );
+    assert_eq!(
+        jump_on(&work(), 12, 1, true, &fake),
+        Outcome::NotJumped(PaneStatus::Closed, billing())
+    );
+    assert!(!fake.calls().iter().any(|c| c.contains("focus")));
+}
+
+#[test]
+fn fr62_outside_herdr_is_not_jumped_without_a_call() {
+    let fake = FakeRunner::new();
+    assert_eq!(
+        jump_on(&work(), 12, 1, false, &fake),
+        Outcome::NotJumped(PaneStatus::OutsideHerdr, billing())
+    );
+    assert!(fake.calls().is_empty());
+}
+
+#[test]
+fn fr62_note_without_pane_is_not_jumped() {
+    let cwd = "/home/smilen/Work/private/brain-swap";
+    assert_eq!(
+        jump_on(&work(), 9, 0, true, &FakeRunner::new()),
+        Outcome::NotJumped(PaneStatus::NoPane, Some(cwd.into()))
+    );
+}
+
+#[test]
+fn as11_hang_is_not_jumped_within_3_seconds() {
+    let slow = Answer::fail(1, NOT_FOUND).taking(Duration::from_millis(1500));
+    let fake = FakeRunner::new()
+        .on("pane get w4V:p9", slow)
+        .on("workspace list", Answer::Hang);
+    assert_eq!(
+        jump_on(&work(), 12, 1, true, &fake),
+        Outcome::NotJumped(PaneStatus::NotResponding, billing())
+    );
+    // A hang takes its whole timeout; `pane get` took 1.5 s.
+    let took = Duration::from_millis(1500) + fake.timeouts()[1];
+    assert!(took <= BUDGET, "{took:?}");
+}
+
+#[test]
+fn ts9_3_locate_and_focus_share_one_budget() {
+    let slow = Answer::ok(AGENT).taking(Duration::from_millis(1500));
+    let fake = FakeRunner::new()
+        .on("pane get w4V:p9", slow)
+        .on("agent focus w4V:p9", Answer::ok(""));
+    assert_eq!(jump_on(&work(), 12, 1, true, &fake), Outcome::Jumped);
+    assert_eq!(fake.timeouts()[1], Duration::from_millis(1500));
+}
+
+#[test]
+fn fr28_run_jump_uses_the_given_note() {
+    let fx = work();
+    let from = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/jump/W-14.md");
+    std::fs::copy(from, fx.board_dir.join("W-14.md")).unwrap();
+    let fake = FakeRunner::new()
+        .on("pane get w4V:p3", Answer::ok(SHELL))
+        .on("workspace focus w4V", Answer::ok(""))
+        .on("tab focus w4V:t2", Answer::ok(""));
+    jump_on(&fx, 14, 0, true, &fake);
+    assert_eq!(fake.calls()[0], "pane get w4V:p3");
+}
+
+/// A runtime on `work_4_9` inside herdr with W-12 selected and `fake` as its runner.
+fn jump_runtime(
+    fx: &TuiFixture,
+    fake: FakeRunner,
+) -> (
+    brain_swap::tui::runtime::Runtime<ratatui::backend::TestBackend>,
+    FakeGuard,
+    common::tui::FakeEvents,
+) {
+    let prepared = Prepared {
+        app: board_on(fx, 1, 12),
+        config: Some(brain_swap::core::config::load(&fx.env).unwrap().config),
+        templates: Vec::new(),
+    };
+    let guard = FakeGuard::default();
+    let env = in_herdr(fx);
+    fake_runtime_with(
+        &env,
+        prepared,
+        80,
+        24,
+        Box::new(NoLauncher),
+        guard,
+        Box::new(fake),
+    )
+}
+
+#[test]
+fn fr59_jumped_outcome_ends_the_runtime_with_exit_0() {
+    let fake = agent_pane().on("agent focus w4V:p9", Answer::ok(""));
+    let (mut rt, guard, events) = jump_runtime(&work(), fake);
+    events.push([Ev::Key("enter")]);
+    assert_eq!(rt.run(), 0);
+    let restores = guard.0.borrow().iter().filter(|e| **e == "leave").count();
+    assert_eq!(restores, 1);
+}
+
+#[test]
+fn fr63_tui_stays_open_after_not_responding() {
+    let fake = FakeRunner::new().on("pane get w4V:p9", Answer::Hang);
+    let (mut rt, _guard, _events) = jump_runtime(&work(), fake);
+    assert_eq!(rt.dispatch(Input::Key(key("enter"))), None);
+    rt.draw().unwrap();
+    let frame = rows(rt.terminal.backend().buffer()).join("\n");
+    assert!(frame.contains("herdr not responding"), "{frame}");
+    assert!(frame.contains(BILLING), "{frame}");
+    assert_eq!(rt.dispatch(Input::Key(key("x"))), None);
+    assert_eq!(rt.dispatch(Input::Key(key("q"))), Some(0));
 }

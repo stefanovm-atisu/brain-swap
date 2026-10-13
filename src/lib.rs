@@ -158,6 +158,7 @@ pub mod tui {
             events: Box::new(CrosstermEvents),
             clock: Box::new(SystemClock { tz: env.tz.clone() }),
             launcher: Box::new(editor::ProcessLauncher),
+            runner: Box::new(crate::adapters::runner::ProcessRunner::new(&env)),
         };
         Runtime::new(env, prepared, terminal, parts).run()
     }

@@ -478,7 +478,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F3-T3 Running the jump effect
 
-- Status: doing
+- Status: done
 - Depends on: E5-F3-T2, E5-F2-T5, E5-F2-T7, E4-F1
 - Covers: FR-28, FR-59, FR-60, FR-61, FR-62, FR-63; AS-11; TECHSPEC 7.1 (runtime runs effects through `adapters::herdr`), 7.7 (focus first, then exit), 9.3 (shared budget)
 - Size: M

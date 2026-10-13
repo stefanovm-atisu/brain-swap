@@ -2,6 +2,7 @@
 
 use super::env::core_env;
 use super::spawn::Scenario;
+use brain_swap::adapters::runner::{FakeRunner, Runner};
 use brain_swap::core::board::load;
 use brain_swap::core::env::Env;
 use brain_swap::core::keys::{Key, KeyMap, parse_binding};
@@ -112,7 +113,8 @@ impl TuiFixture {
         };
         let prepared = prepare(&mut env, start).unwrap();
         let guard = FakeGuard::default();
-        fake_runtime_with(&env, prepared, 80, 24, Box::new(ProcessLauncher), guard).0
+        let launcher = Box::new(ProcessLauncher);
+        fake_runtime_with(&env, prepared, 80, 24, launcher, guard, no_runner()).0
     }
 }
 
@@ -144,6 +146,11 @@ pub fn scripted_editor(
     )
 }
 
+/// A `FakeRunner` without answers: any herdr call fails the test.
+pub fn no_runner() -> Box<dyn Runner> {
+    Box::new(FakeRunner::new())
+}
+
 /// A runtime over `prepared` with a `FakeGuard`, an empty `FakeEvents` and a `FakeClock` at `env.now`.
 pub fn fake_runtime(
     env: &Env,
@@ -152,10 +159,12 @@ pub fn fake_runtime(
     height: u16,
 ) -> (Runtime<TestBackend>, FakeGuard, FakeEvents) {
     let guard = FakeGuard::default();
-    fake_runtime_with(env, prepared, width, height, Box::new(NoLauncher), guard)
+    let launcher = Box::new(NoLauncher);
+    fake_runtime_with(env, prepared, width, height, launcher, guard, no_runner())
 }
 
-/// Like `fake_runtime`, with `launcher` as the editor launcher and `guard` as the guard.
+/// Like `fake_runtime`, with `launcher` as the editor launcher, `guard` as the guard and
+/// `runner` as the herdr runner.
 pub fn fake_runtime_with(
     env: &Env,
     prepared: Prepared,
@@ -163,6 +172,7 @@ pub fn fake_runtime_with(
     height: u16,
     launcher: Box<dyn Launcher>,
     guard: FakeGuard,
+    runner: Box<dyn Runner>,
 ) -> (Runtime<TestBackend>, FakeGuard, FakeEvents) {
     let clock = FakeClock(Rc::new(RefCell::new(env.now.clone())));
     let events = FakeEvents {
@@ -175,6 +185,7 @@ pub fn fake_runtime_with(
         events: Box::new(events.clone()),
         clock: Box::new(clock),
         launcher,
+        runner,
     };
     let terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     (

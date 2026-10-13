@@ -19,10 +19,12 @@ use super::Prepared;
 use super::app::{App, Effect, Input, Mode, Outcome, update};
 use super::editor::{Launcher, edit_card};
 use super::view_frame;
+use crate::adapters::herdr::{BUDGET, Budget, FocusError, PaneStatus, focus, locate};
+use crate::adapters::runner::Runner;
 use crate::core::board;
 use crate::core::env::Env;
 use crate::core::log;
-use crate::core::model::CardId;
+use crate::core::model::{Card, CardId};
 use crate::core::store::{CreateRequest, create, move_card};
 use crate::core::template::{Template, find};
 use crate::core::time::{Stamp, whole_second};
@@ -85,6 +87,22 @@ pub struct Parts {
     pub events: Box<dyn Events>,
     pub clock: Box<dyn Clock>,
     pub launcher: Box<dyn Launcher>,
+    pub runner: Box<dyn Runner>,
+}
+
+/// Locates `card.notes[note]` and focuses its pane within one budget (7.7, 9.3).
+pub fn run_jump(env: &Env, card: &Card, note: usize, runner: &dyn Runner) -> Outcome {
+    let place = &card.notes[note].place;
+    let cwd = place.cwd.clone();
+    let budget = Budget::new(runner, BUDGET);
+    match locate(place, env, &budget) {
+        PaneStatus::Live(p) | PaneStatus::Moved(p) => match focus(&p, &budget) {
+            Ok(_) => Outcome::Jumped,
+            Err(FocusError::Failed) => Outcome::FocusFailed(p.pane, cwd),
+            Err(FocusError::NotResponding) => Outcome::NotJumped(PaneStatus::NotResponding, cwd),
+        },
+        status => Outcome::NotJumped(status, cwd),
+    }
 }
 
 /// The sorted `(name, mtime, length)` of `board.md` and the card files of one letter (7.4).
@@ -230,7 +248,18 @@ impl<B: Backend> Runtime<B> {
                     };
                     self.dispatch(input);
                 }
-                Effect::Jump(..) => {}
+                Effect::Jump(id, note) => {
+                    // One frame first, so `jumping...` shows while herdr answers (7.7).
+                    let _ = self.draw();
+                    let Some(card) = self.app.board.card(id) else {
+                        continue;
+                    };
+                    let outcome = run_jump(&self.env, card, note, &*self.parts.runner);
+                    // `Jumped` quits: exit 0 through the quit path, which restores (FR-59).
+                    if let Some(code) = self.dispatch(Input::Done(outcome)) {
+                        return Some(code);
+                    }
+                }
             }
         }
         None
