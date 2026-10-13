@@ -354,7 +354,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T3 `--auto`, herdr capture and the session in the place
 
-- Status: doing
+- Status: done
 - Depends on: E2-F3-T1, E5-F1, E1-F7
 - Covers: FR-15; TECHSPEC 6.3 (`--auto`, capture), 9.1 (as called), T-15
 - Size: S

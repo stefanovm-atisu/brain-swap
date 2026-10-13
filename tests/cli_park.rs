@@ -2,6 +2,7 @@
 
 mod common;
 
+use brain_swap::core::card_file::parse;
 use brain_swap::core::env::Env;
 use brain_swap::core::store::lock_board;
 use common::cli::Sandbox;
@@ -261,4 +262,63 @@ fn as6_park_from_terminal_prompts_and_writes_no_auto() {
     assert_eq!(lines.next(), Some("2026-10-08T08:52:00+00:00"));
     let parts: Vec<_> = lines.take(3).collect();
     assert_eq!(parts, ["- Doing: a", "- Next: b", "- Watch out: c"]);
+}
+
+/// Reloads W-12, checks I6 on its latest note (`at`, `place.cwd`, a non-empty part) and
+/// returns the note's place line.
+fn i6_place_line(s: &Sandbox) -> String {
+    let path = card(s, "W-12");
+    let id = brain_swap::core::model::CardId::parse("W-12").unwrap();
+    let parsed = parse(id, &path, &fs::read(&path).unwrap(), "Todo", &TimeZone::UTC);
+    let n = parsed.card.latest_note().unwrap();
+    assert!(n.at.is_some() && n.place.cwd.is_some() && !n.doing.is_empty());
+    let file = s.redact(&fs::read_to_string(&path).unwrap());
+    let place = file.lines().rfind(|l| l.starts_with("<!-- where:"));
+    place.unwrap().to_string()
+}
+
+#[test]
+fn ts6_3_park_auto_flag_marks_heading() {
+    let s = sandbox();
+    park(
+        &s,
+        &["park", "--card", "W-12", "--auto"],
+        "Doing: a",
+        "elsewhere",
+        0,
+    );
+    i6_place_line(&s);
+    let file = fs::read_to_string(card(&s, "W-12")).unwrap();
+    let heading = file.lines().rfind(|l| l.starts_with("### "));
+    assert_eq!(heading, Some("### 2026-10-08T08:52:00+00:00 auto"));
+}
+
+#[test]
+fn fr15_park_inside_herdr_records_pane_tab_workspace() {
+    let mut s = sandbox();
+    let scenario = s.scenario_mut();
+    *scenario = scenario
+        .clone()
+        .herdr("w4V:p9", "w4V:t1", "w4V")
+        .fake_scenario("pane-session");
+    let args = ["park", "--card", "W-12", "--session", "s1"];
+    park(&s, &args, "Doing: a", "elsewhere", 0);
+    assert_eq!(
+        i6_place_line(&s),
+        "<!-- where: cwd=<sandbox>/elsewhere pane=w4V:p9 tab=w4V:t1 workspace=w4V session=s1 -->"
+    );
+    // TECHSPEC 16 SP-4: no moved-pane check, so park calls no herdr.
+    assert!(common::fake_herdr::calls(&s.root().join("home")).is_empty());
+}
+
+#[test]
+fn fr15_park_records_env_session() {
+    let mut s = sandbox();
+    let scenario = s.scenario_mut();
+    *scenario = scenario.clone().session("s2");
+    park(&s, &["park", "--card", "W-12"], "Doing: a", "elsewhere", 0);
+    assert_eq!(
+        i6_place_line(&s),
+        "<!-- where: cwd=<sandbox>/elsewhere session=s2 -->"
+    );
 }

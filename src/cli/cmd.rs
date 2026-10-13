@@ -1,5 +1,7 @@
 //! One function per subcommand (TECHSPEC 2.1).
 
+use crate::adapters::herdr;
+use crate::adapters::runner::ProcessRunner;
 use crate::cli::args::{Cli, Command};
 use crate::cli::out::{self, Out};
 use crate::core::config::{self, Config};
@@ -291,21 +293,28 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             out.result(&templates(&ts), Body { templates: &ts });
             0
         }
-        Some(Command::Park { card: Some(id), .. }) => {
+        Some(Command::Park {
+            card: Some(id),
+            session,
+            auto,
+        }) => {
             let ctx = ctx.expect("loaded above");
+            let resolved = crate::core::session::resolve(session.as_deref(), env);
+            resolved.warnings.iter().for_each(|w| out.warn(w));
+            let runner = ProcessRunner::new(env);
             let parked = find_card(&ctx, id).and_then(|(board, _)| {
                 let stdin = std::io::stdin();
                 let terminal = std::io::IsTerminal::is_terminal(&stdin);
                 let n = read_note(&mut stdin.lock(), &mut std::io::stderr(), terminal)?;
                 let note = NewNote {
                     at: env.now.clone(),
-                    auto: false,
+                    auto,
                     doing: n.doing,
                     next: n.next,
                     watch_out: n.watch_out,
                     cwd: env.cwd.clone(),
-                    herdr: None,
-                    session: None,
+                    herdr: herdr::capture(env, &runner),
+                    session: resolved.session,
                 };
                 Ok((store::park(env, &board, id, &note)?, board))
             });
