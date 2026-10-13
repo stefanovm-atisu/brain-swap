@@ -456,7 +456,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T8 `context` with a reference
 
-- Status: doing
+- Status: done
 - Depends on: E2-F3-T4, E2-F2-T5, E1-F7
 - Covers: FR-37; TECHSPEC 6.3 (`context`, first format), 6.7 (`context`)
 - Size: M

@@ -1,0 +1,10 @@
+---
+source: tests/cli_context.rs
+expression: s.redact(&out)
+---
+brain-swap context v1
+session: s1
+reference: W-11
+card: W-11 invoice PDF shows the wrong VAT
+board: work, column: Todo
+latest note: none

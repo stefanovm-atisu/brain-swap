@@ -382,6 +382,7 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                 Err(e) => out.error(&e),
             }
         }
+        Some(Command::Context { session }) => context(env, session.as_deref(), &mut out),
         Some(Command::Link { id, session }) => link(
             env,
             &ctx.expect("loaded above"),
@@ -391,6 +392,57 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
         ),
         _ => todo!(),
     }
+}
+
+/// `context` (6.3, 6.7) with a reference that resolves (I9): the header lines and the
+/// card block; exit 0.
+fn context(env: &mut Env, flag: Option<&str>, out: &mut Out) -> i32 {
+    let ctx = Ctx::load(env).expect("problem lines: E2-F3-T10");
+    let runner = ProcessRunner::new(env);
+    let (session, warnings) = resolve_session(env, flag, &runner);
+    let found = session
+        .as_deref()
+        .and_then(|s| read_reference(env, s))
+        .and_then(|r| {
+            let board = ctx.board(Some(&r.board)).ok()?;
+            let card = board.card(r.card)?.clone();
+            Some((board, card))
+        });
+    let Some((board, card)) = found else {
+        todo!("the picker: E2-F3-T9")
+    };
+    let view = out::SessionView::Resolved(session.clone());
+    let text = format!(
+        "brain-swap context v1\nsession: {}\nreference: {}\n{}",
+        session.as_deref().unwrap_or("none"),
+        card.id,
+        out::card_block(&card, &board, &env.now, &view)
+    );
+    let mut card_json = out::card_json(&card, &board, &env.now);
+    if let Some(n) = &mut card_json.latest_note {
+        n.by_this_session = n.place.session.map(|s| Some(s) == session.as_deref());
+    }
+    #[derive(serde::Serialize)]
+    struct Body<'a> {
+        session: Option<&'a str>,
+        reference: Option<String>,
+        card: Option<out::CardJson<'a>>,
+        candidates: Vec<out::CandidateJson<'a>>,
+        other_boards: Vec<&'a str>,
+        problem: Option<()>,
+        warnings: Vec<String>,
+    }
+    let body = Body {
+        session: session.as_deref(),
+        reference: Some(card.id.to_string()),
+        card: Some(card_json),
+        candidates: Vec::new(),
+        other_boards: Vec::new(),
+        problem: None,
+        warnings,
+    };
+    out.result(&text, body);
+    0
 }
 
 /// `link` (6.3): an unknown card or no session changes nothing; otherwise the reference
