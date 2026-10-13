@@ -4,7 +4,9 @@ mod common;
 
 use brain_swap::core::card_file::parse;
 use brain_swap::core::env::Env;
+use brain_swap::core::session::{read_pane_hint, read_reference, reference_path};
 use brain_swap::core::store::lock_board;
+use brain_swap::core::time::format_stamp;
 use common::cli::Sandbox;
 use jiff::tz::TimeZone;
 use std::collections::BTreeMap;
@@ -450,4 +452,156 @@ fn ts11_cli_ignores_log_inside_board_folder() {
         "{err}"
     );
     assert!(!log.exists());
+}
+
+/// The `Env` the sandbox's processes see, for reading references and hints through E1-F7.
+fn sandbox_env(s: &mut Sandbox) -> Env {
+    let vars = s.scenario_mut().vars();
+    Env::from_vars(
+        vars,
+        s.root().to_path_buf(),
+        std::process::id(),
+        TimeZone::UTC,
+        jiff::Zoned::now(),
+    )
+    .unwrap()
+}
+
+/// Every file name in `dir`, none when it is missing.
+fn names(dir: &std::path::Path) -> Vec<String> {
+    let entries = fs::read_dir(dir).into_iter().flatten().flatten();
+    entries
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect()
+}
+
+/// The sandbox without the `work` fixture, so `new` creates W-1.
+fn empty_sandbox() -> Sandbox {
+    let s = Sandbox::new();
+    s.write_config();
+    s
+}
+
+/// Test 1's step: `park --card W-12 --session s1` outside herdr from `<sandbox>/elsewhere`.
+fn park_sets_reference(s: &Sandbox) {
+    let args = ["park", "--card", "W-12", "--session", "s1"];
+    park(s, &args, "Doing: x", "elsewhere", 0);
+}
+
+#[test]
+fn fr57_park_card_sets_reference() {
+    let mut s = sandbox();
+    park_sets_reference(&s);
+    let env = sandbox_env(&mut s);
+    let r = read_reference(&env, "s1").expect("reference for s1");
+    assert_eq!(r.card.to_string(), "W-12");
+    assert_eq!(r.board, "work");
+    let cwd = r.cwd.map(|c| s.redact(&c.display().to_string()));
+    assert_eq!(cwd.as_deref(), Some("<sandbox>/elsewhere"));
+    assert_eq!(format_stamp(&r.set_at), "2026-10-08T08:52:00+00:00");
+    assert_eq!(r.pane, None);
+}
+
+#[test]
+fn fr57_park_by_reference_needs_no_card() {
+    let mut s = sandbox();
+    let fixture = fs::read_to_string(card(&s, "W-12")).unwrap();
+    park_sets_reference(&s);
+    let env = sandbox_env(&mut s);
+    let path = reference_path(&env, "s1").unwrap();
+    let reference = fs::read(&path).unwrap();
+    let out = park(&s, &["park", "--session", "s1"], "Doing: y", "elsewhere", 0);
+    assert_eq!(
+        text(&out.stdout),
+        "parked to W-12: migrate invoices to v13\n"
+    );
+    let notes = |t: &str| t.lines().filter(|l| l.starts_with("### ")).count();
+    let after = fs::read_to_string(card(&s, "W-12")).unwrap();
+    assert_eq!(notes(&after), notes(&fixture) + 2);
+    assert_eq!(fs::read(&path).unwrap(), reference);
+}
+
+#[test]
+fn ts6_2_park_without_card_or_reference_exits_4() {
+    let s = sandbox();
+    let before = files(&s);
+    let out = park(&s, &["park", "--session", "s9"], "Doing: x", "x", 4);
+    let err = text(&out.stderr);
+    assert_eq!(err, "brain-swap: no reference: pass --card <ID>\n");
+    insta::assert_snapshot!("no_reference_text", s.redact(&err));
+    let args = ["--json", "park", "--session", "s9"];
+    let out = park(&s, &args, "Doing: x", "x", 4);
+    let stdout = text(&out.stdout);
+    assert!(stdout.contains("\"code\":\"no_reference\""), "{stdout}");
+    insta::assert_snapshot!("no_reference_json", s.redact(&stdout));
+    assert_eq!(files(&s), before);
+}
+
+#[test]
+fn ts6_2_park_without_any_session_exits_4() {
+    let s = sandbox();
+    park(&s, &["park"], "Doing: x", "x", 4);
+}
+
+#[test]
+fn i9_reference_to_deleted_card_exits_4() {
+    let s = sandbox();
+    park_sets_reference(&s);
+    fs::remove_file(card(&s, "W-12")).unwrap();
+    park(&s, &["park", "--session", "s1"], "Doing: x", "x", 4);
+}
+
+#[test]
+fn ts12_1_new_empty_session_in_fake_herdr_sets_reference() {
+    let mut s = empty_sandbox();
+    in_herdr(&mut s, "pane-session");
+    let out = s.cmd(&["new", "--session", "", "x"]).assert().code(0);
+    let err = text(&out.get_output().stderr);
+    assert!(err.contains("warning: session id not substituted"), "{err}");
+    let env = sandbox_env(&mut s);
+    let r = read_reference(&env, "herdr-s1").expect("reference for herdr-s1");
+    assert_eq!(r.card.to_string(), "W-1");
+    assert_eq!(r.board, "work");
+    assert_eq!(r.pane.as_deref(), Some("w4V:p9"));
+}
+
+#[test]
+fn ts6_4_reference_inside_herdr_writes_pane_hint() {
+    let mut s = sandbox();
+    in_herdr(&mut s, "pane-session");
+    park_sets_reference(&s);
+    let env = sandbox_env(&mut s);
+    let hint = read_pane_hint(&env, "w4V:p9").expect("hint for w4V:p9");
+    assert_eq!(hint.card.to_string(), "W-12");
+    assert_eq!(hint.session, "s1");
+}
+
+#[test]
+fn ts6_3_new_with_session_sets_reference() {
+    let mut s = empty_sandbox();
+    s.cmd(&["new", "--session", "s1", "x"]).assert().code(0);
+    let env = sandbox_env(&mut s);
+    let r = read_reference(&env, "s1").expect("reference for s1");
+    assert_eq!(r.card.to_string(), "W-1");
+    assert_eq!(names(&env.panes_dir()), Vec::<String>::new());
+}
+
+#[test]
+fn ts6_4_no_session_sets_no_reference() {
+    let mut s = empty_sandbox();
+    s.cmd(&["new", "x"]).assert().code(0);
+    let env = sandbox_env(&mut s);
+    assert_eq!(names(&env.sessions_dir()), Vec::<String>::new());
+}
+
+#[test]
+fn ts6_3_failed_command_sets_no_reference() {
+    let mut s = sandbox();
+    let args = ["park", "--card", "W-99", "--session", "s1"];
+    park(&s, &args, "Doing: x", "x", 3);
+    let args = ["new", "--template", "epic", "--session", "s1", "x"];
+    s.cmd(&args).assert().code(3);
+    let env = sandbox_env(&mut s);
+    assert!(read_reference(&env, "s1").is_none());
+    assert!(!reference_path(&env, "s1").unwrap().exists());
 }

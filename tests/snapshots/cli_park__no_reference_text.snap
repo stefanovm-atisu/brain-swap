@@ -1,0 +1,5 @@
+---
+source: tests/cli_park.rs
+expression: s.redact(&err)
+---
+brain-swap: no reference: pass --card <ID>

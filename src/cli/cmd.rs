@@ -8,7 +8,8 @@ use crate::core::config::{self, Config};
 use crate::core::env::Env;
 use crate::core::error::Error;
 use crate::core::guess;
-use crate::core::model::{Board, Card, CardId, NewNote};
+use crate::core::model::{Board, Card, CardId, NewNote, SessionRef};
+use crate::core::session::{read_reference, write_reference};
 use crate::core::store::{self, CreateRequest};
 use crate::core::template::{self, Template};
 use std::ffi::OsString;
@@ -141,9 +142,12 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             template,
             column,
             body,
-            ..
+            session,
         }) => {
             let ctx = ctx.expect("loaded above");
+            let runner = ProcessRunner::new(env);
+            let (session, warnings) = resolve_session(env, session.as_deref(), &runner);
+            warnings.iter().for_each(|w| out.warn(w));
             let names = (cli.board.as_deref(), template.as_deref(), column.as_deref());
             match new(env, &ctx, &title.join(" "), names, body.is_some(), &mut out) {
                 Ok((board, created)) => {
@@ -151,6 +155,14 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                     for w in board.warnings.iter().chain(&created.warnings) {
                         out.warn(w);
                     }
+                    set_reference(
+                        env,
+                        session.as_deref(),
+                        card.id,
+                        &board.name,
+                        &runner,
+                        &mut out,
+                    );
                     #[derive(serde::Serialize)]
                     struct Body<'a> {
                         card: out::CardJson<'a>,
@@ -309,7 +321,7 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             0
         }
         Some(Command::Park {
-            card: Some(id),
+            card: flag,
             session,
             auto,
         }) => {
@@ -317,7 +329,19 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             let runner = ProcessRunner::new(env);
             let (session, warnings) = resolve_session(env, session.as_deref(), &runner);
             warnings.iter().for_each(|w| out.warn(w));
-            let parked = find_card(&ctx, id).and_then(|(board, _)| {
+            // I9: the reference counts while its board is configured and holds its card.
+            let target = match flag {
+                Some(id) => find_card(&ctx, id).map(|(board, _)| (board, id)),
+                None => session
+                    .as_deref()
+                    .and_then(|s| read_reference(env, s))
+                    .and_then(|r| {
+                        let board = ctx.board(Some(&r.board)).ok()?;
+                        board.card(r.card).is_some().then_some((board, r.card))
+                    })
+                    .ok_or_else(|| Error::NoReference("no reference: pass --card <ID>".into())),
+            };
+            let parked = target.and_then(|(board, id)| {
                 let stdin = std::io::stdin();
                 let terminal = std::io::IsTerminal::is_terminal(&stdin);
                 let n = read_note(&mut stdin.lock(), &mut std::io::stderr(), terminal)?;
@@ -329,7 +353,7 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                     watch_out: n.watch_out,
                     cwd: env.cwd.clone(),
                     herdr: herdr::capture(env, &runner),
-                    session,
+                    session: session.clone(),
                 };
                 Ok((store::park(env, &board, id, &note)?, board))
             });
@@ -338,6 +362,10 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                     let card = &parked.card;
                     for w in board.warnings.iter().chain(&parked.warnings) {
                         out.warn(w);
+                    }
+                    if flag.is_some() {
+                        let s = session.as_deref();
+                        set_reference(env, s, card.id, &board.name, &runner, &mut out);
                     }
                     #[derive(serde::Serialize)]
                     struct Body<'a> {
@@ -355,6 +383,29 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             }
         }
         _ => todo!(),
+    }
+}
+
+/// 6.3 and 6.4: with a session, writes its reference (and inside herdr the pane hint)
+/// through `core::session`; a failed write is a warning, the command already succeeded.
+fn set_reference(
+    env: &Env,
+    session: Option<&str>,
+    card: CardId,
+    board: &str,
+    runner: &dyn Runner,
+    out: &mut Out,
+) {
+    let Some(session) = session else { return };
+    let r = SessionRef {
+        card,
+        board: board.to_string(),
+        pane: herdr::capture(env, runner).map(|h| h.pane),
+        cwd: Some(env.cwd.clone()),
+        set_at: env.now.clone(),
+    };
+    if let Err(e) = write_reference(env, session, &r) {
+        out.warn(&e.to_string());
     }
 }
 

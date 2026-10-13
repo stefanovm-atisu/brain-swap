@@ -1,0 +1,5 @@
+---
+source: tests/cli_park.rs
+expression: s.redact(&stdout)
+---
+{"v":1,"error":{"code":"no_reference","message":"no reference: pass --card <ID>"}}
