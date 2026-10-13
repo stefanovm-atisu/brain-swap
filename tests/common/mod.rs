@@ -7,6 +7,7 @@ pub mod cli;
 pub mod env;
 pub mod fake_herdr;
 pub mod mem_board;
+pub mod skill_md;
 pub mod sound;
 pub mod spawn;
 pub mod tui;
