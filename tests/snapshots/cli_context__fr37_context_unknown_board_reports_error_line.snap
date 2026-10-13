@@ -1,0 +1,8 @@
+---
+source: tests/cli_context.rs
+expression: out
+---
+brain-swap context v1
+session: s9
+error: unknown board 'work2' (work, home, personal)
+hint: use one of the listed boards

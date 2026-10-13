@@ -1,0 +1,9 @@
+---
+source: tests/cli_context.rs
+expression: s.redact(&out)
+---
+brain-swap context v1
+session: s9
+reference: none
+open cards on work, best guess first:
+o. other board: home, personal

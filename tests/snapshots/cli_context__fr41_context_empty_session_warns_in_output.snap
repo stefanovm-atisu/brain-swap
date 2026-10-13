@@ -1,0 +1,13 @@
+---
+source: tests/cli_context.rs
+expression: s.redact(&out)
+---
+brain-swap context v1
+session: none
+warning: session id not substituted
+reference: none
+open cards on work, best guess first:
+1. W-12 migrate invoices to v13 [Doing] 39 min: open the MR, ask the DBA for the v13
+2. W-7 fix rounding in act export [Doing] 2 h: check the 0.005 case
+3. W-11 invoice PDF shows the wrong VAT [Todo] no note
+o. other board: home, personal

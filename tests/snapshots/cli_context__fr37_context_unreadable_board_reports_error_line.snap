@@ -1,0 +1,8 @@
+---
+source: tests/cli_context.rs
+expression: out
+---
+brain-swap context v1
+session: s9
+error: board work: Not a directory (os error 20)
+hint: check the folder of board work in <sandbox>/config/brain-swap/config.toml

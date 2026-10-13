@@ -122,14 +122,7 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
     ) {
         match Ctx::load(env) {
             Ok(c) => {
-                if let Some(p) = &c.created {
-                    let notice = format!("created config {}", p.display());
-                    if out.json {
-                        out.warn(&notice);
-                    } else {
-                        let _ = writeln!(out.stderr, "{notice}");
-                    }
-                }
+                first_run(&c, &mut out);
                 c.warnings.iter().for_each(|w| out.warn(w));
                 ctx = Some(c);
             }
@@ -535,29 +528,132 @@ pub fn jump(env: &Env, ctx: &Ctx, id: CardId, note: Option<u32>, out: &mut Out) 
     }
 }
 
-/// `context` (6.3, 6.7) with a reference that resolves (I9): the header lines and the
-/// card block; exit 0.
-fn context(env: &mut Env, (board, flag): (Option<&str>, Option<&str>), out: &mut Out) -> i32 {
-    let ctx = Ctx::load(env).expect("problem lines: E2-F3-T10");
+/// `created config <path>` on stderr after the first run, a warning under `--json` (10).
+fn first_run(ctx: &Ctx, out: &mut Out) {
+    if let Some(p) = &ctx.created {
+        let notice = format!("created config {}", p.display());
+        if out.json {
+            out.warn(&notice);
+        } else {
+            let _ = writeln!(out.stderr, "{notice}");
+        }
+    }
+}
+
+/// The 6.7 `context` body.
+#[derive(serde::Serialize)]
+struct ContextJson<'a> {
+    session: Option<&'a str>,
+    reference: Option<String>,
+    card: Option<out::CardJson<'a>>,
+    candidates: Vec<out::CandidateJson<'a>>,
+    other_boards: Vec<&'a str>,
+    problem: Option<Problem<'a>>,
+    warnings: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+struct Problem<'a> {
+    code: &'a str,
+    message: String,
+    hint: String,
+}
+
+/// The `context` header lines: version, session and one `warning:` line per warning.
+fn context_head(session: Option<&str>, warnings: &[String]) -> String {
+    let mut text = format!(
+        "brain-swap context v1\nsession: {}\n",
+        session.unwrap_or("none")
+    );
+    for w in warnings {
+        text += &format!("warning: {w}\n");
+    }
+    text
+}
+
+/// `context` ending in `error:` and `hint:` lines (6.3), JSON `problem`; exit 0 (6.2).
+fn context_problem(
+    out: &mut Out,
+    session: Option<&str>,
+    warnings: Vec<String>,
+    e: &Error,
+    hint: String,
+) -> i32 {
+    let text = format!(
+        "{}error: {e}\nhint: {hint}\n",
+        context_head(session, &warnings)
+    );
+    let body = ContextJson {
+        session,
+        reference: None,
+        card: None,
+        candidates: Vec::new(),
+        other_boards: Vec::new(),
+        problem: Some(Problem {
+            code: e.code(),
+            message: e.to_string(),
+            hint,
+        }),
+        warnings,
+    };
+    out.result(&text, body);
+    0
+}
+
+/// The `hint:` of a board that failed to load: an unknown name, else its folder (6.3).
+fn board_hint(ctx: &Ctx, name: &str, e: &Error) -> String {
+    match e {
+        Error::NotFound(_) => "use one of the listed boards".to_string(),
+        _ => {
+            let n = ctx.config.board(name).map_or(name, |(n, _)| n);
+            let path = ctx.config.path.display();
+            format!("check the folder of board {n} in {path}")
+        }
+    }
+}
+
+/// `context` (6.3, 6.7): the reference's card block, else the picker; config, session and
+/// board warnings become `warning:` lines and expected problems `error:` lines; exit 0.
+fn context(env: &mut Env, (name, flag): (Option<&str>, Option<&str>), out: &mut Out) -> i32 {
+    let loaded = Ctx::load(env);
     let runner = ProcessRunner::new(env);
     let (session, mut warnings) = resolve_session(env, flag, &runner);
+    let ctx = match loaded {
+        Ok(ctx) => ctx,
+        Err(e) => {
+            let hint = format!(
+                "fix {}, then run the command again",
+                env.config_file().display()
+            );
+            return context_problem(out, session.as_deref(), warnings, &e, hint);
+        }
+    };
+    first_run(&ctx, out);
+    warnings.splice(0..0, ctx.warnings.iter().cloned());
     let reference = session.as_deref().and_then(|s| read_reference(env, s));
-    let found = reference.as_ref().and_then(|r| {
-        let board = ctx.board(Some(&r.board)).ok()?;
-        let card = board.card(r.card)?.clone();
-        Some((board, card))
-    });
-    #[derive(serde::Serialize)]
-    struct Body<'a> {
-        session: Option<&'a str>,
-        reference: Option<String>,
-        card: Option<out::CardJson<'a>>,
-        candidates: Vec<out::CandidateJson<'a>>,
-        other_boards: Vec<&'a str>,
-        problem: Option<()>,
-        warnings: Vec<String>,
+    // An unconfigured reference board reads as a missing card (I9), an unreadable one is
+    // a problem.
+    let mut found = None;
+    if let Some(r) = &reference {
+        match ctx.board(Some(&r.board)) {
+            Ok(board) => found = board.card(r.card).cloned().map(|c| (board, c)),
+            Err(Error::NotFound(_)) => {}
+            Err(e) => {
+                let hint = board_hint(&ctx, &r.board, &e);
+                return context_problem(out, session.as_deref(), warnings, &e, hint);
+            }
+        }
     }
     let Some((board, card)) = found else {
+        let board = match ctx.board(name) {
+            Ok(board) => board,
+            Err(e) => {
+                let hint = board_hint(&ctx, name.unwrap_or(&ctx.config.default_board), &e);
+                return context_problem(out, session.as_deref(), warnings, &e, hint);
+            }
+        };
+        warnings.extend(board.warnings.iter().cloned());
+        let head = context_head(session.as_deref(), &warnings);
         let reference = match reference {
             Some(r) => {
                 warnings.push(format!("{} not found", r.card));
@@ -565,7 +661,6 @@ fn context(env: &mut Env, (board, flag): (Option<&str>, Option<&str>), out: &mut
             }
             None => "none".to_string(),
         };
-        let board = ctx.board(board).expect("problem lines: E2-F3-T10");
         let (lines, mut candidates) = picker(env, &ctx, &board);
         for n in candidates
             .iter_mut()
@@ -573,11 +668,7 @@ fn context(env: &mut Env, (board, flag): (Option<&str>, Option<&str>), out: &mut
         {
             n.by_this_session = n.place.session.map(|s| Some(s) == session.as_deref());
         }
-        let text = format!(
-            "brain-swap context v1\nsession: {}\nreference: {reference}\n{lines}",
-            session.as_deref().unwrap_or("none")
-        );
-        let body = Body {
+        let body = ContextJson {
             session: session.as_deref(),
             reference: None,
             card: None,
@@ -586,13 +677,14 @@ fn context(env: &mut Env, (board, flag): (Option<&str>, Option<&str>), out: &mut
             problem: None,
             warnings,
         };
-        out.result(&text, body);
+        out.result(&format!("{head}reference: {reference}\n{lines}"), body);
         return 0;
     };
+    warnings.extend(board.warnings.iter().cloned());
     let view = out::SessionView::Resolved(session.clone());
     let text = format!(
-        "brain-swap context v1\nsession: {}\nreference: {}\n{}",
-        session.as_deref().unwrap_or("none"),
+        "{}reference: {}\n{}",
+        context_head(session.as_deref(), &warnings),
         card.id,
         out::card_block(&card, &board, &env.now, &view)
     );
@@ -600,7 +692,7 @@ fn context(env: &mut Env, (board, flag): (Option<&str>, Option<&str>), out: &mut
     if let Some(n) = &mut card_json.latest_note {
         n.by_this_session = n.place.session.map(|s| Some(s) == session.as_deref());
     }
-    let body = Body {
+    let body = ContextJson {
         session: session.as_deref(),
         reference: Some(card.id.to_string()),
         card: Some(card_json),

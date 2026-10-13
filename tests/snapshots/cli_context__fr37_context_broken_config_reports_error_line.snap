@@ -1,0 +1,8 @@
+---
+source: tests/cli_context.rs
+expression: out
+---
+brain-swap context v1
+session: s9
+error: config <sandbox>/config/brain-swap/config.toml:4:6: key with no value, expected `=`
+hint: fix <sandbox>/config/brain-swap/config.toml, then run the command again

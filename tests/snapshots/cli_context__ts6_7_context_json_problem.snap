@@ -1,0 +1,5 @@
+---
+source: tests/cli_context.rs
+expression: out
+---
+{"v":1,"session":"s9","reference":null,"card":null,"candidates":[],"other_boards":[],"problem":{"code":"config","message":"config <sandbox>/config/brain-swap/config.toml:4:6: key with no value, expected `=`","hint":"fix <sandbox>/config/brain-swap/config.toml, then run the command again"},"warnings":[]}

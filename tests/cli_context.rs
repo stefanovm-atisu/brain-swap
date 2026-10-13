@@ -283,3 +283,224 @@ fn ts6_7_context_json_candidates() {
     assert_eq!(v["warnings"], serde_json::json!(["W-12 not found"]));
     insta::assert_snapshot!(s.redact(&out));
 }
+
+const BROKEN: &str = "default_board = \"work\"\neditor = \"\"\n[boards]\nwork \"~/b\"\n";
+
+/// The sandbox with `config.toml` replaced by `BROKEN`.
+fn broken() -> Sandbox {
+    let s = Sandbox::new();
+    s.write_config();
+    fs::write(s.config_file(), BROKEN).unwrap();
+    s
+}
+
+/// Runs `args` expecting exit 0; returns stdout and stderr.
+fn run(s: &Sandbox, args: &[&str]) -> (String, String) {
+    let out = s.cmd(args).assert().code(0).get_output().clone();
+    let text = |b: Vec<u8>| String::from_utf8(b).unwrap();
+    (text(out.stdout), text(out.stderr))
+}
+
+fn lines(text: &str) -> Vec<&str> {
+    text.lines().collect()
+}
+
+#[test]
+fn fr37_context_first_run_without_config() {
+    let s = Sandbox::new();
+    let (out, err) = run(&s, &["context", "--session", "s9"]);
+    assert!(s.config_file().is_file());
+    assert_eq!(
+        s.redact(&err),
+        "created config <sandbox>/config/brain-swap/config.toml\n"
+    );
+    assert_eq!(
+        lines(&out),
+        [
+            "brain-swap context v1",
+            "session: s9",
+            "reference: none",
+            "open cards on work, best guess first:",
+            "o. other board: home, personal",
+        ]
+    );
+}
+
+#[test]
+fn fr37_context_broken_config_reports_error_line() {
+    let s = broken();
+    let (out, err) = run(&s, &["context", "--session", "s9"]);
+    assert_eq!(err, "");
+    let out = s.redact(&out);
+    let l = lines(&out);
+    assert_eq!(l.len(), 4, "{out}");
+    assert_eq!(l[..2], ["brain-swap context v1", "session: s9"]);
+    let path = "<sandbox>/config/brain-swap/config.toml";
+    assert!(
+        l[2].starts_with(&format!("error: config {path}:4:")),
+        "{out}"
+    );
+    assert_eq!(
+        l[3],
+        format!("hint: fix {path}, then run the command again")
+    );
+    insta::assert_snapshot!(out);
+}
+
+#[test]
+fn fr37_context_unreadable_board_reports_error_line() {
+    let s = Sandbox::new();
+    s.write_config();
+    fs::create_dir_all(s.root().join("boards")).unwrap();
+    fs::write(s.root().join("boards/work"), "").unwrap();
+    let (out, _) = run(&s, &["context", "--session", "s9"]);
+    let out = s.redact(&out);
+    let l = lines(&out);
+    assert!(l[l.len() - 2].starts_with("error: board work: "), "{out}");
+    assert_eq!(
+        l[l.len() - 1],
+        "hint: check the folder of board work in <sandbox>/config/brain-swap/config.toml"
+    );
+    insta::assert_snapshot!(out);
+}
+
+#[test]
+fn fr37_context_missing_board_folder_reads_empty() {
+    let s = Sandbox::new();
+    s.write_config();
+    let out = context(&s, &["context", "--session", "s9"]);
+    assert_eq!(line(&out, 4), "open cards on work, best guess first:");
+    assert_eq!(line(&out, 5), "o. other board: home, personal");
+    assert!(!s.root().join("boards/work").exists());
+    insta::assert_snapshot!(s.redact(&out));
+}
+
+#[test]
+fn fr41_context_empty_session_warns_in_output() {
+    let s = sandbox();
+    let (out, err) = run(&s, &["context", "--session", ""]);
+    assert_eq!(line(&out, 2), "session: none");
+    assert_eq!(line(&out, 3), "warning: session id not substituted");
+    assert_eq!(line(&out, 4), "reference: none");
+    assert_eq!(line(&out, 5), "open cards on work, best guess first:");
+    assert_eq!(err, "");
+    insta::assert_snapshot!(s.redact(&out));
+}
+
+#[test]
+fn fr41_context_placeholder_session_warns_in_output() {
+    let s = sandbox();
+    let (out, _) = run(&s, &["context", "--session", "${CLAUDE_SESSION_ID}"]);
+    assert_eq!(line(&out, 2), "session: none");
+    assert_eq!(line(&out, 3), "warning: session id not substituted");
+    insta::assert_snapshot!(s.redact(&out));
+}
+
+#[test]
+fn fr41_context_invalid_session_warns_in_output() {
+    let s = sandbox();
+    let (out, _) = run(&s, &["context", "--session", "a b"]);
+    assert_eq!(line(&out, 3), "warning: invalid session id");
+}
+
+#[test]
+fn fr41_context_inside_herdr_uses_pane_session() {
+    let mut s = sandbox();
+    let sc = s.scenario_mut();
+    *sc = sc
+        .clone()
+        .herdr("w4V:p9", "w4V:t1", "w4V")
+        .fake_scenario("pane-session");
+    let (out, _) = run(&s, &["context", "--session", ""]);
+    assert_eq!(line(&out, 2), "session: herdr-s1");
+    assert_eq!(line(&out, 3), "warning: session id not substituted");
+}
+
+#[test]
+fn ts4_3_context_invalid_board_md_warns() {
+    let s = sandbox();
+    fs::write(
+        s.root().join("boards/work/board.md"),
+        "---\nletter W\n---\n",
+    )
+    .unwrap();
+    let (out, _) = run(&s, &["context", "--session", "s9"]);
+    assert!(line(&out, 3).starts_with("warning: board.md:2: "), "{out}");
+    assert!(line(&out, 3).len() > "warning: board.md:2: ".len(), "{out}");
+    assert!(
+        out.contains("\nopen cards on work, best guess first:\n1. W-12 "),
+        "{out}"
+    );
+}
+
+#[test]
+fn ts6_7_context_json_problem() {
+    let s = broken();
+    let (out, err) = run(&s, &["--json", "context", "--session", "s9"]);
+    assert_eq!(err, "");
+    let out = s.redact(&out);
+    let path = "<sandbox>/config/brain-swap/config.toml";
+    let head = "{\"v\":1,\"session\":\"s9\",\"reference\":null,\"card\":null,\"candidates\":[],\"other_boards\":[],\"problem\":{\"code\":\"config\",\"message\":\"config ";
+    assert!(out.starts_with(&format!("{head}{path}:4:")), "{out}");
+    let tail =
+        format!("\",\"hint\":\"fix {path}, then run the command again\"}},\"warnings\":[]}}\n");
+    assert!(out.ends_with(&tail), "{out}");
+    insta::assert_snapshot!(out);
+}
+
+#[test]
+fn fr37_context_unknown_board_reports_error_line() {
+    let s = sandbox();
+    let (out, err) = run(&s, &["--board", "work2", "context", "--session", "s9"]);
+    assert_eq!(err, "");
+    assert_eq!(
+        lines(&out),
+        [
+            "brain-swap context v1",
+            "session: s9",
+            "error: unknown board 'work2' (work, home, personal)",
+            "hint: use one of the listed boards",
+        ]
+    );
+    insta::assert_snapshot!(out);
+    let args = ["--json", "--board", "work2", "context", "--session", "s9"];
+    let (out, _) = run(&s, &args);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["problem"]["code"], "not_found", "{out}");
+}
+
+#[test]
+fn ts11_context_log_inside_board_folder_warns_in_output() {
+    let mut s = sandbox();
+    let log = s.root().join("boards/work/bs.log");
+    let sc = s.scenario_mut();
+    *sc = sc.clone().log(&log);
+    let (out, err) = run(&s, &["context", "--session", "s9"]);
+    assert_eq!(
+        line(&out, 3),
+        "warning: BRAIN_SWAP_LOG inside board work, ignored"
+    );
+    assert_eq!(err, "");
+    assert!(!log.exists());
+}
+
+#[test]
+fn fr37_context_unreadable_reference_board_reports_error_line() {
+    let mut s = sandbox();
+    refer(&mut s, "s1", "H-1", "home");
+    fs::write(s.root().join("boards/home"), "").unwrap();
+    let (out, err) = run(&s, &["context", "--session", "s1"]);
+    assert_eq!(err, "");
+    let out = s.redact(&out);
+    let l = lines(&out);
+    assert_eq!(l.len(), 4, "{out}");
+    assert!(l[2].starts_with("error: board home: "), "{out}");
+    assert_eq!(
+        l[3],
+        "hint: check the folder of board home in <sandbox>/config/brain-swap/config.toml"
+    );
+    insta::assert_snapshot!(out);
+    let (out, _) = run(&s, &["--json", "context", "--session", "s1"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["problem"]["code"], "io", "{out}");
+}

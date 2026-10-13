@@ -1,0 +1,8 @@
+---
+source: tests/cli_context.rs
+expression: out
+---
+brain-swap context v1
+session: s1
+error: board home: Not a directory (os error 20)
+hint: check the folder of board home in <sandbox>/config/brain-swap/config.toml
