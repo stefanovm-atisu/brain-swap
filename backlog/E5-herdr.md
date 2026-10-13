@@ -248,7 +248,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F2-T2 locate: closed, not responding, herdr error
 
-- Status: doing
+- Status: done
 - Depends on: E5-F2-T1
 - Covers: FR-61, FR-63; TECHSPEC 9.3 (timeout, error code, no session)
 - Size: S

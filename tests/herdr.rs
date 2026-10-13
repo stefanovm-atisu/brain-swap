@@ -273,3 +273,62 @@ fn fr60_old_id_of_moved_pane_is_moved() {
     );
     assert_eq!(fake.calls(), ["pane get w4V:p9"]);
 }
+
+/// `locate` of the W-12 place against one `pane get w4V:p9` answer, with the calls made.
+fn locate_failing(place: &Place, answer: Answer) -> (PaneStatus, Vec<String>) {
+    let fake = FakeRunner::new().on("pane get w4V:p9", answer);
+    let status = locate(place, &in_herdr(), &fake);
+    (status, fake.calls())
+}
+
+#[test]
+fn fr61_pane_not_found_without_session_is_closed() {
+    let place = Place {
+        session: None,
+        ..w12_place()
+    };
+    let (status, calls) = locate_failing(&place, Answer::fail(1, NOT_FOUND));
+    assert_eq!(status, PaneStatus::Closed);
+    assert_eq!(calls, ["pane get w4V:p9"]);
+}
+
+#[test]
+fn fr63_pane_get_timeout_is_not_responding() {
+    let (status, calls) = locate_failing(&w12_place(), Answer::Hang);
+    assert_eq!(status, PaneStatus::NotResponding);
+    assert_eq!(calls, ["pane get w4V:p9"]);
+}
+
+#[test]
+fn ts9_3_other_error_is_herdr_error_with_first_line() {
+    let json = "{\"error\":{\"code\":\"internal\",\"message\":\"socket closed\"}}";
+    let (status, calls) = locate_failing(&w12_place(), Answer::fail(1, &format!("{json}\ntrace")));
+    assert_eq!(status, PaneStatus::HerdrError(json.into()));
+    assert_eq!(calls, ["pane get w4V:p9"]);
+}
+
+#[test]
+fn ts9_3_plain_text_error_is_herdr_error() {
+    let answer = Answer::fail(2, "cannot connect to server\n");
+    let (status, calls) = locate_failing(&w12_place(), answer);
+    assert_eq!(
+        status,
+        PaneStatus::HerdrError("cannot connect to server".into())
+    );
+    assert_eq!(calls, ["pane get w4V:p9"]);
+}
+
+#[test]
+fn ts9_3_empty_stderr_error_names_exit_code() {
+    let (status, calls) = locate_failing(&w12_place(), Answer::fail(2, ""));
+    assert_eq!(status, PaneStatus::HerdrError("exit 2".into()));
+    assert_eq!(calls, ["pane get w4V:p9"]);
+}
+
+#[test]
+fn ts9_3_spawn_failure_is_herdr_error() {
+    let msg = "No such file or directory (os error 2)";
+    let (status, calls) = locate_failing(&w12_place(), Answer::SpawnFailed(msg.into()));
+    assert_eq!(status, PaneStatus::HerdrError(msg.into()));
+    assert_eq!(calls, ["pane get w4V:p9"]);
+}

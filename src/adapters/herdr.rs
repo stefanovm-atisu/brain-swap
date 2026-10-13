@@ -134,15 +134,23 @@ pub fn locate(place: &Place, env: &Env, runner: &dyn Runner) -> PaneStatus {
     let Some(h) = &place.herdr else {
         return PaneStatus::NoPane;
     };
-    let r = runner.run(&["pane", "get", &h.pane], CALL_TIMEOUT);
-    let RunOutcome::Exited {
-        code: Some(0),
-        stdout,
-        ..
-    } = r.outcome
-    else {
-        // ponytail: failures are E5-F2-T2's (Closed, NotResponding, HerdrError by code).
-        return PaneStatus::HerdrError("pane get failed".into());
+    let stdout = match runner.run(&["pane", "get", &h.pane], CALL_TIMEOUT).outcome {
+        RunOutcome::Exited {
+            code: Some(0),
+            stdout,
+            ..
+        } => stdout,
+        RunOutcome::TimedOut => return PaneStatus::NotResponding,
+        RunOutcome::SpawnFailed(msg) => return PaneStatus::HerdrError(msg),
+        RunOutcome::Exited { code, stderr, .. } => {
+            if error_code(&stderr).as_deref() == Some("pane_not_found") {
+                // ponytail: the moved search by place.session is E5-F2-T3's.
+                return PaneStatus::Closed;
+            }
+            let code = code.map_or("signal".into(), |c| c.to_string());
+            let first = stderr.lines().find(|l| !l.trim().is_empty());
+            return PaneStatus::HerdrError(first.map_or(format!("exit {code}"), String::from));
+        }
     };
     let v: Value = serde_json::from_str(&stdout).unwrap_or_default();
     let Some(p) = PaneJson::from_response(&v) else {
