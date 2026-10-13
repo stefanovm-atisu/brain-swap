@@ -120,13 +120,13 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 - Provides: TECHSPEC 16 answer lines `SP-2`, `SP-5`, `SP-7` (read by E5-F2, E5-F3, E5-F4); under `SP-5`, the exit codes and stderr of failing `agent focus`, `workspace focus` and `tab focus` calls for the E5-F2-T9 `focus-fails` scenario and the E5-F2-T5 failure tests; under `SP-7`, the confirmed key for the 9.4 snippet.
 - Requires: none
 - Feature DoD:
-  - [ ] SP-2 answered in TECHSPEC 16; 7.7 and the 9.4 snippet updated (focus before or after exit, an `env` prefix if `HERDR_*` is missing) (E0-F2-T1).
+  - [x] SP-2 answered in TECHSPEC 16; 7.7 and the 9.4 snippet updated (focus before or after exit, an `env` prefix if `HERDR_*` is missing) (E0-F2-T1).
   - [ ] SP-5 answered in TECHSPEC 16; `focus` in 9.3 updated (E0-F2-T2).
   - [ ] SP-7 answered in TECHSPEC 16; the 9.4 key confirmed or replaced (E0-F2-T3).
 
 ### E0-F2-T1 SP-2 jump from a popup
 
-- Status: todo
+- Status: done
 - Depends on: none
 - Covers: FR-59, FR-64; TECHSPEC 14 SP-2, 7.7, 9.4, 16
 - Size: S
@@ -143,9 +143,9 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
   8. Decide: if step 5 holds, 7.7 stays (focus, then exit); if only step 7 works, the section 14 fallback (exit first, then a detached `brain-swap jump <ID>`) goes into 7.7, and the line notes for the owner that a detached jump cannot show the 7.7 Message and needs `--note <n>` for a Detail jump; if step 3 lacks `HERDR_*`, the 9.4 snippet becomes `command = "env HERDR_ENV=1 HERDR_BIN_PATH=<herdr path> <brain-swap path>"` (plus `HERDR_SOCKET_PATH` if the herdr CLI needed it).
   9. Restore the herdr config and run `herdr server reload-config`.
 - DoD:
-  - [ ] TECHSPEC 16 gains the line `SP-2 (<date>, herdr 0.8.2)` with: each popup variable present or not, `~/.cargo/bin` on the popup `PATH` or not, closes on exit (yes or no), agent focus from the popup holds, tab focus from the popup holds, detached focus lands, order chosen; `SP-2` is removed from the `Open until the spikes answer` sentence.
-  - [ ] 7.7 and 9.4 updated in the same commit to the chosen order and snippet; a contradiction with FR-59 or A-07 is named for the owner (A-E0-02).
-  - [ ] herdr config restored and reloaded; no product file changed; one commit with no AI attribution.
+  - [x] TECHSPEC 16 gains the line `SP-2 (<date>, herdr 0.8.2)` with: each popup variable present or not, `~/.cargo/bin` on the popup `PATH` or not, closes on exit (yes or no), agent focus from the popup holds, tab focus from the popup holds, detached focus lands, order chosen; `SP-2` is removed from the `Open until the spikes answer` sentence.
+  - [x] 7.7 and 9.4 updated in the same commit to the chosen order and snippet; a contradiction with FR-59 or A-07 is named for the owner (A-E0-02).
+  - [x] herdr config restored and reloaded; no product file changed; one commit with no AI attribution.
 
 ### E0-F2-T2 SP-5 focus across workspaces
 

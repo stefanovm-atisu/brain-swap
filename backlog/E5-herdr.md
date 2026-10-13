@@ -419,14 +419,14 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 - Depends on: E5-F2, E4-F2, E4-F3, E4-F4, E2-F3
 - Covers: FR-25, FR-28, FR-59, FR-60, FR-61, FR-62, FR-63
 - Spec: TECHSPEC 7.1 (`Effect::Jump`, the jump outcomes, Board and Detail `jump`), 7.5, 7.7, 9.3, 12.1 (TUI), 14 (SP-2); AS-1 step 7, AS-4, AS-5, AS-6, AS-10, AS-11
-- Scope: Enter (the `jump` action) on a card in the board jumps to its newest placed note, and in the detail view to the note shown. `update` emits the jump effect with the status `jumping...`, or opens the Message `no note yet`. The runtime runs the effect: `locate`, then `focus` for a live or moved pane, all within one 3 second budget; a focused pane ends the TUI with exit 0, closing the herdr popup, and every other outcome opens a Message with the working directory (`pane closed` and the `/bs-link` hint, `not in herdr`, `no pane recorded`, `herdr not responding`, `herdr: <message>`, `focus failed: <pane>`) while the TUI stays usable. The SP-2 answer may move the terminal restore before the focus. AS-6 runs end to end without a terminal or real herdr; AS-1 step 7, AS-4, AS-5, AS-10 and AS-11 run by hand in real herdr.
+- Scope: Enter (the `jump` action) on a card in the board jumps to its newest placed note, and in the detail view to the note shown. `update` emits the jump effect with the status `jumping...`, or opens the Message `no note yet`. The runtime runs the effect: `locate`, then `focus` for a live or moved pane, all within one 3 second budget; a focused pane ends the TUI with exit 0, closing the herdr popup, and every other outcome opens a Message with the working directory (`pane closed` and the `/bs-link` hint, `not in herdr`, `no pane recorded`, `herdr not responding`, `herdr: <message>`, `focus failed: <pane>`) while the TUI stays usable. The order is focus, then restore and exit: SP-2 was not run, and TECHSPEC 7.7 keeps that order on the unverified assumption that a focus issued from the popup holds after it exits (TECHSPEC 16); E5-F3-T4 pins it. AS-6 runs end to end without a terminal or real herdr; AS-1 step 7, AS-4, AS-5, AS-10 and AS-11 run by hand in real herdr.
 - Provides: `tui::app::Effect::Jump(CardId, usize)` (the index into `Card.notes`, 0 the oldest, as `jump_note()`) and `tui::app::Outcome::Jumped`, `Outcome::NotJumped(PaneStatus, Option<PathBuf>)`, `Outcome::FocusFailed(String, Option<PathBuf>)` (added unless E4-F1 has them, A-E5-23); the Board and Detail `jump` arms and the three outcome arms of `tui::app::update`; `tui::app::jump_message(outcome: &Outcome, card: CardId) -> Option<String>`; `tui::runtime::run_jump(env: &Env, card: &Card, note: usize, runner: &dyn Runner) -> Outcome`; the field `runner: Box<dyn Runner>` of `tui::runtime::Parts`; fake herdr scenario `as6-shell`; fixture `tests/fixtures/boards/as6/`
 - Requires: E5-F2 (`locate`, `focus`, `Budget`, `BUDGET`, `PaneStatus`, `LivePane`, `Focused`, `FocusError`) and E5-F1 (`ProcessRunner`, `FakeRunner`, `Answer`, the fake herdr script); E4-F1 (`App`, `Mode` with `Message { text, back }`, `Input::Done`, `Effect`, `Outcome`, `update`, the runtime with its injectable Parts (terminal guard, events, clock), the status line); E4-F2 (Board selection and focused column); E4-F3 (Detail mode and its note index); E4-F4 (template pick and title input, for AS-6); E2-F3 (`brain-swap park --card` from stdin inside herdr, for AS-6); E1-F5 (`Card::jump_note`, the `work_4_9` board); E0-F2 the SP-2 answer (TECHSPEC 7.7 as updated)
 - Feature DoD:
   - [ ] Enter in Board targets the jump note and in Detail the note shown, or opens `no note yet` (E5-F3-T1).
   - [ ] A state test per outcome, including a failed focus (E5-F3-T2).
   - [ ] The jump effect locates and focuses within one budget; a focused pane ends the TUI with exit 0, anything else keeps it open (E5-F3-T3).
-  - [ ] The terminal restore follows the SP-2 order, or the task is closed as not needed (E5-F3-T4).
+  - [ ] The runtime focuses first and restores the terminal once, only on its way to exit 0; a failed focus never restores (E5-F3-T4).
   - [ ] AS-6 end to end (E5-F3-T5).
   - [ ] Manual AS-1 step 7 and AS-10 recorded (E5-F3-T6).
   - [ ] Manual AS-4, AS-5 and AS-11 recorded (E5-F3-T7).
@@ -483,7 +483,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 - Covers: FR-28, FR-59, FR-60, FR-61, FR-62, FR-63; AS-11; TECHSPEC 7.1 (runtime runs effects through `adapters::herdr`), 7.7 (focus first, then exit), 9.3 (shared budget)
 - Size: M
 - Scope: `tui::runtime::run_jump(env, card, note, runner) -> Outcome`: take `card.notes[note].place`, wrap `runner` in one `Budget::new(runner, BUDGET)`, run `locate`; for `Live` or `Moved` run `focus` through the same budget: `Ok(_)` gives `Jumped`, `Err(Failed)` gives `FocusFailed(<live pane>, cwd)`, `Err(NotResponding)` gives `NotJumped(PaneStatus::NotResponding, cwd)`; any other status gives `NotJumped(status, cwd)`. The runtime handles `Effect::Jump(id, note)` by drawing one frame (so `jumping...` shows), finding the card in `app.board`, calling `run_jump` with its runner and sending `Input::Done(outcome)`. The runtime takes the `Runner` as an injectable part: this task adds `runner: Box<dyn Runner>` to E4-F1's injectable Parts (terminal guard, events, clock), whether or not E4-F5 has added `launcher` yet (12.1, A-E5-24), and the production entry point puts `Box::new(ProcessRunner::new(&env))` there. On `Quit` after `Jumped` it restores the terminal and returns exit 0 through E4-F1's quit path, which closes the herdr popup (FR-59).
-- Not in scope: restoring the terminal before the focus (E5-F3-T4); the `update` arms (E5-F3-T1, E5-F3-T2).
+- Not in scope: the tests that pin focus before the restore (E5-F3-T4); the `update` arms (E5-F3-T1, E5-F3-T2).
 - Tests first:
   1. `fr59_live_agent_pane_is_jumped` (FakeRunner): given W-12 of `work_4_9`, note 1, `herdr_env` `1`, `pane get w4V:p9` answering `pane_agent.json` and `agent focus w4V:p9` exit 0, when `run_jump` runs, then it returns `Jumped` and `calls()` is `["pane get w4V:p9", "agent focus w4V:p9"]`.
   2. `fr59_live_shell_pane_is_jumped_by_tab` (FakeRunner): given `pane get w4V:p9` answering a shell pane with tab `w4V:t1` and both focus calls exit 0, then `Jumped` and `calls()` is `["pane get w4V:p9", "workspace focus w4V", "tab focus w4V:t1"]`.
@@ -505,18 +505,18 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 ### E5-F3-T4 Terminal order per SP-2
 
 - Status: todo
-- Depends on: E5-F3-T3, E0-F2-T1
-- Covers: FR-59; TECHSPEC 7.7 (SP-2 may move the restore before the focus), 14 (SP-2)
+- Depends on: E5-F3-T3
+- Covers: FR-59, FR-63; TECHSPEC 7.7 (focus first, then restore and exit), 16 (SP-2)
 - Size: S
-- Scope: Runs only if the TECHSPEC 16 `SP-2` line chose "restore, then focus" for the popup; if it chose "focus, then exit", the task is closed as `not needed: SP-2 focus then exit`; if it chose the section 14 fallback (exit first, then a detached `brain-swap jump <ID>`), the task is closed and a new task is filed once TECHSPEC 7.7 describes that path (A-E5-25). When enabled: after `locate` returns `Live` or `Moved`, the runtime restores the terminal through E4-F1's terminal guard, then focuses; on `Jumped` it exits 0 without a second restore; on `FocusFailed` or a timed-out focus it re-enters the alternate screen and raw mode and shows the same Message as E5-F3-T2. `run_jump` gains a hook between locate and focus for this (named in the commit).
-- Not in scope: the detached jump fallback (A-E5-25); the Message texts (E5-F3-T2).
+- Scope: SP-2 was not run, and TECHSPEC 7.7 keeps the original order, recorded as an unverified assumption that a focus issued from the popup holds after it exits (TECHSPEC 16): the runtime focuses first and restores the terminal only after `Jumped`, once, on its way to exit 0; on `FocusFailed` or a timed-out focus it never leaves the alternate screen and shows the E5-F3-T2 Message. This task pins that order with a recording terminal guard; if E5-F3-T3 already yields it, it adds only the tests.
+- Not in scope: restoring the terminal before the focus, and the section 14 detached jump (both rejected for SP-2, TECHSPEC 16); the Message texts (E5-F3-T2).
 - Tests first:
-  1. `ts7_7_restore_precedes_focus` (TUI runtime, FakeRunner, recording terminal guard): given the answers of E5-F3-T3 test 1, when `enter` is fed, then the recorded order of guard events and runner calls is `pane get w4V:p9`, `restore`, `agent focus w4V:p9`, and the runtime exits 0 with one restore in total.
-  2. `ts7_7_failed_focus_after_restore_reenters_and_shows_the_message` (TUI runtime): given the answers of E5-F3-T3 test 4, when `enter` is fed, then the order is `restore`, the focus calls, `enter`, and the next frame shows `focus failed: w4V:p9`.
+  1. `ts7_7_focus_precedes_restore` (TUI runtime, FakeRunner, recording terminal guard): given the answers of E5-F3-T3 test 1, when `enter` is fed, then the recorded order of runner calls and guard events is `pane get w4V:p9`, `agent focus w4V:p9`, `restore`, and the runtime exits 0 with one restore in total.
+  2. `ts7_7_failed_focus_never_restores` (TUI runtime): given the answers of E5-F3-T3 test 4, when `enter` is fed, then the guard records no restore and the next frame shows `focus failed: w4V:p9`.
   3. `ts7_7_status_without_a_live_pane_never_restores` (TUI runtime): given the answers of E5-F3-T3 test 6, when `enter` is fed, then the guard records no restore and the frame shows `pane closed`.
 - DoD:
-  - [ ] Either the task is closed with the SP-2 line cited in the commit message, or the tests above pass and the first was committed red (12.2 item 1).
-  - [ ] When enabled, TECHSPEC 7.7 and the code name the same order (the commit message quotes the SP-2 line).
+  - [ ] The tests above pass; the first was committed red before any code it needed turned it green (12.2 item 1), or, when E5-F3-T3 already yields the order, the commit says so.
+  - [ ] TECHSPEC 7.7 and the code name the same order, focus then exit (the commit message quotes the SP-2 line).
 
 ### E5-F3-T5 AS-6 end to end
 
@@ -578,12 +578,12 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 - Depends on: E2-F1, E0-F2
 - Covers: FR-64
 - Spec: TECHSPEC 6.3 (`install herdr`), 6.7 (`snippet`), 9.4, 14 (SP-2, SP-7), 12.2 item 5 (README)
-- Scope: `brain-swap install herdr` prints the 9.4 key binding with the canonical absolute path of the running binary (`current_exe`, read once by `main` into `Env.exe`, since the herdr server may lack `~/.cargo/bin` on its `PATH`), followed by the instruction to run `herdr server reload-config`; `--json` returns the snippet. It never edits herdr's config, reads no brain-swap config and runs no herdr command. The key is the one SP-7 confirmed, and if SP-2 found the popup without `HERDR_*`, the command gets the `env` prefix of section 14. A README section explains pasting the snippet, reloading, changing the key and a second binding for `--board home`.
+- Scope: `brain-swap install herdr` prints the 9.4 key binding with the canonical absolute path of the running binary (`current_exe`, read once by `main` into `Env.exe`, since the herdr server may lack `~/.cargo/bin` on its `PATH`), followed by the instruction to run `herdr server reload-config`; `--json` returns the snippet. It never edits herdr's config, reads no brain-swap config and runs no herdr command. The key is the one SP-7 confirmed, and since SP-2 was not run and took its fallback (TECHSPEC 16), the command gets the `env` prefix of section 14. A README section explains pasting the snippet, reloading, changing the key and a second binding for `--board home`.
 - Provides: `adapters::herdr::key_snippet(command: &str) -> String` (the six 9.4 lines with `command` as a TOML basic string), the `InstallTarget::Herdr` handler `cli::cmd::install_herdr`, `cli::out::SnippetJson`; README section `## herdr key binding`
 - Requires: E2-F1 (`InstallTarget::Herdr` with a `todo!()` arm, `cli::run` skipping the config prelude for `install`, `Out`, `Sandbox` with `scenario_mut`, through which any E5-F4 CLI test sets `HERDR_*`, `FAKE_HERDR_SCENARIO`, `BRAIN_SWAP_SESSION`, `BRAIN_SWAP_LOG` or a failpoint before `cmd(args)`); E1-F1 (`Env.exe`, the canonical `current_exe` that `src/main.rs` reads; spawn helper `command` and `FAKE_HERDR`, `tests/docs.rs`); E0-F2 the SP-7 key and the SP-2 popup answer (TECHSPEC 9.4 as updated); nothing from E5-F1, since `install herdr` makes no herdr call
 - Feature DoD:
   - [ ] Snippet snapshot (E5-F4-T1).
-  - [ ] The SP-2 `env` prefix is applied, or the task is closed as not needed (E5-F4-T2).
+  - [ ] The SP-2 `env` prefix is applied (E5-F4-T2).
   - [ ] README carries the herdr section, checked against `key_snippet` (E5-F4-T3).
 
 ### E5-F4-T1 Key binding snippet
@@ -613,14 +613,14 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 - Depends on: E5-F4-T1, E0-F2-T1
 - Covers: FR-64; TECHSPEC 9.4, 14 (SP-2 fallback for missing `HERDR_*`)
 - Size: S
-- Scope: Runs only if the TECHSPEC 16 `SP-2` line records that a popup command lacks `HERDR_*`; otherwise the task is closed as `not needed: popup sees HERDR_*`. When enabled, `install_herdr` builds the command as `env HERDR_ENV=1 HERDR_BIN_PATH=<herdr path> <brain-swap path>` (plus `HERDR_SOCKET_PATH=<path>` if SP-2 recorded that the herdr CLI needs it), with `<herdr path>` `HERDR_BIN_PATH` from `Env` when set, else `herdr` (A-E5-30), and updates the E5-F4-T1 snapshot.
+- Scope: Applies unconditionally: the TECHSPEC 16 `SP-2` line records the spike as not run with its fallback taken, so a popup may lack `HERDR_*`. `install_herdr` builds the command as `env HERDR_ENV=1 HERDR_BIN_PATH=<herdr path> <brain-swap path>` (no `HERDR_SOCKET_PATH`, TECHSPEC 9.4), with `<herdr path>` `HERDR_BIN_PATH` from `Env` when set, else `herdr` (A-E5-30), and updates the E5-F4-T1 snapshot.
 - Not in scope: the jump order (E5-F3-T4).
 - Tests first:
   1. `ts9_4_env_prefix_names_herdr_bin_path` (CLI): given the spawn helper's `HERDR_BIN_PATH` (always `FAKE_HERDR`, 12.1), when `brain-swap install herdr` runs, then the `command` line is `command = "env HERDR_ENV=1 HERDR_BIN_PATH=<fake herdr> <brain-swap>"` with both paths replaced through `str::replace`.
   2. `ts9_4_env_prefix_without_herdr_bin_path_uses_herdr` (unit, `install_herdr`'s command builder): given an `Env` without `herdr_bin_path`, then the command is `env HERDR_ENV=1 HERDR_BIN_PATH=herdr <path>`.
 - DoD:
-  - [ ] Either the task is closed with the SP-2 line cited in the commit message, or the tests above pass and the first was committed red (12.2 item 1).
-  - [ ] When enabled, the E5-F4-T1 snapshot shows the prefix and TECHSPEC 9.4 shows the same command form.
+  - [ ] The tests above pass and the first was committed red (12.2 item 1); the commit message cites the SP-2 line.
+  - [ ] The E5-F4-T1 snapshot shows the prefix and TECHSPEC 9.4 shows the same command form.
 
 ### E5-F4-T3 README herdr section
 
@@ -628,10 +628,10 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 - Depends on: E5-F4-T1, E5-F4-T2
 - Covers: FR-64; TECHSPEC 9.4 (a second binding with `--board home`, why `prefix+alt+b`), 12.2 item 5
 - Size: S
-- Scope: Add `## herdr key binding` to `README.md`: run `brain-swap install herdr`, paste the snippet into herdr's config, run `herdr server reload-config`; the default key and why (`prefix+b` is herdr's sidebar toggle, SP-7), how to change it if it collides; a second binding whose `command` ends in ` --board home` on another key opens the home board; `install herdr` never edits herdr's config; outside herdr everything works except the jump. The first `toml` block of the section is the snippet for the placeholder path `/home/you/.cargo/bin/brain-swap` (A-E5-31). Tests go in `tests/docs.rs`.
+- Scope: Add `## herdr key binding` to `README.md`: run `brain-swap install herdr`, paste the snippet into herdr's config, run `herdr server reload-config`; the default key and why (`prefix+b` is herdr's sidebar toggle, SP-7), how to change it if it collides; a second binding whose `command` ends in ` --board home` on another key opens the home board; `install herdr` never edits herdr's config; outside herdr everything works except the jump. The first `toml` block of the section is the snippet for the placeholder path `/home/you/.cargo/bin/brain-swap` with the SP-2 `env` prefix and `herdr` as the herdr path (A-E5-31). Tests go in `tests/docs.rs`.
 - Not in scope: `install claude` documentation (E3-F2); the release README pass (E6-F1).
 - Tests first:
-  1. `fr64_readme_snippet_matches_install_output` (docs): given `README.md`, when the first `toml` fenced block under `## herdr key binding` is extracted, then it equals `key_snippet("/home/you/.cargo/bin/brain-swap")` (as E5-F4-T2 left the command form).
+  1. `fr64_readme_snippet_matches_install_output` (docs): given `README.md`, when the first `toml` fenced block under `## herdr key binding` is extracted, then it equals `key_snippet("env HERDR_ENV=1 HERDR_BIN_PATH=herdr /home/you/.cargo/bin/brain-swap")` (the E5-F4-T2 command form with `herdr` for the herdr path).
   2. `fr64_readme_second_binding_opens_board_home` (docs): given the same section, when its second `toml` block is parsed, then `keys.command[0].command` ends with ` --board home` and its `key` differs from the first block's.
 - DoD:
   - [ ] The tests above pass; the test for the first item was committed red before the README section turned it green (12.2 item 1).
@@ -662,7 +662,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 - A-E5-22 On the board, does `jump` on a card without a jump note open the Message `no note yet` (not the status line), and does `jump` with no card selected do nothing? Affects E5-F3-T1.
 - A-E5-23 Does E4-F1 define `Effect` and `Outcome` without the jump variants (its Dep does not reach `PaneStatus` in E5-F2), leaving E5-F3-T1 to add `Effect::Jump(CardId, usize)`, `Outcome::Jumped`, `NotJumped` and `FocusFailed`, with the `usize` the index into `Card.notes` (0 the oldest) as `jump_note()` returns it? Affects E5-F3-T1, E5-F3-T2, E5-F3-T3.
 - A-E5-24 Does the TUI runtime take the `Runner` as a `runner: Box<dyn Runner>` field of E4-F1's injectable Parts (terminal guard, events, clock), added by E5-F3-T3 whether or not E4-F5 has added `launcher`, so its tests run with `FakeRunner`? Affects E5-F3-T3, E5-F3-T4.
-- A-E5-25 If SP-2 takes the section 14 fallback (exit first, then a detached `brain-swap jump <ID>`), is E5-F3-T4 closed and a new task filed once TECHSPEC 7.7 describes it, noting that a detached spawn from `src/tui/` also needs a layering exception and `--note <n>` for a Detail jump? Affects E5-F3-T4.
+- A-E5-25 SP-2 was not run (TECHSPEC 16): the TUI keeps focus, then restore and exit (7.7), on the unverified assumption that a focus issued from the popup holds after it exits, and the section 14 detached jump is not used. Is a manual check in E5-F3-T6 step 4 enough to catch that assumption failing? Affects E5-F3-T4, E5-F3-T6.
 - A-E5-26 May the manual runs park with Claude Code's `!` shell escape (`! brain-swap park --card W-12`, parts on stdin) instead of `/bs-park`, so they need no E3 dependency while the session still comes from herdr? Affects E5-F3-T6, E5-F3-T7.
 - A-E5-27 Is AS-11 checked by pausing the real herdr server with `kill -STOP` while the TUI runs in a plain terminal with `HERDR_ENV=1` and the pane's `HERDR_SOCKET_PATH`, since a stopped server also freezes herdr's own display? Affects E5-F3-T7.
 - A-E5-28 Does `install herdr` print, after the snippet, a blank line and `then run: herdr server reload-config`, with the JSON `snippet` holding only the six TOML lines? Affects E5-F4-T1.

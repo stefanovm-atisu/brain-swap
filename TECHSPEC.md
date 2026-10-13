@@ -31,7 +31,7 @@ templates/{feature,bug,research,chore}.md
 ### 2.2 Layering and the public CLI rule
 
 - `core` imports neither `cli`, `tui` nor `adapters`, and uses neither `std::process` nor `std::env` (only `failpoint.rs` may): the environment arrives as an `Env` value, so core code is deterministic; `tests/layering.rs` enforces this. `adapters` import only `core`. The core stores a place as opaque strings (T-02).
-- The pack calls only section 6 subcommands; the herdr key runs only `brain-swap`; the herdr adapter runs only `herdr pane get`, `pane list`, `workspace list`, `agent focus`, `workspace focus` and `tab focus`, never `pane current` (SP-4) and never the socket. Nothing reads Claude transcripts, settings, hooks or `CLAUDE_*` variables (bar `CLAUDE_CONFIG_DIR` in `install claude`, honoured as an unverified assumption, SP-6).
+- The pack calls only section 6 subcommands; the herdr key runs only `brain-swap` (behind `env`, 9.4); the herdr adapter runs only `herdr pane get`, `pane list`, `workspace list`, `agent focus`, `workspace focus` and `tab focus`, never `pane current` (SP-4) and never the socket. Nothing reads Claude transcripts, settings, hooks or `CLAUDE_*` variables (bar `CLAUDE_CONFIG_DIR` in `install claude`, honoured as an unverified assumption, SP-6).
 - Board data lives in board folders; references, pane hints, locks and editor copies in `$XDG_STATE_HOME/brain-swap/`; the log only where `BRAIN_SWAP_LOG` points (section 11).
 
 ## 3. Domain model
@@ -434,7 +434,7 @@ The card bytes `C0` are copied to `$XDG_STATE_HOME/brain-swap/edit/<board>-<ID>.
 
 ### 7.7 Jump from the TUI
 
-Target: `jump_note()` on the board, the shown note in Detail (none: `no note yet`). Showing `jumping...`, the runtime calls `locate` (9.3). On `Live` or `Moved` it focuses first: on `Ok` it restores the terminal and exits 0 through `Done(Jumped)` and `Quit`, closing the popup (FR-59, FR-60); on `Err` it stays in the TUI and opens a Message `focus failed: <pane>` (or `herdr not responding` when a focus call timed out, 9.3) with the working directory. SP-2 may move the restore before the focus; a failed focus then re-enters the alternate screen and shows the same Message. Other outcomes open a Message with the working directory: `pane closed` plus `open a session there and run /bs-link W-12` (FR-61), `not in herdr`, `no pane recorded` (FR-62), `herdr not responding`, `herdr: <message>` (FR-63).
+Target: `jump_note()` on the board, the shown note in Detail (none: `no note yet`). Showing `jumping...`, the runtime calls `locate` (9.3). On `Live` or `Moved` it focuses first: on `Ok` it restores the terminal and exits 0 through `Done(Jumped)` and `Quit`, closing the popup (FR-59, FR-60); on `Err` it stays in the TUI and opens a Message `focus failed: <pane>` (or `herdr not responding` when a focus call timed out, 9.3) with the working directory. SP-2 was not run (16), so this order rests on an unverified assumption: that a focus issued from the popup holds after the popup exits. Other outcomes open a Message with the working directory: `pane closed` plus `open a session there and run /bs-link W-12` (FR-61), `not in herdr`, `no pane recorded` (FR-62), `herdr not responding`, `herdr: <message>` (FR-63).
 
 ## 8. Claude Code pack
 
@@ -627,14 +627,14 @@ Existence comes first, so a closed pane yields `pane closed` (FR-61); live IDs w
 
 ### 9.4 Key binding
 
-`brain-swap install herdr` prints this snippet with the binary's canonical path (`current_exe`), since the herdr server may lack `~/.cargo/bin` on its `PATH`, then `herdr server reload-config` (FR-64):
+`brain-swap install herdr` prints this snippet with the binary's canonical path (`current_exe`), since the herdr server may lack `~/.cargo/bin` on its `PATH`, then `herdr server reload-config` (FR-64). SP-2 was not run, so its fallback holds (16): the popup may lack `HERDR_*`, and the command is prefixed with `env HERDR_ENV=1 HERDR_BIN_PATH=<herdr path>`, where `<herdr path>` is `HERDR_BIN_PATH` of the shell running `install herdr`, else `herdr`; no `HERDR_SOCKET_PATH` is added:
 
 ```toml
 # brain-swap: open the board in a popup (change the key if it collides)
 [[keys.command]]
 key = "prefix+alt+b"
 type = "popup"
-command = "/home/smilen/.cargo/bin/brain-swap"
+command = "env HERDR_ENV=1 HERDR_BIN_PATH=<herdr path> /home/smilen/.cargo/bin/brain-swap"
 width = "90%"
 height = "90%"
 ```
@@ -834,11 +834,12 @@ Choices made where the PRD and the environment leave room, as yes/no questions f
 - **T-20** Verify before rename on every write?
 - **T-21** `BRAIN_SWAP_NOW` in every build, failpoints only with the feature?
 
-Open until the spikes answer: SP-2 focus before or after exit; SP-7 the key; SP-8 the staleness rule.
+Open until the spikes answer: SP-7 the key; SP-8 the staleness rule.
 
 Spike answers:
 
 - **SP-1 (2026-10-13, herdr 0.8.2, Claude Code 2.1.294)** not run (owner decision 2026-10-13: take the fallback, revisit on need). Inline expands: unverified. Body expands: unverified. Equals herdr's `agent_session.value`: unverified. Survives `/compact`: unverified. Survives auto-compaction: unverified. Changes on `/clear`: unverified. Unsubstituted text: unverified; I8 verdict: none recorded, as I8 already treats an empty value and one containing `$`, `{` or `}` as a placeholder, which covers both the literal `${CLAUDE_SESSION_ID}` and the empty string a shell makes of it. Fallback taken: the 6.4 chain. The skills still pass `--session "${CLAUDE_SESSION_ID}"`, but nothing relies on it expanding or equalling herdr's value: a placeholder warns `session id not substituted` and resolves through `BRAIN_SWAP_SESSION`, then herdr's pane session (9.2), then none; 6.4 and 8.1 updated. For the owner (A-E0-02): no contradiction with FR-41, which names this chain; FR-57 and A-14 assume that `/clear` gives a new ID, which stays unverified.
+- **SP-2 (2026-10-13, herdr 0.8.2)** not run (owner decision 2026-10-13: take the fallback, revisit on need). Popup variables `HERDR_ENV`, `HERDR_PANE_ID`, `HERDR_TAB_ID`, `HERDR_WORKSPACE_ID`, `HERDR_BIN_PATH`, `HERDR_SOCKET_PATH`: each unverified. `~/.cargo/bin` on the popup `PATH`: unverified. Closes on exit: unverified; none (assumed as 7.7 and A-07 state). Agent focus from the popup holds: unverified. Tab focus from the popup holds: unverified. Detached focus lands: unverified, not used. Order chosen: focus, then exit, as 7.7 states. Fallback taken: env prefix only; hand-off kept as designed (unverified that a focus from the popup holds). `install herdr` prints `command = "env HERDR_ENV=1 HERDR_BIN_PATH=<herdr path> <brain-swap path>"` (no `HERDR_SOCKET_PATH`, unverified whether the herdr CLI needs it); 7.7 and 9.4 updated. For the owner (A-E0-02): no PRD contradiction; FR-59, FR-63 and A-07 hold as written.
 - **SP-3 (2026-10-13, Claude Code 2.1.294)** not run (owner decision 2026-10-13: take the fallback, revisit on need). Inline pre-approved: unverified. Heredoc pre-approved: unverified. Later move pre-approved: unverified. `~/.cargo/bin` on the inline `PATH`: unverified. On the Bash tool `PATH`: unverified. Absolute path pre-approved: not tried. Fallback taken: both, a documented allow rule against prompts (`install claude` prints it and the README documents it, never editing settings) and absolute binary paths in the installed copies against a missing `PATH`; 8.1 and 8.8 updated. For the owner (A-E0-02): no PRD contradiction (FR-67 still holds: settings are never edited).
 - **SP-4 (2026-10-13, herdr 0.8.2, Claude Code 2.1.296)** Inheritance: Claude's Bash tool and a skill's inline shell both see `HERDR_ENV`, `HERDR_PANE_ID`, `HERDR_TAB_ID`, `HERDR_WORKSPACE_ID`, `HERDR_BIN_PATH` and `HERDR_SOCKET_PATH`, equal to the pane shell's. Move: `pane move --new-workspace` gives the pane a new ID and keeps `agent_session.value`, but the old ID does not give `pane_not_found`: `pane get <old ID>` exits 0 with the current pane, also after a second move and for every earlier ID, until the pane closes, when every ID gives `pane_not_found`. `pane current --current` from the moved pane (with the stale `HERDR_PANE_ID`) names the new pane, and so does `pane get "$HERDR_PANE_ID"`. Decision: no `pane current` call and no moved-pane check in `capture` (E5-F1-T9 closes as not needed); `locate` reports `Moved` when the first `pane get` answers with a `pane_id` other than the stored one, so FR-60 and AS-10 hold, and the session search (A-20) remains for a session resumed in another pane after its pane closed; 2.2, 9.1, 9.2 and 9.3 updated. Key names that differ from the earlier text: a workspace's ID is `workspace_id`, and pane IDs are `pane_id`, `tab_id`, `workspace_id`. Not checked: whether the aliases survive a herdr server restart (stopping the server would end the author's live panes). Samples, trimmed to the keys 9.2 and 9.3 read (exit 0 unless noted):
 
