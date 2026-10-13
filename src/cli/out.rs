@@ -241,6 +241,12 @@ impl<'a> LocateJson<'a> {
     }
 }
 
+/// The `install herdr` body (6.7).
+#[derive(Serialize)]
+pub struct SnippetJson<'a> {
+    pub snippet: &'a str,
+}
+
 /// One `--json` object: `v` first, then the flattened body.
 #[derive(Serialize)]
 pub struct Envelope<T> {

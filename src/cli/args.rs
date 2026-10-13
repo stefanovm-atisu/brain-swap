@@ -124,7 +124,7 @@ pub enum InstallTarget {
         #[arg(long)]
         remove: bool,
     },
-    /// Install the herdr integration
+    /// Print the herdr key binding to paste; edits nothing
     Herdr,
 }
 

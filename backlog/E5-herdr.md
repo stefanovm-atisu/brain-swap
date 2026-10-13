@@ -588,7 +588,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F4-T1 Key binding snippet
 
-- Status: doing
+- Status: done
 - Depends on: E2-F1, E0-F2-T3
 - Covers: FR-64; TECHSPEC 6.3 (`install herdr`), 6.7 (`snippet`), 9.4
 - Size: S

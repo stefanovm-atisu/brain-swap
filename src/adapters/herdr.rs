@@ -284,6 +284,20 @@ pub fn focus(p: &LivePane, runner: &dyn Runner) -> Result<Focused, FocusError> {
     Err(FocusError::Failed)
 }
 
+/// The 9.4 key binding with `command` as a TOML basic string (FR-64).
+pub fn key_snippet(command: &str) -> String {
+    let command = command.replace('\\', "\\\\").replace('"', "\\\"");
+    format!(
+        "# brain-swap: open the board in a popup (change the key if it collides)\n\
+         [[keys.command]]\n\
+         key = \"prefix+alt+b\"\n\
+         type = \"popup\"\n\
+         command = \"{command}\"\n\
+         width = \"90%\"\n\
+         height = \"90%\"\n"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -410,6 +424,28 @@ mod tests {
                 "not_responding",
                 "herdr_error"
             ]
+        );
+    }
+
+    #[test]
+    fn ts9_4_snippet_parses_as_a_herdr_key_command() {
+        let v: toml::Value = toml::from_str(&key_snippet("/x/brain-swap")).unwrap();
+        let k = &v["keys"]["command"][0];
+        assert_eq!(k["key"].as_str(), Some("prefix+alt+b"));
+        assert_eq!(k["type"].as_str(), Some("popup"));
+        assert_eq!(k["command"].as_str(), Some("/x/brain-swap"));
+        assert_eq!(k["width"].as_str(), Some("90%"));
+        assert_eq!(k["height"].as_str(), Some("90%"));
+    }
+
+    #[test]
+    fn ts9_4_command_is_escaped_as_toml_string() {
+        let text = key_snippet("/a \"b\"\\c");
+        assert!(text.contains(r#"command = "/a \"b\"\\c""#), "{text}");
+        let v: toml::Value = toml::from_str(&text).unwrap();
+        assert_eq!(
+            v["keys"]["command"][0]["command"].as_str(),
+            Some("/a \"b\"\\c")
         );
     }
 }

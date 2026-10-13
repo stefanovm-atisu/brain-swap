@@ -2,7 +2,7 @@
 
 use crate::adapters::herdr;
 use crate::adapters::runner::{ProcessRunner, Runner};
-use crate::cli::args::{Cli, Command};
+use crate::cli::args::{Cli, Command, InstallTarget};
 use crate::cli::out::{self, Out};
 use crate::core::config::{self, Config};
 use crate::core::env::Env;
@@ -381,8 +381,25 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
         Some(Command::Locate { id, note }) => {
             locate(env, &ctx.expect("loaded above"), id, note, &mut out)
         }
+        Some(Command::Install(InstallTarget::Herdr)) => install_herdr(env, &mut out),
         _ => todo!(),
     }
+}
+
+/// `install herdr` (9.4): prints the key binding for the canonical binary path; reads no
+/// config, writes no file and runs no herdr command (FR-64).
+pub fn install_herdr(env: &Env, out: &mut Out) -> i32 {
+    let Some(exe) = &env.exe else {
+        return out.error(&Error::Io(
+            "cannot determine the brain-swap binary path".into(),
+        ));
+    };
+    let snippet = herdr::key_snippet(&exe.display().to_string());
+    out.result(
+        &format!("{snippet}\nthen run: herdr server reload-config\n"),
+        out::SnippetJson { snippet: &snippet },
+    );
+    0
 }
 
 /// The note `locate` and `jump` target (6.3): the jump note, or note `n` counted from the
