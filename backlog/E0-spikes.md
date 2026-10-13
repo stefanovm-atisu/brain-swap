@@ -21,7 +21,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 - Feature DoD:
   - [ ] SP-1 answered in TECHSPEC 16; 6.4 and the `--session` rule of 8.1 updated if the fallback is taken (E0-F1-T1).
   - [ ] SP-3 answered in TECHSPEC 16; 8.1 and 8.8 updated if a fallback is taken (E0-F1-T2).
-  - [ ] SP-4 answered in TECHSPEC 16 with the JSON samples; 9.1 and the `pane current` clause of 2.2 updated (E0-F1-T3).
+  - [x] SP-4 answered in TECHSPEC 16 with the JSON samples; 9.1 and the `pane current` clause of 2.2 updated (E0-F1-T3).
   - [ ] SP-6 answered in TECHSPEC 16; 8.8 updated if the fallback is taken (E0-F1-T4).
 
 ### E0-F1-T1 SP-1 session ID in skills
@@ -70,7 +70,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 
 ### E0-F1-T3 SP-4 herdr from Claude
 
-- Status: todo
+- Status: done
 - Depends on: none
 - Covers: FR-41; TECHSPEC 14 SP-4, 2.2, 9.1, 9.2, 9.3, 16
 - Size: S
@@ -87,9 +87,9 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
   8. Decide: if step 7 resolves the new pane, the 9.1 moved-pane check is enabled (2.2 keeps `pane current`, T-15 allows the extra call); otherwise the fallback: notes from a moved pane keep the old ID, and 2.2 and 9.1 drop `pane current`.
   9. Remove the probe skill.
 - DoD:
-  - [ ] TECHSPEC 16 gains the line `SP-4 (<date>, herdr 0.8.2, Claude Code 2.1.294)` answering inheritance (Bash tool, inline shell), the move (new ID, session kept) and `pane current --current`, followed by the step 4 samples trimmed to the step 5 keys; `SP-4` is removed from the `Open until the spikes answer` sentence.
-  - [ ] 9.1 (and 2.2, and 9.3 where a key name differs) updated in the same commit; a contradiction with FR-15, FR-60 or A-20 is named for the owner (A-E0-02).
-  - [ ] Probe skill removed; no product file changed; one commit with no AI attribution.
+  - [x] TECHSPEC 16 gains the line `SP-4 (<date>, herdr 0.8.2, Claude Code 2.1.294)` answering inheritance (Bash tool, inline shell), the move (new ID, session kept) and `pane current --current`, followed by the step 4 samples trimmed to the step 5 keys; `SP-4` is removed from the `Open until the spikes answer` sentence.
+  - [x] 9.1 (and 2.2, and 9.3 where a key name differs) updated in the same commit; a contradiction with FR-15, FR-60 or A-20 is named for the owner (A-E0-02).
+  - [x] Probe skill removed; no product file changed; one commit with no AI attribution.
 
 ### E0-F1-T4 SP-6 skill install by symlink
 

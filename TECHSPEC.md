@@ -31,7 +31,7 @@ templates/{feature,bug,research,chore}.md
 ### 2.2 Layering and the public CLI rule
 
 - `core` imports neither `cli`, `tui` nor `adapters`, and uses neither `std::process` nor `std::env` (only `failpoint.rs` may): the environment arrives as an `Env` value, so core code is deterministic; `tests/layering.rs` enforces this. `adapters` import only `core`. The core stores a place as opaque strings (T-02).
-- The pack calls only section 6 subcommands; the herdr key runs only `brain-swap`; the herdr adapter runs only `herdr pane get`, `pane list`, `workspace list`, `agent focus`, `workspace focus` and `tab focus` and, only if SP-4 confirms it, `pane current`, never the socket. Nothing reads Claude transcripts, settings, hooks or `CLAUDE_*` variables (bar `CLAUDE_CONFIG_DIR` in `install claude`, SP-6).
+- The pack calls only section 6 subcommands; the herdr key runs only `brain-swap`; the herdr adapter runs only `herdr pane get`, `pane list`, `workspace list`, `agent focus`, `workspace focus` and `tab focus`, never `pane current` (SP-4) and never the socket. Nothing reads Claude transcripts, settings, hooks or `CLAUDE_*` variables (bar `CLAUDE_CONFIG_DIR` in `install claude`, SP-6).
 - Board data lives in board folders; references, pane hints, locks and editor copies in `$XDG_STATE_HOME/brain-swap/`; the log only where `BRAIN_SWAP_LOG` points (section 11).
 
 ## 3. Domain model
@@ -590,13 +590,13 @@ Set by `/bs-card`, every park, `/bs-link` and the `/bs-back` pick; read through 
 
 ### 9.1 Detection and capture
 
-Active when `HERDR_ENV` is `1` (FR-58); the binary is `HERDR_BIN_PATH`, else `herdr` on `PATH`. At park time `capture` builds `HerdrPlace` from `HERDR_PANE_ID`, `HERDR_TAB_ID` and `HERDR_WORKSPACE_ID` and runs no herdr command unless SP-4 enabled the moved-pane check below (FR-15). Inheritance into Claude's Bash tool is SP-4.
+Active when `HERDR_ENV` is `1` (FR-58); the binary is `HERDR_BIN_PATH`, else `herdr` on `PATH`. At park time `capture` builds `HerdrPlace` from `HERDR_PANE_ID`, `HERDR_TAB_ID` and `HERDR_WORKSPACE_ID` and runs no herdr command (FR-15). Claude's Bash tool and the inline skill shell both inherit the pane's `HERDR_*` (SP-4).
 
-A process keeps the `HERDR_PANE_ID`, `HERDR_TAB_ID` and `HERDR_WORKSPACE_ID` it started with, so after its pane moves to another workspace (and gets a new ID) they name a dead pane. If SP-4 finds that `herdr pane current --current` resolves the caller's new pane, `capture` and `pane_session` use it when `herdr pane get $HERDR_PANE_ID` reports `pane_not_found` (T-15 then allows that check). Otherwise notes from a moved pane keep the old ID and each jump resolves them by session through the moved search (9.3).
+A process keeps the `HERDR_PANE_ID`, `HERDR_TAB_ID` and `HERDR_WORKSPACE_ID` it started with, so after its pane moves (and gets a new ID) they name the old place. herdr keeps every old pane ID of a live pane as an alias: `herdr pane get <old ID>` exits 0 with the pane's current IDs, through any number of moves, and gives `pane_not_found` only once the pane closes (SP-4). So `capture` stores the inherited IDs as they are, `pane_session` (9.2) works from a moved pane, and `locate` (9.3) gets a moved pane with its current IDs from the first `pane get` and reports it as `Moved` (T-16); no moved-pane check in `capture` and no `pane current` call exist.
 
 ### 9.2 Session of the current pane
 
-`pane_session` runs `herdr pane get <HERDR_PANE_ID>` and returns `result.pane.agent_session.value`, or none; only 6.4 step 3 (and the 9.1 moved-pane case) uses it.
+`pane_session` runs `herdr pane get <HERDR_PANE_ID>` and returns `result.pane.agent_session.value`, or none; only 6.4 step 3 uses it. From a moved pane the stale `HERDR_PANE_ID` still answers (9.1).
 
 ### 9.3 Locate and focus
 
@@ -605,12 +605,14 @@ locate(place, env, runner) -> PaneStatus:
   if env HERDR_ENV != "1":                                     return OutsideHerdr
   h = place.herdr, else                                        return NoPane
   r = run(herdr pane get <h.pane>)
-  if r exits 0:                                                return Live(r .result.pane)
+  if r exits 0 and r .result.pane.pane_id == h.pane:           return Live(r .result.pane)
+  if r exits 0:                                  # old ID of a moved pane (9.1)
+                                                               return Moved(r .result.pane)
   if r timed out:                                              return NotResponding
   if stderr JSON error.code != "pane_not_found":               return HerdrError(first line)
-  if place.session:                                   # pane_not_found: maybe moved
+  if place.session:                     # pane closed: session maybe resumed elsewhere
     for ws in run(herdr workspace list):
-      for p in run(herdr pane list --workspace <ws.id>):
+      for p in run(herdr pane list --workspace <ws.workspace_id>):
         if p.agent_session.value == place.session:             return Moved(p)
   return Closed
 
@@ -621,7 +623,7 @@ focus(p, runner) -> Result:                         # any call timing out: retur
   return Err("focus failed")
 ```
 
-Existence comes first, so a closed pane yields `pane closed` (FR-61); live IDs win over stored ones (T-16). The moved search (FR-60) stops at the first match; a timed-out list call returns `NotResponding`, and a list call that fails otherwise ends the search as `Closed`. The whole `locate` has a 3 second budget, after which it returns `NotResponding` (FR-63, AS-11); SP-4 confirms the list JSON, read with tolerant `serde_json::Value` lookups. `LivePane.agent` is true when the pane JSON has an `agent` or `agent_session` key, or `agent_status` is not `unknown`. The tab fallback is best effort. `locate` and `focus` share one 3 second budget; a focus call that times out returns `NotResponding`, shown as `herdr not responding` with the working directory (exit 6 in `jump`). Every call goes through `Runner` with a timeout of 2 seconds or the rest of the budget, whichever is less, that kills the child (T-15).
+Existence comes first, so a closed pane yields `pane closed` (FR-61); live IDs win over stored ones (T-16). A pane moved within herdr answers the first `pane get` through its old ID (9.1) with a different `pane_id`, which is `Moved` (FR-60, AS-10); the moved search only finds a session running in a different pane, for example one resumed after its pane closed, and stops at the first match; a timed-out list call returns `NotResponding`, and a list call that fails otherwise ends the search as `Closed`. The whole `locate` has a 3 second budget, after which it returns `NotResponding` (FR-63, AS-11). The JSON (samples under SP-4 in 16) is read with tolerant `serde_json::Value` lookups: a pane carries `pane_id`, `tab_id`, `workspace_id`, `agent`, `agent_session.value` and `agent_status` (the `p.pane`, `p.tab`, `p.workspace` above), `pane get` nests it in `result.pane`, `pane list` in `result.panes`, `workspace list` in `result.workspaces`, and a workspace's ID is `workspace_id` (the top-level `id` is the request label, never a workspace ID). `LivePane.agent` is true when the pane JSON has an `agent` or `agent_session` key, or `agent_status` is not `unknown`. The tab fallback is best effort. `locate` and `focus` share one 3 second budget; a focus call that times out returns `NotResponding`, shown as `herdr not responding` with the working directory (exit 6 in `jump`). Every call goes through `Runner` with a timeout of 2 seconds or the rest of the budget, whichever is less, that kills the child (T-15).
 
 ### 9.4 Key binding
 
@@ -832,4 +834,33 @@ Choices made where the PRD and the environment leave room, as yes/no questions f
 - **T-20** Verify before rename on every write?
 - **T-21** `BRAIN_SWAP_NOW` in every build, failpoints only with the feature?
 
-Open until the spikes answer: SP-1 whether the 6.4 fallback is needed; SP-2 focus before or after exit; SP-3 absolute paths in copies; SP-4 the moved-pane check in `capture`; SP-7 the key; SP-8 the staleness rule.
+Open until the spikes answer: SP-1 whether the 6.4 fallback is needed; SP-2 focus before or after exit; SP-3 absolute paths in copies; SP-7 the key; SP-8 the staleness rule.
+
+Spike answers:
+
+- **SP-4 (2026-10-13, herdr 0.8.2, Claude Code 2.1.296)** Inheritance: Claude's Bash tool and a skill's inline shell both see `HERDR_ENV`, `HERDR_PANE_ID`, `HERDR_TAB_ID`, `HERDR_WORKSPACE_ID`, `HERDR_BIN_PATH` and `HERDR_SOCKET_PATH`, equal to the pane shell's. Move: `pane move --new-workspace` gives the pane a new ID and keeps `agent_session.value`, but the old ID does not give `pane_not_found`: `pane get <old ID>` exits 0 with the current pane, also after a second move and for every earlier ID, until the pane closes, when every ID gives `pane_not_found`. `pane current --current` from the moved pane (with the stale `HERDR_PANE_ID`) names the new pane, and so does `pane get "$HERDR_PANE_ID"`. Decision: no `pane current` call and no moved-pane check in `capture` (E5-F1-T9 closes as not needed); `locate` reports `Moved` when the first `pane get` answers with a `pane_id` other than the stored one, so FR-60 and AS-10 hold, and the session search (A-20) remains for a session resumed in another pane after its pane closed; 2.2, 9.1, 9.2 and 9.3 updated. Key names that differ from the earlier text: a workspace's ID is `workspace_id`, and pane IDs are `pane_id`, `tab_id`, `workspace_id`. Not checked: whether the aliases survive a herdr server restart (stopping the server would end the author's live panes). Samples, trimmed to the keys 9.2 and 9.3 read (exit 0 unless noted):
+
+  `herdr workspace list`
+  ```json
+  {"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w5N:t1","workspace_id":"w5N"},{"active_tab_id":"w5Q:t1","workspace_id":"w5Q"}]}}
+  ```
+  `herdr pane list --workspace w5Q` (a Claude pane and a plain shell pane)
+  ```json
+  {"id":"cli:pane:list","result":{"type":"pane_list","panes":[{"agent":"claude","agent_session":{"agent":"claude","kind":"id","source":"herdr:claude","value":"f44711a9-e3ac-46ab-8f30-509b93a87dbb"},"agent_status":"idle","pane_id":"w5Q:p1","tab_id":"w5Q:t1","workspace_id":"w5Q"},{"agent_status":"unknown","pane_id":"w5Q:p2","tab_id":"w5Q:t1","workspace_id":"w5Q"}]}}
+  ```
+  `herdr pane get w5Q:p1` (Claude pane)
+  ```json
+  {"id":"cli:pane:get","result":{"type":"pane_info","pane":{"agent":"claude","agent_session":{"agent":"claude","kind":"id","source":"herdr:claude","value":"f44711a9-e3ac-46ab-8f30-509b93a87dbb"},"agent_status":"idle","pane_id":"w5Q:p1","tab_id":"w5Q:t1","workspace_id":"w5Q"}}}
+  ```
+  `herdr pane get w5Q:p2` (shell pane)
+  ```json
+  {"id":"cli:pane:get","result":{"type":"pane_info","pane":{"agent_status":"unknown","pane_id":"w5Q:p2","tab_id":"w5Q:t1","workspace_id":"w5Q"}}}
+  ```
+  `herdr pane get w5Q:p999` (never existed, or closed): empty stdout, exit 1, stderr
+  ```json
+  {"error":{"code":"pane_not_found","message":"pane w5Q:p999 not found"},"id":"cli:pane:get"}
+  ```
+  `herdr pane get w5Q:p1` after `pane move w5Q:p1 --new-workspace` (old ID, exit 0)
+  ```json
+  {"id":"cli:pane:get","result":{"type":"pane_info","pane":{"agent":"claude","agent_session":{"agent":"claude","kind":"id","source":"herdr:claude","value":"f44711a9-e3ac-46ab-8f30-509b93a87dbb"},"agent_status":"idle","pane_id":"w5R:p1","tab_id":"w5R:t1","workspace_id":"w5R"}}}
+  ```
