@@ -96,7 +96,7 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 
 ### E3-F1-T4 bs-back skill
 
-- Status: doing
+- Status: done
 - Depends on: E3-F1-T3
 - Covers: FR-46, FR-47, FR-51, FR-52, FR-53, FR-56; TECHSPEC 6.4, 8.1, 8.4, 8.6, 12.1 (Pack)
 - Size: M

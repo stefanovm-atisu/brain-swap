@@ -418,3 +418,252 @@ fn ts8_6_bs_park_heredoc_keeps_text_literal() {
     let notes = w12_notes(&env);
     assert_eq!(notes.last().unwrap().1[0], format!("- Doing: {doing}"));
 }
+
+// bs-back (TECHSPEC 8.4)
+
+#[test]
+fn ts8_1_bs_back_frontmatter_names_and_version() {
+    let fm = frontmatter(&read_skill("bs-back"));
+    assert_eq!(fm["name"], Value::Text("bs-back".into()));
+    assert!(matches!(&fm["description"], Value::Text(d) if !d.is_empty()));
+    assert!(!fm.contains_key("argument-hint"));
+    assert_eq!(
+        fm["metadata"],
+        Value::Map(BTreeMap::from([
+            ("pack".into(), "brain-swap".into()),
+            ("version".into(), env!("CARGO_PKG_VERSION").into()),
+        ]))
+    );
+}
+
+#[test]
+fn fr46_bs_back_user_only_and_cli_only() {
+    let fm = frontmatter(&read_skill("bs-back"));
+    assert_eq!(fm["disable-model-invocation"], Value::Text("true".into()));
+    assert_eq!(
+        fm["allowed-tools"],
+        Value::Text("Bash(brain-swap:*)".into())
+    );
+}
+
+#[test]
+fn ts8_1_bs_back_inline_command_is_context_only() {
+    assert_eq!(inline_commands(&read_skill("bs-back")), [PARK_INLINE]);
+}
+
+#[test]
+fn ts12_1_bs_back_commands_parse() {
+    let found: Vec<String> = commands(&read_skill("bs-back"))
+        .iter()
+        .map(|c| {
+            let cli = Cli::try_parse_from(shell_words(&substitute(c, SESSION_A)))
+                .unwrap_or_else(|e| panic!("{c}: {e}"));
+            match (cli.command, cli.board.as_deref()) {
+                (Some(Command::Context { .. }), None) => "context".to_string(),
+                (
+                    Some(Command::Ls {
+                        open: true,
+                        guess: true,
+                    }),
+                    Some("home"),
+                ) => "ls --open --guess --board home".to_string(),
+                (
+                    Some(Command::Link {
+                        id,
+                        session: Some(s),
+                    }),
+                    None,
+                ) => format!("link {id} --session {s}"),
+                (Some(Command::Show { id, all: false }), None) => format!("show {id}"),
+                (
+                    Some(Command::Park {
+                        card: Some(id),
+                        session: Some(s),
+                        auto: true,
+                    }),
+                    None,
+                ) => format!("park --card {id} --session {s} --auto"),
+                (Some(Command::Move { .. }), None) => "move".to_string(),
+                (other, board) => panic!("{c}: unexpected {other:?} {board:?}"),
+            }
+        })
+        .collect();
+    assert_eq!(
+        found,
+        [
+            "context".to_string(),
+            "ls --open --guess --board home".to_string(),
+            format!("link W-12 --session {SESSION_A}"),
+            "show W-12".to_string(),
+            format!("park --card W-12 --session {SESSION_A} --auto"),
+            "move".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn ts8_1_bs_back_session_quoted_card_named_move_line_last() {
+    let text = read_skill("bs-back");
+    let cmds = commands(&text);
+    assert!(cmds.iter().any(|c| c.starts_with("brain-swap park ")));
+    for c in cmds {
+        let words: Vec<&str> = c.split_whitespace().collect();
+        if let Some(i) = words.iter().position(|w| *w == "--session") {
+            assert_eq!(words.get(i + 1), Some(&"\"${CLAUDE_SESSION_ID}\""), "{c}");
+        }
+        if c.starts_with("brain-swap park ") {
+            let i = words.iter().position(|w| *w == "--card").expect(&c);
+            assert_eq!(words.get(i + 1), Some(&"<ID>"), "{c}");
+        }
+    }
+    let last = text.lines().rev().find(|l| !l.trim().is_empty());
+    assert_eq!(
+        last,
+        Some(
+            "If the user later asks to move this card, run `brain-swap move <ID> <column>` and reply with its output line."
+        )
+    );
+}
+
+/// The bs-back inline command for `session`, run in `env`: exit code, stdout, stderr.
+fn back_inline(env: &PackEnv, session: &str) -> (i32, String, String) {
+    let inline = inline_commands(&read_skill("bs-back"));
+    env.run_sh(&substitute(&inline[0], session), "")
+}
+
+/// The first bs-back command starting with `prefix`, substituted for `session`.
+fn bs_back_command(prefix: &str, session: &str) -> String {
+    let cmd = commands(&read_skill("bs-back"))
+        .into_iter()
+        .find(|c| c.starts_with(prefix))
+        .unwrap();
+    substitute(&cmd, session)
+}
+
+/// The `latest note:` line of `out`.
+fn latest_note_line(out: &str) -> &str {
+    out.lines()
+        .find(|l| l.starts_with("latest note:"))
+        .unwrap_or_else(|| panic!("{out}"))
+}
+
+#[test]
+fn ts12_1_bs_back_inline_context_exits_0_in_every_state() {
+    use ContextState::*;
+    for state in [
+        NoConfig,
+        BrokenConfig,
+        MissingFolder,
+        NoReference,
+        DeletedCard,
+        EmptySession,
+        Unsubstituted,
+        Placeholder,
+        WithNote,
+        WithoutNote,
+    ] {
+        let (env, session) = PackEnv::for_state(state);
+        let (code, out, err) = back_inline(&env, session);
+        assert_eq!(code, 0, "{state:?}: {err}");
+        assert_eq!(
+            out.lines().next(),
+            Some("brain-swap context v1"),
+            "{state:?}: {out}"
+        );
+    }
+}
+
+#[test]
+fn fr51_bs_back_context_carries_the_printed_fields() {
+    let (env, session) = PackEnv::for_state(ContextState::WithNote);
+    let (_, out, _) = back_inline(&env, session);
+    let lines: Vec<&str> = out.lines().collect();
+    assert!(
+        lines.contains(&"card: W-12 migrate invoices to v13"),
+        "{out}"
+    );
+    let note = latest_note_line(&out);
+    assert!(note.contains("12 min ago"), "{note}");
+    assert!(note.ends_with("by this session"), "{note}");
+    for l in [
+        "Doing: invoice reads switched to v13",
+        "Next: run the migration test on staging",
+        "Watch out: v13 needs a 10 s timeout",
+    ] {
+        assert!(lines.contains(&l), "{l}: {out}");
+    }
+}
+
+#[test]
+fn fr52_bs_back_context_without_note_reads_none() {
+    let (env, session) = PackEnv::for_state(ContextState::WithoutNote);
+    let (_, out, _) = back_inline(&env, session);
+    assert!(out.lines().any(|l| l == "latest note: none"), "{out}");
+}
+
+#[test]
+fn fr53_bs_back_context_names_the_note_author() {
+    let env = PackEnv::new().with_w12();
+    env.link("W-12", SESSION_A);
+    env.link("W-12", SESSION_B);
+    env.link("W-7", SESSION_C);
+    for (session, end) in [
+        (SESSION_A, "by this session"),
+        (SESSION_B, "by another session"),
+        (SESSION_C, "no session"),
+    ] {
+        let (_, out, _) = back_inline(&env, session);
+        let note = latest_note_line(&out);
+        assert!(note.ends_with(end), "{session}: {note}");
+    }
+}
+
+#[test]
+fn fr56_bs_back_link_after_pick_sets_reference() {
+    let env = PackEnv::new().with_w12();
+    let (code, out, err) = env.run_sh(&bs_back_command("brain-swap link ", SESSION_C), "");
+    assert_eq!(code, 0, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(
+        lines[..2],
+        [
+            "linked to W-12: migrate invoices to v13",
+            "card: W-12 migrate invoices to v13",
+        ],
+        "{out}"
+    );
+    let (_, ctx, _) = back_inline(&env, SESSION_C);
+    assert!(ctx.lines().any(|l| l == "reference: W-12"), "{ctx}");
+}
+
+#[test]
+fn ts8_4_bs_back_show_fallback_when_no_session_resolves() {
+    let (env, session) = PackEnv::for_state(ContextState::Unsubstituted);
+    let (code, _, err) = env.run_sh(&bs_back_command("brain-swap link ", session), "");
+    assert_eq!(code, 1, "{err}");
+    let (code, out, err) = env.run_sh(&bs_back_command("brain-swap show ", session), "");
+    assert_eq!(code, 0, "{err}");
+    assert!(
+        out.starts_with("card: W-12 migrate invoices to v13\n"),
+        "{out}"
+    );
+}
+
+#[test]
+fn fr52_bs_back_catch_up_heredoc_saves_auto_note() {
+    let (env, _) = PackEnv::for_state(ContextState::WithNote);
+    let blocks = heredoc_commands(&read_skill("bs-back"));
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    let cmd = fill_park_heredoc(
+        &substitute(&blocks[0], SESSION_A),
+        "switched repo to v13",
+        "rerun migration test",
+        "timeout",
+    );
+    let (code, out, err) = env.run_sh(&cmd, "");
+    assert_eq!(code, 0, "{err}");
+    assert_eq!(out, "parked to W-12: migrate invoices to v13\n");
+    let notes = w12_notes(&env);
+    assert_eq!(notes.len(), 2, "{notes:?}");
+    assert!(notes.last().unwrap().0.ends_with(" auto"), "{notes:?}");
+}
