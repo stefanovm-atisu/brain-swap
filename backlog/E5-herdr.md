@@ -375,7 +375,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F2-T8 The `jump` subcommand: focused paths
 
-- Status: todo
+- Status: doing
 - Depends on: E5-F2-T5, E5-F2-T7
 - Covers: FR-40, FR-59, FR-60; AS-10 (CLI); TECHSPEC 6.3 (`jump`), 6.7 (`jump`, `focused`)
 - Size: M
