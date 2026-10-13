@@ -188,7 +188,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F1-T9 SP-4 moved-pane check
 
-- Status: todo
+- Status: done
 - Depends on: E5-F1-T7, E5-F1-T8, E0-F1-T3
 - Covers: FR-15, FR-41; TECHSPEC 9.1 (moved-pane check), 2.2 (`pane current` only if SP-4 confirms it), T-15
 - Size: S
