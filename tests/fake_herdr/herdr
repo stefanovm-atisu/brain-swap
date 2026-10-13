@@ -1,4 +1,20 @@
 #!/bin/sh
-# Placeholder until the scenarios of E5-F1 replace it.
-echo "fake herdr: no scenario" >&2
+# Fake herdr for process-level tests (TECHSPEC 12.1): logs argv to $HOME/fake-herdr.log,
+# then answers per tests/fake_herdr/scenarios/$FAKE_HERDR_SCENARIO.sh.
+printf '%s\n' "$*" >> "$HOME/fake-herdr.log"
+if [ -z "$FAKE_HERDR_SCENARIO" ]; then
+  echo "fake herdr: no scenario" >&2
+  exit 1
+fi
+scenario="$(dirname "$0")/scenarios/$FAKE_HERDR_SCENARIO.sh"
+if [ ! -f "$scenario" ]; then
+  echo "fake herdr: unknown scenario $FAKE_HERDR_SCENARIO" >&2
+  exit 1
+fi
+out() { printf '%s\n' "$1"; exit 0; }
+fail() { printf '%s\n' "$2" >&2; exit "$1"; }
+hang() { exec sleep 30; }
+slow() { sleep "$1"; }
+. "$scenario"
+printf 'fake herdr: unexpected call: %s\n' "$*" >&2
 exit 1
