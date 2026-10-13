@@ -4,7 +4,9 @@
 
 mod common;
 
-use brain_swap::adapters::herdr::{LivePane, PaneStatus, capture, locate, pane_session};
+use brain_swap::adapters::herdr::{
+    LivePane, PaneStatus, capture, list_panes, locate, pane_session, workspace_ids,
+};
 use brain_swap::adapters::runner::{Answer, FakeRunner};
 use brain_swap::core::env::Env;
 use brain_swap::core::model::{HerdrPlace, Place};
@@ -331,4 +333,135 @@ fn ts9_3_spawn_failure_is_herdr_error() {
     let (status, calls) = locate_failing(&w12_place(), Answer::SpawnFailed(msg.into()));
     assert_eq!(status, PaneStatus::HerdrError(msg.into()));
     assert_eq!(calls, ["pane get w4V:p9"]);
+}
+
+const WS_LIST: &str = include_str!("fixtures/herdr/workspace_list.json");
+const PANES_W4V: &str = include_str!("fixtures/herdr/pane_list_w4V.json");
+const PANES_W7Q: &str = include_str!("fixtures/herdr/pane_list_w7Q.json");
+const FOUR: [&str; 4] = [
+    "pane get w4V:p9",
+    "workspace list",
+    "pane list --workspace w4V",
+    "pane list --workspace w7Q",
+];
+
+/// The moved answers: `w4V:p9` closed, its session running in `w7Q:p2`.
+fn moved() -> FakeRunner {
+    FakeRunner::new()
+        .on("pane get w4V:p9", Answer::fail(1, NOT_FOUND))
+        .on("workspace list", Answer::ok(WS_LIST))
+        .on("pane list --workspace w4V", Answer::ok(PANES_W4V))
+        .on("pane list --workspace w7Q", Answer::ok(PANES_W7Q))
+}
+
+/// A `pane list` fixture with its `result.panes` array edited.
+fn panes_with(s: &str, edit: impl FnOnce(&mut Vec<serde_json::Value>)) -> String {
+    let mut v: serde_json::Value = serde_json::from_str(s).unwrap();
+    edit(v["result"]["panes"].as_array_mut().unwrap());
+    v.to_string()
+}
+
+fn search(fake: &FakeRunner) -> PaneStatus {
+    locate(&w12_place(), &in_herdr(), fake)
+}
+
+#[test]
+fn fr60_moved_pane_found_by_session() {
+    let fake = moved();
+    assert_eq!(
+        search(&fake),
+        PaneStatus::Moved(LivePane {
+            pane: "w7Q:p2".into(),
+            tab: "w7Q:t1".into(),
+            workspace: "w7Q".into(),
+            agent: true,
+        })
+    );
+    assert_eq!(fake.calls(), FOUR);
+}
+
+#[test]
+fn ts9_3_moved_search_stops_at_first_match() {
+    let w4v = panes_with(PANES_W4V, |panes| {
+        let mut p = panes[1].clone();
+        p["pane_id"] = "w4V:p12".into();
+        p["agent_session"]["value"] = "55583127-a22a-49bc-a803-e777c377a595".into();
+        panes.push(p);
+    });
+    let fake = moved().on("pane list --workspace w4V", Answer::ok(&w4v));
+    match search(&fake) {
+        PaneStatus::Moved(p) => assert_eq!(p.pane, "w4V:p12"),
+        other => panic!("expected Moved, got {other:?}"),
+    }
+    assert_eq!(fake.calls(), FOUR[..3]);
+}
+
+#[test]
+fn fr61_no_pane_with_the_session_is_closed() {
+    let shell = panes_with(PANES_W7Q, |panes| {
+        panes[0] = serde_json::json!({
+            "agent_status": "unknown",
+            "pane_id": "w7Q:p2",
+            "tab_id": "w7Q:t1",
+            "workspace_id": "w7Q"
+        });
+    });
+    let fake = moved().on("pane list --workspace w7Q", Answer::ok(&shell));
+    assert_eq!(search(&fake), PaneStatus::Closed);
+    assert_eq!(fake.calls(), FOUR);
+}
+
+#[test]
+fn ts9_3_hang_in_workspace_list_is_not_responding() {
+    let fake = moved().on("workspace list", Answer::Hang);
+    assert_eq!(search(&fake), PaneStatus::NotResponding);
+    assert_eq!(fake.calls(), FOUR[..2]);
+}
+
+#[test]
+fn ts9_3_hang_in_pane_list_is_not_responding() {
+    let fake = moved().on("pane list --workspace w7Q", Answer::Hang);
+    assert_eq!(search(&fake), PaneStatus::NotResponding);
+    assert_eq!(fake.calls(), FOUR);
+}
+
+#[test]
+fn ts9_3_failed_workspace_list_ends_as_closed() {
+    let fake = moved().on("workspace list", Answer::fail(1, "x"));
+    assert_eq!(search(&fake), PaneStatus::Closed);
+    assert_eq!(fake.calls(), FOUR[..2]);
+}
+
+#[test]
+fn ts9_3_failed_pane_list_ends_search_as_closed() {
+    let fake = moved().on("pane list --workspace w4V", Answer::fail(1, "x"));
+    assert_eq!(search(&fake), PaneStatus::Closed);
+    assert_eq!(fake.calls(), FOUR[..3]);
+}
+
+#[test]
+fn ts9_3_list_readers_follow_sp4_samples() {
+    let v: serde_json::Value = serde_json::from_str(WS_LIST).unwrap();
+    assert_eq!(workspace_ids(&v), ["w4V", "w7Q"]);
+    let v: serde_json::Value = serde_json::from_str(PANES_W7Q).unwrap();
+    let panes = list_panes(&v);
+    assert_eq!(panes.len(), 1);
+    assert_eq!(panes[0].id(), Some("w7Q:p2"));
+    assert_eq!(
+        panes[0].session(),
+        Some("55583127-a22a-49bc-a803-e777c377a595")
+    );
+}
+
+#[test]
+fn ts9_3_moved_pane_without_workspace_key_takes_listed_workspace() {
+    let w7q = panes_with(PANES_W7Q, |panes| {
+        panes[0].as_object_mut().unwrap().remove("workspace_id");
+    });
+    let fake = moved().on("pane list --workspace w7Q", Answer::ok(&w7q));
+    match search(&fake) {
+        PaneStatus::Moved(p) => assert_eq!(p.workspace, "w7Q"),
+        other => panic!("expected Moved, got {other:?}"),
+    }
+    assert_eq!(fake.calls(), FOUR);
 }

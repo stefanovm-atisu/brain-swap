@@ -84,6 +84,49 @@ impl<'a> PaneJson<'a> {
     }
 }
 
+/// The `workspace_id`s of a `workspace list` answer, in listed order (9.3).
+pub fn workspace_ids(v: &Value) -> Vec<String> {
+    let all = v.pointer("/result/workspaces").and_then(Value::as_array);
+    let ids = all.into_iter().flatten();
+    let ids = ids.filter_map(|w| w.get("workspace_id")?.as_str());
+    ids.filter(|id| !id.is_empty()).map(String::from).collect()
+}
+
+/// The panes of a `pane list` answer, in listed order (9.3).
+pub fn list_panes(v: &Value) -> Vec<PaneJson<'_>> {
+    let all = v.pointer("/result/panes").and_then(Value::as_array);
+    all.into_iter().flatten().map(PaneJson::new).collect()
+}
+
+/// The moved search of 9.3: the first listed pane running `session`; `Err` holds the status otherwise.
+fn find_session(session: &str, runner: &dyn Runner) -> Result<LivePane, PaneStatus> {
+    let list = |args: &[&str]| match runner.run(args, CALL_TIMEOUT).outcome {
+        RunOutcome::Exited {
+            code: Some(0),
+            stdout,
+            ..
+        } => serde_json::from_str::<Value>(&stdout).map_err(|_| PaneStatus::Closed),
+        RunOutcome::TimedOut => Err(PaneStatus::NotResponding),
+        _ => Err(PaneStatus::Closed),
+    };
+    for ws in workspace_ids(&list(&["workspace", "list"])?) {
+        let v = list(&["pane", "list", "--workspace", &ws])?;
+        let panes = list_panes(&v);
+        let found = panes
+            .iter()
+            .find(|p| p.id().is_some() && p.session() == Some(session));
+        if let Some(p) = found {
+            return Ok(LivePane {
+                pane: p.id().unwrap_or_default().into(),
+                tab: p.tab().unwrap_or_default().into(),
+                workspace: p.workspace().unwrap_or(&ws).into(),
+                agent: p.has_agent(),
+            });
+        }
+    }
+    Err(PaneStatus::Closed)
+}
+
 /// `error.code` of herdr's JSON stderr, else `None` (9.3).
 pub fn error_code(stderr: &str) -> Option<String> {
     let v: Value = serde_json::from_str(stderr).ok()?;
@@ -144,8 +187,10 @@ pub fn locate(place: &Place, env: &Env, runner: &dyn Runner) -> PaneStatus {
         RunOutcome::SpawnFailed(msg) => return PaneStatus::HerdrError(msg),
         RunOutcome::Exited { code, stderr, .. } => {
             if error_code(&stderr).as_deref() == Some("pane_not_found") {
-                // ponytail: the moved search by place.session is E5-F2-T3's.
-                return PaneStatus::Closed;
+                return match &place.session {
+                    Some(s) => find_session(s, runner).map_or_else(|e| e, PaneStatus::Moved),
+                    None => PaneStatus::Closed,
+                };
             }
             let code = code.map_or("signal".into(), |c| c.to_string());
             let first = stderr.lines().find(|l| !l.trim().is_empty());
