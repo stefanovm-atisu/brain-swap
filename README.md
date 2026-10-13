@@ -11,6 +11,43 @@ Each card is a task. When you leave a session, you park a short note on the card
 
 Status: idea stage, no code yet. See [idea.md](idea.md) for the product idea. Written in Rust.
 
+## herdr key binding
+
+Open the board in a herdr popup with one key. Run:
+
+```sh
+brain-swap install herdr
+```
+
+It prints a snippet with the absolute path of your `brain-swap` binary (the herdr server may not have `~/.cargo/bin` on its `PATH`), prefixed with `env` so the popup sees herdr's variables. For a binary at `/home/you/.cargo/bin/brain-swap` it looks like this:
+
+```toml
+# brain-swap: open the board in a popup (change the key if it collides)
+[[keys.command]]
+key = "prefix+alt+b"
+type = "popup"
+command = "env HERDR_ENV=1 HERDR_BIN_PATH=herdr /home/you/.cargo/bin/brain-swap"
+width = "90%"
+height = "90%"
+```
+
+Paste it into herdr's config, then run `herdr server reload-config`. `install herdr` never edits herdr's config itself; `--json` returns the snippet as JSON.
+
+The default key is `prefix+alt+b` because `prefix+b` is herdr's sidebar toggle. If it collides with another binding, change `key` to any free one.
+
+A second binding on another key opens a specific board, here `home`:
+
+```toml
+[[keys.command]]
+key = "prefix+alt+h"
+type = "popup"
+command = "env HERDR_ENV=1 HERDR_BIN_PATH=herdr /home/you/.cargo/bin/brain-swap --board home"
+width = "90%"
+height = "90%"
+```
+
+Outside herdr everything works except the jump from a card to its pane.
+
 ## Exit codes
 
 | Code | Meaning |

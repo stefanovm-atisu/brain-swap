@@ -86,3 +86,44 @@ fn ts12_1_dot_directories_are_skipped() {
     let tmp = tree(&[(".serena/m.md", "\u{2014}\n".as_bytes())]);
     assert!(scan(tmp.path()).is_empty());
 }
+
+/// The `toml` fenced blocks of README's `## herdr key binding` section.
+fn herdr_blocks() -> Vec<String> {
+    let readme = include_str!("../README.md");
+    let section = readme
+        .split("\n## ")
+        .find(|s| s.starts_with("herdr key binding\n"))
+        .expect("README has no `## herdr key binding` section");
+    section
+        .split("```toml\n")
+        .skip(1)
+        .map(|b| b.split("```").next().unwrap().to_string())
+        .collect()
+}
+
+#[test]
+fn fr64_readme_snippet_matches_install_output() {
+    assert_eq!(
+        herdr_blocks()[0],
+        brain_swap::adapters::herdr::key_snippet(
+            "env HERDR_ENV=1 HERDR_BIN_PATH=herdr /home/you/.cargo/bin/brain-swap"
+        )
+    );
+}
+
+#[test]
+fn fr64_readme_second_binding_opens_board_home() {
+    let blocks = herdr_blocks();
+    let binding = |b: &str| {
+        let t: toml::Table = b.parse().unwrap();
+        t["keys"]["command"][0].clone()
+    };
+    let (first, second) = (binding(&blocks[0]), binding(&blocks[1]));
+    assert!(
+        second["command"]
+            .as_str()
+            .unwrap()
+            .ends_with(" --board home")
+    );
+    assert_ne!(first["key"], second["key"]);
+}
