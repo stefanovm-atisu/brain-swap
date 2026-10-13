@@ -118,7 +118,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T5 NFR-05 parity without adapters
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F3, E5-F2
 - Covers: NFR-05; FR-58, FR-62; TECHSPEC 9.5
 - Size: S
