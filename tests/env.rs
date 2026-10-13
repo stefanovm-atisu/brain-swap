@@ -186,3 +186,17 @@ fn ts6_1_non_utf8_variable_does_not_panic() {
         .unwrap();
     assert_ne!(out.status.code(), Some(101), "{out:?}");
 }
+
+#[test]
+fn ts6_1_env_now_is_whole_seconds() {
+    let clock = "2026-10-08T08:52:00.123456789+00:00";
+    let env = build_at(&[("HOME", "/h")], TimeZone::UTC, clock).unwrap();
+    assert_eq!(env.now.subsec_nanosecond(), 0);
+    assert_eq!(format_stamp(&env.now), "2026-10-08T08:52:00+00:00");
+    let vars = [
+        ("HOME", "/h"),
+        ("BRAIN_SWAP_NOW", "2026-10-08T11:52:00.5+03:00"),
+    ];
+    let env = build_at(&vars, TimeZone::fixed(offset(3)), clock).unwrap();
+    assert_eq!(format_stamp(&env.now), "2026-10-08T11:52:00+03:00");
+}

@@ -2,7 +2,10 @@
 
 mod common;
 
+use brain_swap::core::card_file::parse;
+use brain_swap::core::model::CardId;
 use common::cli::Sandbox;
+use jiff::tz::TimeZone;
 use std::fs;
 use std::process::Output;
 
@@ -333,4 +336,19 @@ fn ts6_3_new_body_flag_accepts_only_dash() {
     let out = run(&s, &["--json", "new", "--body", "notes.md", "x"], 2);
     assert!(text(&out.stdout).contains("\"code\":\"usage\""));
     assert!(!work(&s).join("W-1.md").exists());
+}
+
+#[test]
+fn r7_cli_new_without_fixed_clock_succeeds() {
+    let mut s = Sandbox::new();
+    s.write_config();
+    s.copy_board("work_4_9", "work");
+    let sc = s.scenario_mut();
+    *sc = sc.clone().unset("BRAIN_SWAP_NOW");
+    let out = run(&s, &["new", "x"], 0);
+    assert_eq!(text(&out.stdout), "created W-13: x (Todo, work)\n");
+    let path = work(&s).join("W-13.md");
+    let id = CardId::parse("W-13").unwrap();
+    let card = parse(id, &path, &fs::read(&path).unwrap(), "Todo", &TimeZone::UTC).card;
+    assert_eq!(card.title, "x");
 }

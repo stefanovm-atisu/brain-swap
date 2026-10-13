@@ -25,7 +25,7 @@ use crate::core::log;
 use crate::core::model::CardId;
 use crate::core::store::{CreateRequest, create, move_card};
 use crate::core::template::{Template, find};
-use crate::core::time::Stamp;
+use crate::core::time::{Stamp, whole_second};
 
 pub trait TerminalGuard {
     fn enter(&mut self) -> io::Result<()>;
@@ -151,7 +151,7 @@ impl<B: Backend> Runtime<B> {
     /// Runs `update`, then its effects in order; the exit code once quitting (A-E4-04).
     pub fn dispatch(&mut self, input: Input) -> Option<i32> {
         // The store stamps from `env.now` (6), so it follows the clock, not the launch time.
-        self.env.now = self.parts.clock.now();
+        self.env.now = whole_second(self.parts.clock.now());
         for effect in update(&mut self.app, input) {
             match effect {
                 Effect::Quit => return Some(matches!(self.app.mode, Mode::ConfigError(_)) as i32),

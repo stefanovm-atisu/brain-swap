@@ -2,7 +2,7 @@
 
 use crate::core::error::{Error, Result};
 use crate::core::failpoint::Failpoint;
-use crate::core::time::{Stamp, parse_stamp};
+use crate::core::time::{Stamp, parse_stamp, whole_second};
 use jiff::tz::TimeZone;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -32,7 +32,7 @@ pub struct Env {
 }
 
 impl Env {
-    /// Reads only the 6.1 names from `vars`; `BRAIN_SWAP_NOW` replaces `clock`, both land in `tz`.
+    /// Reads only the 6.1 names from `vars`; `BRAIN_SWAP_NOW` replaces `clock`, both land in `tz` to the second.
     pub fn from_vars(
         vars: impl IntoIterator<Item = (String, String)>,
         cwd: PathBuf,
@@ -79,7 +79,7 @@ impl Env {
                 .filter(|_| cfg!(feature = "failpoints"))
                 .map(|name| Failpoint { name, abort: true }),
             pid,
-            now: now.timestamp().to_zoned(tz.clone()),
+            now: whole_second(now.timestamp().to_zoned(tz.clone())),
             tz,
             home,
         })

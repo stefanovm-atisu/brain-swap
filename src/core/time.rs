@@ -52,6 +52,11 @@ fn shaped(text: &str, shape: &str) -> bool {
         })
 }
 
+/// `stamp` without its sub-second part, as stamps are written to the second (3).
+pub fn whole_second(stamp: Stamp) -> Stamp {
+    stamp.with().subsec_nanosecond(0).build().unwrap_or(stamp)
+}
+
 /// Writes `2026-10-08T10:31:05+03:00`, never the bracketed zone of `Display`.
 pub fn format_stamp(stamp: &Stamp) -> String {
     stamp.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string()

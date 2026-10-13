@@ -1007,7 +1007,7 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
 
 ### E1-F6-T11 Whole-second now
 
-- Status: doing
+- Status: done
 - Depends on: E1-F6-T5, E4-F4-T3
 - Covers: FR-13, FR-30; TECHSPEC 3 (stamps are written to the second), 4.8 R7, 6.1 (`now` from `BRAIN_SWAP_NOW` or the clock)
 - Size: S

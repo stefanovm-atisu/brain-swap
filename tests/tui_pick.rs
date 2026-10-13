@@ -5,10 +5,12 @@ mod common;
 use brain_swap::core::config::load;
 use brain_swap::core::keys::KeyMap;
 use brain_swap::core::model::CardId;
+use brain_swap::core::time::parse_stamp;
 use brain_swap::tui::app::{App, Effect, Input, Mode};
 use brain_swap::tui::runtime::{Clock, Runtime};
 use brain_swap::tui::{TuiStart, prepare};
 use common::tui::{TuiFixture, assert_no_colour, key, press, render, rows, write_card};
+use jiff::tz::TimeZone;
 use ratatui::backend::TestBackend;
 use ratatui::style::Modifier;
 use std::fs;
@@ -513,4 +515,20 @@ fn fr30_created_card_stamped_with_runtime_clock() {
     let card = fx.board().cards.into_iter().find(|c| c.id.number == 13);
     let created = card.expect("W-13.md").created.unwrap();
     assert_eq!(created.timestamp(), events.clock.now().timestamp());
+}
+
+#[test]
+fn fr30_tui_create_with_subsecond_clock_succeeds() {
+    let fx = TuiFixture::new(Some("work_4_9"));
+    let (mut rt, _, events) = fx.runtime(80, 24);
+    let clock = parse_stamp("2026-10-08T10:52:00.5+00:00", &TimeZone::UTC).unwrap();
+    *events.clock.0.borrow_mut() = clock;
+    dispatch_keys(&mut rt, &["n", "f", "x", "enter"]);
+    let text = fs::read_to_string(fx.board_dir.join("W-13.md")).unwrap();
+    assert!(
+        text.lines()
+            .any(|l| l == "created: 2026-10-08T10:52:00+00:00"),
+        "{text}"
+    );
+    assert_eq!(rt.app().status, None);
 }

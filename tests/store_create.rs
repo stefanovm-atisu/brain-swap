@@ -314,3 +314,19 @@ fn ts4_6_other_link_error_keeps_os_message() {
         Error::Io("board work: disk on fire".to_string())
     );
 }
+
+#[test]
+fn r7_create_with_subsecond_clock_succeeds() {
+    let (tmp, dir) = copy();
+    let home = tmp.path().to_string_lossy().into_owned();
+    let clock = parse_stamp("2026-10-08T08:52:00.123456789+00:00", &TimeZone::UTC).unwrap();
+    let vars = [("HOME".to_string(), home.clone())];
+    let env = Env::from_vars(vars, home.into(), std::process::id(), TimeZone::UTC, clock).unwrap();
+    let c = new_in(&env, &dir, "new task", None, None).unwrap();
+    let text = fs::read_to_string(c.card.path).unwrap();
+    assert!(
+        text.lines()
+            .any(|l| l == "created: 2026-10-08T08:52:00+00:00"),
+        "{text}"
+    );
+}

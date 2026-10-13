@@ -85,11 +85,18 @@ impl Scenario {
             .set("XDG_STATE_HOME", state.to_string_lossy())
     }
 
-    /// Drops one `XDG_*` variable; any other name panics so `HERDR_BIN_PATH` stays the fake.
+    /// Drops one `XDG_*` variable or `BRAIN_SWAP_NOW`; any other name panics so
+    /// `HERDR_BIN_PATH` stays the fake.
     pub fn unset(mut self, name: &str) -> Scenario {
         assert!(
-            ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"].contains(&name),
-            "unset({name}): only XDG_* variables may be dropped"
+            [
+                "XDG_CONFIG_HOME",
+                "XDG_DATA_HOME",
+                "XDG_STATE_HOME",
+                "BRAIN_SWAP_NOW"
+            ]
+            .contains(&name),
+            "unset({name}): only XDG_* variables and BRAIN_SWAP_NOW may be dropped"
         );
         self.vars.remove(name);
         self
