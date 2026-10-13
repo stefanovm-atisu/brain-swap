@@ -146,7 +146,7 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 
 ### E3-F1-T6 Embedded skills in the binary
 
-- Status: todo
+- Status: doing
 - Depends on: E3-F1-T1, E3-F1-T3, E3-F1-T4, E3-F1-T5
 - Covers: TECHSPEC 2.1, 8.1, 8.8 (embedded skills), 13
 - Size: S
