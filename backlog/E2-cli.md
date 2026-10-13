@@ -393,7 +393,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T5 Reference setting and `park` by reference
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F3-T4, E1-F7
 - Covers: FR-57, FR-41; TECHSPEC 6.2 (exit 4, code `no_reference`), 6.3 (`park` card resolution; `new` and `park --card` set the reference), 6.4 (reference file, pane hint), I9
 - Size: M
