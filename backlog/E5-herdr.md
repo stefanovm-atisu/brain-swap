@@ -520,7 +520,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F3-T5 AS-6 end to end
 
-- Status: todo
+- Status: doing
 - Depends on: E5-F3-T3, E4-F4, E2-F3-T4
 - Covers: FR-25, FR-59; AS-6
 - Size: M
