@@ -355,7 +355,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F2-T7 `--note` and the card without a jump note
 
-- Status: todo
+- Status: doing
 - Depends on: E5-F2-T6
 - Covers: FR-40; TECHSPEC 6.3 (`--note <n>`, `no note yet`, out of range), 6.7 (`no_note`)
 - Size: S
