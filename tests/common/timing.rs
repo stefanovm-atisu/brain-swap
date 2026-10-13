@@ -19,3 +19,11 @@ pub fn time_runs(warmup: usize, runs: usize, mut f: impl FnMut()) -> Vec<f64> {
         })
         .collect()
 }
+
+/// The sum of the `ms=` durations of every `herdr` line of a `BRAIN_SWAP_LOG` text.
+pub fn herdr_ms(log: &str) -> f64 {
+    log.lines()
+        .filter(|l| l.split(' ').nth(1) == Some("herdr"))
+        .filter_map(|l| l.rsplit_once(" ms=")?.1.parse::<f64>().ok())
+        .sum()
+}

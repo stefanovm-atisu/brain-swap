@@ -77,7 +77,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T3 NFR-02 tests: first frame, keys and jump overhead
 
-- Status: doing
+- Status: done
 - Depends on: E6-F1-T2, E4-F1-T10, E4-F2, E4-F3, E5-F2
 - Covers: NFR-02; TECHSPEC 12.1 (Performance), 7.1, 9.3
 - Size: M

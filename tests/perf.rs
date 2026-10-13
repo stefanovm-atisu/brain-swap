@@ -4,12 +4,22 @@
 mod common;
 
 use brain_swap::core::board::load;
+use brain_swap::core::env::Env;
+use brain_swap::core::model::CardId;
+use brain_swap::core::store::move_card;
+use brain_swap::tui::app::{App, Effect, Input, Outcome, Selection, update};
+use brain_swap::tui::view_frame::draw;
+use brain_swap::tui::{TuiStart, prepare};
 use common::big_board::write_big_board;
 use common::cli::Sandbox;
 use common::env::core_env;
-use common::timing::{p95_ms, time_runs};
+use common::timing::{herdr_ms, p95_ms, time_runs};
+use common::tui::{key, rows};
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
 use std::fs;
 use std::path::Path;
+use std::time::Instant;
 
 const NOW: &str = "2026-10-08T11:52:00+03:00";
 
@@ -45,6 +55,46 @@ fn nfr01_cmd(args: &[&str]) {
     nfr01(&args.join(" "), || {
         s.cmd(args).assert().success();
     });
+}
+
+/// Checks and prints an NFR-02 p95.
+fn nfr02(what: &str, samples: &mut [f64]) {
+    let p95 = p95_ms(samples);
+    println!("nfr02 {what}: p95 {p95:.1} ms");
+    assert!(p95 <= 50.0, "nfr02 {what}: p95 {p95} ms");
+}
+
+/// The env of the perf sandbox and the `App` that `tui::prepare` starts on it.
+fn tui_app(s: &Sandbox) -> (Env, App) {
+    let mut env = core_env(&s.root().join("home"), NOW);
+    env.config_home = s.root().join("config");
+    let start = TuiStart {
+        config: brain_swap::core::config::load(&env),
+        board: None,
+    };
+    let app = prepare(&mut env, start).unwrap().app;
+    (env, app)
+}
+
+/// Feeds `k`, runs a `Move` effect as the E4 runtime does, then draws one frame (A-E6-07).
+fn react(env: &Env, app: &mut App, term: &mut Terminal<TestBackend>, k: &str) {
+    for e in update(app, Input::Key(key(k))) {
+        let Effect::Move(id, column) = e else {
+            panic!("unexpected effect {e:?}")
+        };
+        move_card(env, &app.board, id, &column).unwrap();
+        let board = load(&app.board.name, &app.board.path, env).unwrap();
+        update(app, Input::Reloaded(board));
+        update(app, Input::Done(Outcome::Moved(id)));
+    }
+    term.draw(|f| draw(f, app)).unwrap();
+}
+
+fn w(number: u32) -> CardId {
+    CardId {
+        letter: 'W',
+        number,
+    }
 }
 
 /// Writes `<root>/` for the `hyperfine` runs of E6-F1-T4 (A-E6-20).
@@ -102,6 +152,14 @@ fn nfr01_perf_board_loads_300_cards_with_20_notes() {
     assert_eq!(open.iter().filter(|c| c.column == "Doing").count(), 5);
     assert_eq!(board.meta.next, 301);
     assert_eq!(board.warnings, Vec::<String>::new());
+}
+
+#[test]
+fn nfr02_herdr_log_durations_are_summed() {
+    let log = "2026-10-08T11:52:00+03:00 herdr pane get w4V:p9 exit=0 ms=12\n\
+               2026-10-08T11:52:00+03:00 reload work\n\
+               2026-10-08T11:52:00+03:00 herdr agent focus w4V:p9 exit=0 ms=30\n";
+    assert_eq!(herdr_ms(log), 42.0);
 }
 
 #[test]
@@ -224,4 +282,67 @@ fn sm5_write_hyperfine_board() {
             "{sh}"
         );
     }
+}
+
+#[test]
+#[ignore]
+fn nfr02_detail_keys_p95_under_50ms() {
+    let s = sandbox();
+    let (env, mut app) = tui_app(&s);
+    assert_eq!(app.sel.card, Some(w(300)));
+    let mut term = Terminal::new(TestBackend::new(120, 40)).unwrap();
+    let mut samples = Vec::new();
+    time_runs(3, 20, || {
+        for k in ["o", "j", "k"] {
+            let t = Instant::now();
+            react(&env, &mut app, &mut term, k);
+            samples.push(t.elapsed().as_secs_f64() * 1000.0);
+        }
+        update(&mut app, Input::Key(key("q")));
+    });
+    let text = rows(term.backend().buffer()).join("\n");
+    assert!(text.contains("note 20/20"), "{text}");
+    nfr02("detail keys", &mut samples.split_off(9));
+}
+
+#[test]
+#[ignore]
+fn nfr02_move_key_p95_under_50ms() {
+    let s = sandbox();
+    let (env, mut app) = tui_app(&s);
+    app.sel = Selection {
+        column: 0,
+        card: Some(w(291)),
+    };
+    assert_eq!(app.selected_card().unwrap().column, "Todo");
+    let mut term = Terminal::new(TestBackend::new(120, 40)).unwrap();
+    let mut keys = ["L", "H"].into_iter().cycle();
+    let mut samples = time_runs(3, 20, || {
+        react(&env, &mut app, &mut term, keys.next().unwrap())
+    });
+    nfr02("move key", &mut samples);
+}
+
+#[test]
+#[ignore]
+fn nfr02_jump_overhead_p95_under_50ms() {
+    let mut s = sandbox();
+    let log = s.root().join("state/bs.log");
+    let sc = s.scenario_mut();
+    *sc = sc
+        .clone()
+        .herdr("w4V:p9", "w4V:t1", "w4V")
+        .fake_scenario("live-agent")
+        .log(&log);
+    let mut samples = Vec::new();
+    time_runs(3, 20, || {
+        fs::write(&log, "").unwrap();
+        let t = Instant::now();
+        let out = s.cmd(&["jump", "W-300"]).assert().code(0);
+        let wall = t.elapsed().as_secs_f64() * 1000.0;
+        let text = String::from_utf8_lossy(&out.get_output().stdout).into_owned();
+        assert_eq!(text, "jumped to W-300 (pane w4V:p9)\n");
+        samples.push(wall - herdr_ms(&fs::read_to_string(&log).unwrap()));
+    });
+    nfr02("jump overhead", &mut samples.split_off(3));
 }
