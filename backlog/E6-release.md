@@ -49,7 +49,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T2 Performance board and NFR-01 test
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F3, E4-F1-T10
 - Covers: NFR-01; TECHSPEC 12.1 (Performance); PRD SM-5
 - Size: M
