@@ -1005,6 +1005,23 @@ Milestone: M1. E1 delivers the tool-agnostic library under `src/core/`: the `Env
   - [ ] The tests above pass; the first test was committed red before the implementation turned it green (12.2 item 1).
   - [ ] The suite passed 20 consecutive local runs, stated in the commit message.
 
+### E1-F6-T11 Whole-second now
+
+- Status: todo
+- Depends on: E1-F6-T5, E4-F4-T3
+- Covers: FR-13, FR-30; TECHSPEC 3 (stamps are written to the second), 4.8 R7, 6.1 (`now` from `BRAIN_SWAP_NOW` or the clock)
+- Size: S
+- Scope: A clock reading has sub-second precision, but stamps are written to the second, so `create`'s R7 check (the rendered card parses back to the request values) compares the parsed `created` with `env.now` and fails `verify failed` on every run without `BRAIN_SWAP_NOW`: `brain-swap new` exits 1 (and uses up the number) and the TUI's `n` fails. Every test sets `BRAIN_SWAP_NOW`, so none caught it. Make `now` whole seconds wherever it is taken: `Env::from_vars` truncates `now` (from the clock or from `BRAIN_SWAP_NOW`) to the second, and the TUI runtime truncates the clock reading it puts into `env.now` before running effects. `create`'s check stays as it is.
+- Not in scope: the stamp format itself (E1-F1, E1-F2); the session in the place (E2-F3-T3).
+- Tests first:
+  1. `r7_create_with_subsecond_clock_succeeds`: given an env built with `Env::from_vars` from `HOME=<tmp>` without `BRAIN_SWAP_NOW` and a clock reading `2026-10-08T08:52:00.123456789+00:00`, with tz UTC, when a card is created on a copy of `work_4_9`, then it succeeds and its file holds `created: 2026-10-08T08:52:00+00:00`.
+  2. `ts6_1_env_now_is_whole_seconds`: given `Env::from_vars` with that clock and no `BRAIN_SWAP_NOW`, then `env.now` has no sub-second part; given `BRAIN_SWAP_NOW=2026-10-08T11:52:00.5+03:00`, then `env.now` is `2026-10-08T11:52:00+03:00`.
+  3. `fr30_tui_create_with_subsecond_clock_succeeds`: given a `work_4_9` runtime whose clock reads `2026-10-08T10:52:00.5+00:00`, when `n`, `f`, `x`, `enter` are dispatched, then `W-13.md` exists with `created: 2026-10-08T10:52:00+00:00` and the status line is empty.
+  4. `r7_cli_new_without_fixed_clock_succeeds`: given the spawn helper's scenario with `BRAIN_SWAP_NOW` removed, when `brain-swap new x` runs on a copy of `work_4_9`, then it exits 0, prints `created W-13: x (Todo, work)` and `W-13.md` parses with title `x`.
+- DoD:
+  - [ ] The tests above pass; the first test was committed red before the implementation turned it green (12.2 item 1).
+  - [ ] No other place builds a `now` from a clock without truncating it (review).
+
 ## E1-F7 Session store
 
 - Depends on: E1-F1

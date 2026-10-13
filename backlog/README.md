@@ -9,14 +9,14 @@ The backlog splits the work breakdown of TECHSPEC section 15 into tasks that a s
 | File | Epic | Milestone | Features | Tasks |
 |---|---|---|---|---|
 | `E0-spikes.md` | E0 Spikes | M0 (E0-F3 in M2) | 3 | 10 |
-| `E1-core.md` | E1 Core | M1 | 8 | 49 |
+| `E1-core.md` | E1 Core | M1 | 8 | 50 |
 | `E2-cli.md` | E2 CLI | M1 | 3 | 24 |
 | `E3-claude-pack.md` | E3 Claude pack | M2 | 2 | 17 |
 | `E4-tui.md` | E4 TUI | M3 | 5 | 31 |
 | `E5-herdr.md` | E5 herdr adapter | M1 (E5-F1), M4 | 4 | 28 |
 | `E6-release.md` | E6 Release | M5 | 1 | 10 |
 | `E7-later.md` | E7 Later | none | 7 | 0 |
-| | total | | 33 | 169 |
+| | total | | 33 | 170 |
 
 ## How to read a task
 
@@ -66,7 +66,7 @@ Waves are computed from the `Depends on` lines (a task in wave n has its longest
 | 13 | E2-F2-T2 E2-F2-T3 E2-F2-T4 E4-F1-T10 E4-F2-T3 E4-F3-T4 E4-F4-T1 E4-F4-T4 E4-F5-T2 E4-F5-T3 E4-F5-T4 |
 | 14 | E2-F2-T5 E2-F2-T6 E4-F2-T4 E4-F4-T2 |
 | 15 | E2-F2-T7 E2-F3-T1 E4-F2-T6 E4-F4-T3 |
-| 16 | E2-F2-T8 E2-F3-T2 E2-F3-T3 E2-F3-T11 E2-F3-T12 E4-F5-T5 E5-F3-T1 |
+| 16 | E1-F6-T11 E2-F2-T8 E2-F3-T2 E2-F3-T3 E2-F3-T11 E2-F3-T12 E4-F5-T5 E5-F3-T1 |
 | 17 | E2-F3-T4 E2-F3-T6 E4-F5-T6 E4-F5-T7 E5-F3-T2 |
 | 18 | E2-F3-T5 E2-F3-T8 E5-F3-T3 |
 | 19 | E2-F3-T7 E5-F3-T4 E5-F3-T5 |
