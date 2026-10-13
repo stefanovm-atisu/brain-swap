@@ -1,0 +1,7 @@
+---
+source: tests/tui_jump.rs
+expression: "rows(&buf).join(\"\\n\")"
+---
+ pane closed
+ /home/smilen/Work/ati.billing
+ open a session there and run /bs-link W-12

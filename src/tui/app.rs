@@ -277,7 +277,22 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             }
             return Vec::new();
         }
-        Input::Done(_) => return Vec::new(),
+        Input::Done(Outcome::Jumped) => return vec![Effect::Quit],
+        // Over the mode the jump started from, the card from Detail or the selection (A-E5-20).
+        Input::Done(outcome @ (Outcome::NotJumped(..) | Outcome::FocusFailed(..))) => {
+            app.status = None;
+            let card = match app.mode {
+                Mode::Detail { card, .. } => Some(card),
+                _ => app.sel.card,
+            };
+            if let Some(text) = card.and_then(|c| jump_message(&outcome, c)) {
+                app.mode = Mode::Message {
+                    text,
+                    back: Box::new(app.mode.clone()),
+                };
+            }
+            return Vec::new();
+        }
     };
     app.status = None;
     if let Mode::Help { back } | Mode::Message { back, .. } = &mut app.mode {
@@ -492,6 +507,31 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
         }
         _ => Vec::new(),
     }
+}
+
+/// The Message of a failed jump, one item per line (7.7, A-E5-21); `None` for a jump that worked.
+pub fn jump_message(outcome: &Outcome, card: CardId) -> Option<String> {
+    let (first, cwd) = match outcome {
+        Outcome::NotJumped(status, cwd) => {
+            let first = match status {
+                PaneStatus::Closed => "pane closed".to_string(),
+                PaneStatus::OutsideHerdr => "not in herdr".into(),
+                PaneStatus::NoPane => "no pane recorded".into(),
+                PaneStatus::NotResponding => "herdr not responding".into(),
+                PaneStatus::HerdrError(m) => format!("herdr: {m}"),
+                PaneStatus::Live(_) | PaneStatus::Moved(_) => return None,
+            };
+            (first, cwd)
+        }
+        Outcome::FocusFailed(pane, cwd) => (format!("focus failed: {pane}"), cwd),
+        _ => return None,
+    };
+    let mut lines = vec![first];
+    lines.extend(cwd.iter().map(|p| p.display().to_string()));
+    if let Outcome::NotJumped(PaneStatus::Closed, _) = outcome {
+        lines.push(format!("open a session there and run /bs-link {card}"));
+    }
+    Some(lines.join("\n"))
 }
 
 /// The one crossterm conversion point; release events give `None` (A-E4-26).

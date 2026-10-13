@@ -454,7 +454,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F3-T2 Jump outcomes: exit or Message
 
-- Status: doing
+- Status: done
 - Depends on: E5-F3-T1
 - Covers: FR-59, FR-61, FR-62, FR-63; AS-4, AS-5, AS-11 (state side); TECHSPEC 7.1 (outcomes), 7.7 (Messages)
 - Size: M

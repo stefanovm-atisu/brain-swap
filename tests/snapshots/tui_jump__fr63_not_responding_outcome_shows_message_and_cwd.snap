@@ -1,0 +1,6 @@
+---
+source: tests/tui_jump.rs
+expression: "rows(&buf).join(\"\\n\")"
+---
+ herdr not responding
+ /home/smilen/Work/ati.billing
