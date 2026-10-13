@@ -126,7 +126,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F1-T6 Pane JSON reader
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F1-T1, E0-F1-T3
 - Covers: FR-41; TECHSPEC 9.2 (`result.pane.agent_session.value`), 9.3 (`LivePane.agent` rule, `pane_not_found`, tolerant `serde_json::Value` lookups)
 - Size: S
