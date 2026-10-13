@@ -1,13 +1,50 @@
 //! The herdr adapter (TECHSPEC 9): herdr runs through its public CLI only.
 
-use crate::adapters::runner::{RunOutcome, Runner};
+use crate::adapters::runner::{RunOutcome, RunResult, Runner};
 use crate::core::env::Env;
 use crate::core::model::{HerdrPlace, Place};
 use serde_json::Value;
+use std::cell::Cell;
 use std::time::Duration;
 
 /// The timeout every herdr call asks for (T-15).
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// The budget `locate` and `focus` share (FR-63, 9.3).
+pub const BUDGET: Duration = Duration::from_secs(3);
+
+/// A `Runner` over another that gives each call `min(timeout, left())` (9.3).
+pub struct Budget<'a> {
+    runner: &'a dyn Runner,
+    left: Cell<Duration>,
+}
+
+impl<'a> Budget<'a> {
+    pub fn new(runner: &'a dyn Runner, total: Duration) -> Budget<'a> {
+        Budget {
+            runner,
+            left: Cell::new(total),
+        }
+    }
+
+    pub fn left(&self) -> Duration {
+        self.left.get()
+    }
+}
+
+impl Runner for Budget<'_> {
+    fn run(&self, args: &[&str], timeout: Duration) -> RunResult {
+        if self.left().is_zero() {
+            return RunResult {
+                outcome: RunOutcome::TimedOut,
+                took: Duration::ZERO,
+            };
+        }
+        let r = self.runner.run(args, timeout.min(self.left()));
+        self.left.set(self.left().saturating_sub(r.took));
+        r
+    }
+}
 
 /// The herdr part of a note's place at park time (9.1, FR-15, FR-58); runs no herdr command.
 pub fn capture(env: &Env, _runner: &dyn Runner) -> Option<HerdrPlace> {
@@ -177,6 +214,7 @@ pub fn locate(place: &Place, env: &Env, runner: &dyn Runner) -> PaneStatus {
     let Some(h) = &place.herdr else {
         return PaneStatus::NoPane;
     };
+    let runner = &Budget::new(runner, BUDGET);
     let stdout = match runner.run(&["pane", "get", &h.pane], CALL_TIMEOUT).outcome {
         RunOutcome::Exited {
             code: Some(0),

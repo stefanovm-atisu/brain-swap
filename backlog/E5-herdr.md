@@ -289,7 +289,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F2-T4 Shared 3 second budget
 
-- Status: doing
+- Status: done
 - Depends on: E5-F2-T3
 - Covers: FR-63; AS-11; TECHSPEC 9.3 (3 second budget, per-call timeout `min(2 s, rest)`)
 - Size: S

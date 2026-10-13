@@ -1,13 +1,15 @@
 //! TECHSPEC 9.1, 9.5: `capture` builds the herdr place from `HERDR_*` and runs no herdr command.
 //! TECHSPEC 9.2: `pane_session` reads the current pane's agent session in at most one call.
 //! TECHSPEC 9.3: `locate` turns a note's place into a `PaneStatus`.
+//! TECHSPEC 9.3: `locate` and its callers share a 3 second budget, each call asking for `min(2 s, rest)`.
 
 mod common;
 
 use brain_swap::adapters::herdr::{
-    LivePane, PaneStatus, capture, list_panes, locate, pane_session, workspace_ids,
+    BUDGET, Budget, CALL_TIMEOUT, LivePane, PaneStatus, capture, list_panes, locate, pane_session,
+    workspace_ids,
 };
-use brain_swap::adapters::runner::{Answer, FakeRunner};
+use brain_swap::adapters::runner::{Answer, FakeRunner, RunOutcome, Runner};
 use brain_swap::core::env::Env;
 use brain_swap::core::model::{HerdrPlace, Place};
 use common::env::core_env;
@@ -361,7 +363,7 @@ fn panes_with(s: &str, edit: impl FnOnce(&mut Vec<serde_json::Value>)) -> String
     v.to_string()
 }
 
-fn search(fake: &FakeRunner) -> PaneStatus {
+fn search(fake: &dyn Runner) -> PaneStatus {
     locate(&w12_place(), &in_herdr(), fake)
 }
 
@@ -464,4 +466,81 @@ fn ts9_3_moved_pane_without_workspace_key_takes_listed_workspace() {
         other => panic!("expected Moved, got {other:?}"),
     }
     assert_eq!(fake.calls(), FOUR);
+}
+
+fn ms(n: u64) -> Duration {
+    Duration::from_millis(n)
+}
+
+#[test]
+fn ts9_3_call_timeout_is_min_of_2s_and_rest() {
+    let fake = FakeRunner::new().on("workspace list", Answer::ok(WS_LIST).taking(ms(1200)));
+    let budget = Budget::new(&fake, BUDGET);
+    budget.run(&["workspace", "list"], CALL_TIMEOUT);
+    budget.run(&["workspace", "list"], CALL_TIMEOUT);
+    assert_eq!(fake.timeouts(), [ms(2000), ms(1800)]);
+    assert_eq!(budget.left(), ms(600));
+}
+
+#[test]
+fn ts9_3_spent_budget_times_out_without_calling() {
+    let fake = FakeRunner::new().on("workspace list", Answer::ok(WS_LIST).taking(ms(1500)));
+    let budget = Budget::new(&fake, BUDGET);
+    budget.run(&["workspace", "list"], CALL_TIMEOUT);
+    budget.run(&["workspace", "list"], CALL_TIMEOUT);
+    let third = budget.run(&["workspace", "list"], CALL_TIMEOUT);
+    assert_eq!(third.outcome, RunOutcome::TimedOut);
+    assert_eq!(third.took, Duration::ZERO);
+    assert_eq!(fake.calls().len(), 2);
+}
+
+#[test]
+fn as11_locate_ends_the_moved_search_at_3_seconds() {
+    let fake = FakeRunner::new()
+        .on(
+            "pane get w4V:p9",
+            Answer::fail(1, NOT_FOUND).taking(ms(1200)),
+        )
+        .on("workspace list", Answer::ok(WS_LIST).taking(ms(1000)))
+        .on(
+            "pane list --workspace w4V",
+            Answer::ok(PANES_W4V).taking(ms(500)),
+        )
+        .on(
+            "pane list --workspace w7Q",
+            Answer::ok(PANES_W7Q).taking(ms(500)),
+        );
+    let summed = Summed(&fake, Default::default());
+    assert_eq!(search(&summed), PaneStatus::NotResponding);
+    assert_eq!(fake.timeouts(), [ms(2000), ms(1800), ms(800), ms(300)]);
+    assert_eq!(summed.1.get(), ms(3000));
+}
+
+/// Passes calls through and sums their `took`.
+struct Summed<'a>(&'a FakeRunner, std::cell::Cell<Duration>);
+
+impl Runner for Summed<'_> {
+    fn run(&self, args: &[&str], timeout: Duration) -> brain_swap::adapters::runner::RunResult {
+        let r = self.0.run(args, timeout);
+        self.1.set(self.1.get() + r.took);
+        r
+    }
+}
+
+#[test]
+fn ts9_3_outer_budget_shortens_locate() {
+    let fake = FakeRunner::new()
+        .on("workspace list", Answer::ok(WS_LIST).taking(ms(2500)))
+        .on("pane get w4V:p9", Answer::ok(AGENT));
+    let budget = Budget::new(&fake, BUDGET);
+    budget.run(&["workspace", "list"], ms(3000));
+    let status = locate(&w12_place(), &in_herdr(), &budget);
+    assert!(matches!(status, PaneStatus::Live(_)), "{status:?}");
+    assert_eq!(fake.timeouts()[1], ms(500));
+}
+
+#[test]
+fn ts9_3_budget_constants() {
+    assert_eq!(BUDGET, Duration::from_secs(3));
+    assert_eq!(CALL_TIMEOUT, Duration::from_secs(2));
 }
