@@ -1,0 +1,5 @@
+---
+source: tests/cli_link.rs
+expression: stdout
+---
+{"v":1,"card":{"id":"W-12","board":"work","title":"migrate invoices to v13","column":"Doing","open":true,"path":"<sandbox>/boards/work/W-12.md","latest_note":{"at":"2026-10-08T11:12:40+03:00","age_min":39,"auto":false,"doing":"migration test passes on staging","next":"open the MR, ask the DBA for the v13 deploy list","watch_out":"nothing new","by_this_session":true,"place":{"cwd":"<sandbox>/ati.billing","session":"55583127-a22a-49bc-a803-e777c377a595","herdr":{"pane":"w4V:p9","tab":"w4V:t1","workspace":"w4V"}}}}}

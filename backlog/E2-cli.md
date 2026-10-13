@@ -435,7 +435,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T7 `link`
 
-- Status: doing
+- Status: done
 - Depends on: E2-F3-T5, E2-F2-T4
 - Covers: FR-57, FR-41; TECHSPEC 6.3 (`link`), 6.4, 6.7 (`link`)
 - Size: M

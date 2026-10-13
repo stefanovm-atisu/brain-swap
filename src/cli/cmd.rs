@@ -382,8 +382,45 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                 Err(e) => out.error(&e),
             }
         }
+        Some(Command::Link { id, session }) => link(
+            env,
+            &ctx.expect("loaded above"),
+            id,
+            session.as_deref(),
+            &mut out,
+        ),
         _ => todo!(),
     }
+}
+
+/// `link` (6.3): an unknown card or no session changes nothing; otherwise the reference
+/// is set and the block printed against the resolved session.
+fn link(env: &Env, ctx: &Ctx, id: CardId, flag: Option<&str>, out: &mut Out) -> i32 {
+    let (board, card) = match find_card(ctx, id) {
+        Ok(found) => found,
+        Err(e) => return out.error(&e),
+    };
+    board.warnings.iter().for_each(|w| out.warn(w));
+    let runner = ProcessRunner::new(env);
+    let (session, warnings) = resolve_session(env, flag, &runner);
+    warnings.iter().for_each(|w| out.warn(w));
+    let Some(session) = session else {
+        return out.error(&Error::InvalidInput("no session".into()));
+    };
+    set_reference(env, Some(&session), id, &board.name, &runner, out);
+    #[derive(serde::Serialize)]
+    struct Body<'a> {
+        card: out::CardJson<'a>,
+    }
+    let mut json = out::card_json(&card, &board, &env.now);
+    if let Some(n) = &mut json.latest_note {
+        n.by_this_session = n.place.session.map(|s| s == session);
+    }
+    let view = out::SessionView::Resolved(Some(session.clone()));
+    let text = format!("linked to {id}: {}\n", card.title)
+        + &out::card_block(&card, &board, &env.now, &view);
+    out.result(&text, Body { card: json });
+    0
 }
 
 /// 6.3 and 6.4: with a session, writes its reference (and inside herdr the pane hint)

@@ -1,0 +1,12 @@
+---
+source: tests/cli_link.rs
+expression: out
+---
+linked to W-12: migrate invoices to v13
+card: W-12 migrate invoices to v13
+board: work, column: Doing
+latest note: 2026-10-08T11:12:40+03:00, 39 min ago, by this session
+Doing: migration test passes on staging
+Next: open the MR, ask the DBA for the v13 deploy list
+Watch out: nothing new
+Where: <sandbox>/ati.billing (pane w4V:p9)

@@ -1,0 +1,5 @@
+---
+source: tests/cli_link.rs
+expression: err
+---
+brain-swap: no session
