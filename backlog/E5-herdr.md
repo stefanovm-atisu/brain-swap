@@ -624,7 +624,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F4-T3 README herdr section
 
-- Status: todo
+- Status: doing
 - Depends on: E5-F4-T1, E5-F4-T2
 - Covers: FR-64; TECHSPEC 9.4 (a second binding with `--board home`, why `prefix+alt+b`), 12.2 item 5
 - Size: S
