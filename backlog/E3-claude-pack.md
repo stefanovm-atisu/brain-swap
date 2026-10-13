@@ -31,7 +31,7 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 
 ### E3-F1-T1 bs-link skill and static pack checks
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F1-T1, E0-F1
 - Covers: FR-46, FR-47; TECHSPEC 8.1, 8.5, 12.1 (Pack: frontmatter checks, commands parse)
 - Size: M
