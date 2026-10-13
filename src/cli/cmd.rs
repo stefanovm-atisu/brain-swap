@@ -496,24 +496,37 @@ pub fn jump(env: &Env, ctx: &Ctx, id: CardId, note: Option<u32>, out: &mut Out) 
     let place = &card.notes[i].place;
     let process = ProcessRunner::new(env);
     let budget = herdr::Budget::new(&process, herdr::BUDGET);
-    let status = herdr::locate(place, env, &budget);
-    let focused = match &status {
-        herdr::PaneStatus::Live(p) | herdr::PaneStatus::Moved(p) => herdr::focus(p, &budget).ok(),
+    let mut status = herdr::locate(place, env, &budget);
+    let focus = match &status {
+        herdr::PaneStatus::Live(p) | herdr::PaneStatus::Moved(p) => Some(herdr::focus(p, &budget)),
         _ => None,
     };
-    let text = match (&status, focused) {
-        (herdr::PaneStatus::Moved(p), Some(_)) => format!("pane moved: now {}\n", p.pane),
-        (herdr::PaneStatus::Live(p), Some(herdr::Focused::Agent)) => {
+    if let Some(Err(herdr::FocusError::NotResponding)) = focus {
+        status = herdr::PaneStatus::NotResponding;
+    }
+    let lines = out::locate_lines(&status, place);
+    let text = match (&status, focus) {
+        (herdr::PaneStatus::Moved(p), Some(Ok(_))) => format!("pane moved: now {}\n", p.pane),
+        (herdr::PaneStatus::Live(p), Some(Ok(herdr::Focused::Agent))) => {
             format!("jumped to {} (pane {})\n", card.id, p.pane)
         }
-        (herdr::PaneStatus::Live(p), Some(herdr::Focused::Tab)) => {
+        (herdr::PaneStatus::Live(p), Some(Ok(herdr::Focused::Tab))) => {
             format!(
                 "jumped to {} (tab {}; pane not focusable)\n",
                 card.id, p.tab
             )
         }
-        _ => out::locate_lines(&status, place),
+        // Keep the `Where:` line of the locate lines.
+        (herdr::PaneStatus::Live(p) | herdr::PaneStatus::Moved(p), Some(Err(_))) => {
+            format!(
+                "focus failed: {}\n{}",
+                p.pane,
+                lines.split_once('\n').unwrap().1
+            )
+        }
+        _ => lines,
     };
+    let focused = focus.and_then(Result::ok);
     let locate = out::LocateJson::new(&status, place);
     out.result(&text, out::JumpJson { locate, focused });
     match focused {
