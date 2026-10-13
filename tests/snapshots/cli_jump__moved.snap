@@ -1,0 +1,5 @@
+---
+source: tests/cli_jump.rs
+expression: out
+---
+{"v":1,"status":"moved","pane":"w7Q:p2","cwd":"/home/smilen/Work/ati.billing","focused":"pane"}

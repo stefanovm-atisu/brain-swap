@@ -6,7 +6,7 @@ use crate::cli::args::{Cli, Command, InstallTarget};
 use crate::cli::out::{self, Out};
 use crate::core::config::{self, Config};
 use crate::core::env::Env;
-use crate::core::error::Error;
+use crate::core::error::{EXIT_JUMP_NOT_PERFORMED, Error};
 use crate::core::guess;
 use crate::core::model::{Board, Card, CardId, NewNote, SessionRef};
 use crate::core::session::{read_reference, write_reference};
@@ -381,6 +381,9 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
         Some(Command::Locate { id, note }) => {
             locate(env, &ctx.expect("loaded above"), id, note, &mut out)
         }
+        Some(Command::Jump { id, note }) => {
+            jump(env, &ctx.expect("loaded above"), id, note, &mut out)
+        }
         Some(Command::Install(InstallTarget::Herdr)) => install_herdr(env, &mut out),
         _ => todo!(),
     }
@@ -442,6 +445,60 @@ pub fn locate(env: &Env, ctx: &Ctx, id: CardId, note: Option<u32>, out: &mut Out
     let text = out::locate_lines(&status, place);
     out.result(&text, out::LocateJson::new(&status, place));
     0
+}
+
+/// `jump` (6.3): `locate`, then `focus` a live or moved pane within one shared 3 second
+/// budget; exit 0 when focused, else the `locate` lines and exit 6.
+pub fn jump(env: &Env, ctx: &Ctx, id: CardId, note: Option<u32>, out: &mut Out) -> i32 {
+    let (board, card) = match find_card(ctx, id) {
+        Ok(found) => found,
+        Err(e) => return out.error(&e),
+    };
+    board.warnings.iter().for_each(|w| out.warn(w));
+    let i = match target_note(&card, note) {
+        Ok(Some(i)) => i,
+        Ok(None) => {
+            let locate = out::LocateJson {
+                status: "no_note",
+                pane: None,
+                cwd: None,
+            };
+            let json = out::JumpJson {
+                locate,
+                focused: None,
+            };
+            out.result("no note yet\n", json);
+            return EXIT_JUMP_NOT_PERFORMED;
+        }
+        Err(e) => return out.error(&e),
+    };
+    let place = &card.notes[i].place;
+    let process = ProcessRunner::new(env);
+    let budget = herdr::Budget::new(&process, herdr::BUDGET);
+    let status = herdr::locate(place, env, &budget);
+    let focused = match &status {
+        herdr::PaneStatus::Live(p) | herdr::PaneStatus::Moved(p) => herdr::focus(p, &budget).ok(),
+        _ => None,
+    };
+    let text = match (&status, focused) {
+        (herdr::PaneStatus::Moved(p), Some(_)) => format!("pane moved: now {}\n", p.pane),
+        (herdr::PaneStatus::Live(p), Some(herdr::Focused::Agent)) => {
+            format!("jumped to {} (pane {})\n", card.id, p.pane)
+        }
+        (herdr::PaneStatus::Live(p), Some(herdr::Focused::Tab)) => {
+            format!(
+                "jumped to {} (tab {}; pane not focusable)\n",
+                card.id, p.tab
+            )
+        }
+        _ => out::locate_lines(&status, place),
+    };
+    let locate = out::LocateJson::new(&status, place);
+    out.result(&text, out::JumpJson { locate, focused });
+    match focused {
+        Some(_) => 0,
+        None => EXIT_JUMP_NOT_PERFORMED,
+    }
 }
 
 /// `context` (6.3, 6.7) with a reference that resolves (I9): the header lines and the

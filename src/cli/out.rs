@@ -1,11 +1,12 @@
 //! Result, error and warning output (TECHSPEC 6.2, 6.7).
 
-use crate::adapters::herdr::PaneStatus;
+use crate::adapters::herdr::{Focused, PaneStatus};
 use crate::cli::cmd::Ctx;
 use crate::core::error::Error;
 use crate::core::model::{Board, Card, Note, Place};
 use crate::core::time::{Age, Stamp, age, age_minutes, format_stamp};
 use serde::Serialize;
+use serde::ser::{SerializeStruct, Serializer};
 use std::io::{Stderr, Stdout, Write};
 use std::path::Path;
 
@@ -238,6 +239,27 @@ impl<'a> LocateJson<'a> {
             pane,
             cwd: place.cwd.as_deref(),
         }
+    }
+}
+
+/// The 6.7 `jump` object: the `locate` fields plus `focused` (`"pane"`, `"tab"` or `false`).
+pub struct JumpJson<'a> {
+    pub locate: LocateJson<'a>,
+    pub focused: Option<Focused>,
+}
+
+impl Serialize for JumpJson<'_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut m = s.serialize_struct("JumpJson", 4)?;
+        m.serialize_field("status", self.locate.status)?;
+        m.serialize_field("pane", &self.locate.pane)?;
+        m.serialize_field("cwd", &self.locate.cwd)?;
+        match self.focused {
+            Some(Focused::Agent) => m.serialize_field("focused", "pane")?,
+            Some(Focused::Tab) => m.serialize_field("focused", "tab")?,
+            None => m.serialize_field("focused", &false)?,
+        }
+        m.end()
     }
 }
 
