@@ -307,7 +307,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F2-T5 Focus
 
-- Status: todo
+- Status: doing
 - Depends on: E5-F2-T1, E5-F2-T4, E0-F2-T2
 - Covers: FR-59, FR-60; TECHSPEC 9.3 (focus), 14 (SP-5)
 - Size: M
