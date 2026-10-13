@@ -667,3 +667,226 @@ fn fr52_bs_back_catch_up_heredoc_saves_auto_note() {
     assert_eq!(notes.len(), 2, "{notes:?}");
     assert!(notes.last().unwrap().0.ends_with(" auto"), "{notes:?}");
 }
+
+// ---- bs-card (E3-F1-T5) ----
+
+#[test]
+fn ts8_1_bs_card_frontmatter_names_and_version() {
+    let fm = frontmatter(&read_skill("bs-card"));
+    assert_eq!(fm["name"], Value::Text("bs-card".into()));
+    assert!(matches!(&fm["description"], Value::Text(d) if !d.is_empty()));
+    assert_eq!(
+        fm["argument-hint"],
+        Value::Text("<task in a few words> [on home|personal]".into())
+    );
+    assert_eq!(
+        fm["metadata"],
+        Value::Map(BTreeMap::from([
+            ("pack".into(), "brain-swap".into()),
+            ("version".into(), env!("CARGO_PKG_VERSION").into()),
+        ]))
+    );
+}
+
+#[test]
+fn fr46_bs_card_user_only_and_cli_only() {
+    let fm = frontmatter(&read_skill("bs-card"));
+    assert_eq!(fm["disable-model-invocation"], Value::Text("true".into()));
+    assert_eq!(
+        fm["allowed-tools"],
+        Value::Text("Bash(brain-swap:*)".into())
+    );
+}
+
+#[test]
+fn ts8_1_bs_card_inline_command_is_templates_only() {
+    let inline = inline_commands(&read_skill("bs-card"));
+    assert_eq!(inline, ["brain-swap templates"]);
+    assert!(!inline[0].contains("$ARGUMENTS"));
+}
+
+#[test]
+fn ts12_1_bs_card_commands_parse() {
+    let mut cmds = Vec::new();
+    for c in commands(&read_skill("bs-card")) {
+        if c.starts_with("brain-swap new ") {
+            cmds.push(c.clone());
+            cmds.push(format!("{c} --board home"));
+        } else {
+            cmds.push(c);
+        }
+    }
+    let found: Vec<String> = cmds
+        .iter()
+        .map(|c| {
+            let cli = Cli::try_parse_from(shell_words(&substitute(c, SESSION_A)))
+                .unwrap_or_else(|e| panic!("{c}: {e}"));
+            let board = cli
+                .board
+                .map(|b| format!(" --board {b}"))
+                .unwrap_or_default();
+            match cli.command {
+                Some(Command::Templates) if board.is_empty() => "templates".to_string(),
+                Some(Command::New {
+                    template: Some(t),
+                    column: None,
+                    session: Some(s),
+                    body: Some(b),
+                    title,
+                }) if title.is_empty() => {
+                    format!("new --template {t} --session {s} --body {b}{board}")
+                }
+                Some(Command::Move { .. }) if board.is_empty() => "move".to_string(),
+                other => panic!("{c}: unexpected {other:?}{board}"),
+            }
+        })
+        .collect();
+    let new = format!("new --template Feature --session {SESSION_A} --body -");
+    assert_eq!(
+        found,
+        [
+            "templates".to_string(),
+            new.clone(),
+            format!("{new} --board home"),
+            "move".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn ts8_1_bs_card_session_quoted_and_move_line_last() {
+    let text = read_skill("bs-card");
+    let with_session: Vec<String> = commands(&text)
+        .into_iter()
+        .filter(|c| c.contains("--session"))
+        .collect();
+    assert!(!with_session.is_empty());
+    for c in with_session {
+        let words: Vec<&str> = c.split_whitespace().collect();
+        let i = words.iter().position(|w| *w == "--session").unwrap();
+        assert_eq!(words.get(i + 1), Some(&"\"${CLAUDE_SESSION_ID}\""), "{c}");
+    }
+    let last = text.lines().rev().find(|l| !l.trim().is_empty());
+    assert_eq!(
+        last,
+        Some(
+            "If the user later asks to move this card, run `brain-swap move <ID> <column>` and reply with its output line."
+        )
+    );
+}
+
+#[test]
+fn ts12_1_bs_card_inline_templates_exits_0_in_every_state() {
+    use ContextState::*;
+    for state in [
+        NoConfig,
+        BrokenConfig,
+        MissingFolder,
+        NoReference,
+        DeletedCard,
+        EmptySession,
+        Unsubstituted,
+        Placeholder,
+        WithNote,
+        WithoutNote,
+    ] {
+        let (env, session) = PackEnv::for_state(state);
+        let inline = inline_commands(&read_skill("bs-card"));
+        let (code, out, err) = env.run_sh(&substitute(&inline[0], session), "");
+        assert_eq!(code, 0, "{state:?}: {err}");
+        assert!(
+            out.lines().any(|l| l == "template: Feature (key f)"),
+            "{state:?}: {out}"
+        );
+    }
+}
+
+const CARD_TITLE: &str = "migrate invoices to v13";
+const CARD_GOAL: &str = "Switch invoice reads and writes to the v13 procedures.";
+const CARD_CONTEXT: &str = r#"run $PATH check and `make` "now""#;
+
+/// The bs-card heredoc for `SESSION_A`, filled with `CARD_TITLE` and the sample Feature body.
+fn card_heredoc() -> String {
+    let blocks = heredoc_commands(&read_skill("bs-card"));
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    let body = format!("## Goal\n{CARD_GOAL}\n\n## Acceptance\n\n## Context\n{CARD_CONTEXT}");
+    fill_card_heredoc(&substitute(&blocks[0], SESSION_A), CARD_TITLE, &body)
+}
+
+/// Runs the filled bs-card heredoc in `env`, expecting exit 0; returns stdout.
+fn create_card(env: &PackEnv, cmd: &str) -> String {
+    let (code, out, err) = env.run_sh(cmd, "");
+    assert_eq!(code, 0, "{err}");
+    out
+}
+
+#[test]
+fn fr48_bs_card_heredoc_creates_card_and_links_session() {
+    let env = PackEnv::new();
+    let out = create_card(&env, &card_heredoc());
+    assert_eq!(out, format!("created W-12: {CARD_TITLE} (Todo, work)\n"));
+    let (_, text, _) = env.run_sh("cat boards/work/W-12.md", "");
+    let lines: Vec<&str> = text.lines().collect();
+    for l in [
+        "column: Todo",
+        "template: Feature",
+        "# migrate invoices to v13",
+    ] {
+        assert!(lines.contains(&l), "{l}: {text}");
+    }
+    let goal = lines.iter().position(|l| *l == "## Goal").expect(&text);
+    assert_eq!(
+        lines[goal + 1..].iter().find(|l| !l.trim().is_empty()),
+        Some(&CARD_GOAL),
+        "{text}"
+    );
+    assert_eq!(
+        lines.iter().filter(|l| **l == "## Timeline").count(),
+        1,
+        "{text}"
+    );
+    let (_, ctx, _) = env.run_sh(&format!("brain-swap context --session {SESSION_A}"), "");
+    assert!(ctx.lines().any(|l| l == "reference: W-12"), "{ctx}");
+}
+
+#[test]
+fn fr48_bs_card_named_board_creates_on_that_board() {
+    let env = PackEnv::new();
+    let (_, before, _) = env.run_sh("ls boards/work", "");
+    let cmd = card_heredoc().replacen(" <<'BS_EOF'", " --board home <<'BS_EOF'", 1);
+    let out = create_card(&env, &cmd);
+    assert_eq!(out, format!("created H-4: {CARD_TITLE} (Todo, home)\n"));
+    let (_, after, _) = env.run_sh("ls boards/work", "");
+    assert_eq!(after, before);
+}
+
+#[test]
+fn ts8_6_bs_card_heredoc_keeps_body_literal() {
+    let env = PackEnv::new();
+    create_card(&env, &card_heredoc());
+    let (_, text, _) = env.run_sh("cat boards/work/W-12.md", "");
+    let context = text.lines().position(|l| l == "## Context").expect(&text);
+    assert_eq!(text.lines().nth(context + 1), Some(CARD_CONTEXT), "{text}");
+}
+
+#[test]
+fn fr47_move_line_command_moves_the_card() {
+    let env = PackEnv::new();
+    create_card(&env, &card_heredoc());
+    let (_, before, _) = env.run_sh("cat boards/work/W-12.md", "");
+    let mv = commands(&read_skill("bs-card"))
+        .into_iter()
+        .find(|c| c.starts_with("brain-swap move "))
+        .unwrap();
+    let mv = substitute(&mv, SESSION_A);
+    assert_eq!(mv, "brain-swap move W-12 Doing");
+    let (code, out, err) = env.run_sh(&mv, "");
+    assert_eq!(code, 0, "{err}");
+    assert_eq!(out, "moved W-12 to Doing\n");
+    let (_, after, _) = env.run_sh("cat boards/work/W-12.md", "");
+    assert_eq!(
+        after,
+        before.replacen("column: Todo\n", "column: Doing\n", 1)
+    );
+    assert_ne!(after, before);
+}

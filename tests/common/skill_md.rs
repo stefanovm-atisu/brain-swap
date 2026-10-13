@@ -136,3 +136,10 @@ pub fn fill_park_heredoc(block: &str, doing: &str, next: &str, watch_out: &str) 
         .replace("Next: ...", &format!("Next: {next}"))
         .replace("Watch out: ...", &format!("Watch out: {watch_out}"))
 }
+
+/// `block` with `<title>` and `<filled skeleton>` replaced.
+pub fn fill_card_heredoc(block: &str, title: &str, body: &str) -> String {
+    block
+        .replace("<title>", title)
+        .replace("<filled skeleton>", body)
+}
