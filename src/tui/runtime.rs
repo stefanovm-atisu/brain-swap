@@ -230,6 +230,7 @@ impl<B: Backend> Runtime<B> {
                     };
                     self.dispatch(input);
                 }
+                Effect::Jump(..) => {}
             }
         }
         None

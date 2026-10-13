@@ -433,7 +433,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F3-T1 Jump key in Board and Detail
 
-- Status: doing
+- Status: done
 - Depends on: E5-F2-T1, E5-F2-T7, E4-F2, E4-F3
 - Covers: FR-25, FR-28; TECHSPEC 7.1 (Board `jump` emits `Jump` on `jump_note()`, Detail `jump` targets the note shown), 7.7 (target, `jumping...`, `no note yet`)
 - Size: S

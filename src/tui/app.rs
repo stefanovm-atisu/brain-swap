@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
+use crate::adapters::herdr::PaneStatus;
 use crate::core::keys::{Action, Key, KeyContext, KeyMap, KeyPress};
 use crate::core::model::{Board, BoardMeta, Card, CardId};
 use crate::core::time::Stamp;
@@ -85,6 +86,9 @@ pub enum Outcome {
     Created(CardId),
     Edited(CardId),
     Failed(String),
+    Jumped,
+    NotJumped(PaneStatus, Option<PathBuf>),
+    FocusFailed(String, Option<PathBuf>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,6 +101,8 @@ pub enum Effect {
     },
     Edit(CardId),
     LoadBoard(String),
+    /// The card and the index into its `notes` (7.7).
+    Jump(CardId, usize),
     Quit,
 }
 
@@ -271,6 +277,7 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
             }
             return Vec::new();
         }
+        Input::Done(_) => return Vec::new(),
     };
     app.status = None;
     if let Mode::Help { back } | Mode::Message { back, .. } = &mut app.mode {
@@ -450,6 +457,30 @@ pub fn update(app: &mut App, input: Input) -> Vec<Effect> {
         (Mode::Detail { .. }, Some(Action::Quit)) => {
             app.mode = Mode::Board;
             Vec::new()
+        }
+        // Board targets the jump note, Detail the note shown (7.7); no card, no jump (A-E5-22).
+        (Mode::Board | Mode::Detail { .. }, Some(Action::Jump)) => {
+            let target = match &app.mode {
+                &Mode::Detail { card, note, .. } => app
+                    .board
+                    .card(card)
+                    .map(|c| (card, (note < c.notes.len()).then_some(note))),
+                _ => app.selected_card().map(|c| (c.id, c.jump_note())),
+            };
+            match target {
+                Some((card, Some(note))) => {
+                    app.status = Some("jumping...".into());
+                    vec![Effect::Jump(card, note)]
+                }
+                Some((_, None)) => {
+                    app.mode = Mode::Message {
+                        text: "no note yet".into(),
+                        back: Box::new(app.mode.clone()),
+                    };
+                    Vec::new()
+                }
+                None => Vec::new(),
+            }
         }
         (Mode::Board, Some(Action::Edit)) => app.sel.card.map(Effect::Edit).into_iter().collect(),
         (Mode::Detail { card, .. }, Some(Action::Edit)) => vec![Effect::Edit(*card)],
