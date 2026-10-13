@@ -476,7 +476,7 @@ Milestone: M1. This epic delivers the `brain-swap` subcommands that the Claude p
 
 ### E2-F3-T9 `context` picker without a reference
 
-- Status: todo
+- Status: doing
 - Depends on: E2-F3-T8, E2-F3-T7, E2-F2-T8
 - Covers: FR-56, FR-57, FR-37; TECHSPEC 6.3 (`context`, second format, `reference: none (W-12 not found)`), 6.6, 6.7 (Candidate in `context`), AS-3 (CLI half)
 - Size: M
