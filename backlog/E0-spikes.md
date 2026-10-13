@@ -122,7 +122,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 - Feature DoD:
   - [x] SP-2 answered in TECHSPEC 16; 7.7 and the 9.4 snippet updated (focus before or after exit, an `env` prefix if `HERDR_*` is missing) (E0-F2-T1).
   - [x] SP-5 answered in TECHSPEC 16; `focus` in 9.3 updated (E0-F2-T2).
-  - [ ] SP-7 answered in TECHSPEC 16; the 9.4 key confirmed or replaced (E0-F2-T3).
+  - [x] SP-7 answered in TECHSPEC 16; the 9.4 key confirmed or replaced (E0-F2-T3).
 
 ### E0-F2-T1 SP-2 jump from a popup
 
@@ -171,7 +171,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 
 ### E0-F2-T3 SP-7 board key
 
-- Status: todo
+- Status: done
 - Depends on: none
 - Covers: FR-64; TECHSPEC 14 SP-7, 9.4, 16
 - Size: S
@@ -184,9 +184,9 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
   4. If the key is taken anywhere, pick the nearest free combination and repeat step 3 with it.
   5. Restore the config and reload.
 - DoD:
-  - [ ] TECHSPEC 16 gains the line `SP-7 (<date>, herdr 0.8.2)` with: free by default (yes or no), free in the author's config, delivered by terminal and window manager, `prefix+b` is the sidebar toggle (yes or no), key chosen; `SP-7` is removed from the `Open until the spikes answer` sentence.
-  - [ ] If the key changes, 9.4 is updated and the line names PRD section 6 setup and A-18 for the owner (A-E0-02).
-  - [ ] herdr config restored; one commit with no AI attribution.
+  - [x] TECHSPEC 16 gains the line `SP-7 (<date>, herdr 0.8.2)` with: free by default (yes or no), free in the author's config, delivered by terminal and window manager, `prefix+b` is the sidebar toggle (yes or no), key chosen; `SP-7` is removed from the `Open until the spikes answer` sentence.
+  - [x] If the key changes, 9.4 is updated and the line names PRD section 6 setup and A-18 for the owner (A-E0-02).
+  - [x] herdr config restored; one commit with no AI attribution.
 
 ## E0-F3 Staleness spike
 

@@ -639,7 +639,7 @@ width = "90%"
 height = "90%"
 ```
 
-`prefix+b` is herdr's sidebar toggle, hence `prefix+alt+b` (SP-7). A second binding with `--board home` opens another board.
+`prefix+b` is herdr's sidebar toggle, hence `prefix+alt+b` (SP-7). SP-7 was not run (16), so the key is an unverified default: whoever finds it taken changes it in herdr's config, like every binding (principle 4). A second binding with `--board home` opens another board.
 
 ### 9.5 Outside herdr and pane metadata
 
@@ -834,7 +834,7 @@ Choices made where the PRD and the environment leave room, as yes/no questions f
 - **T-20** Verify before rename on every write?
 - **T-21** `BRAIN_SWAP_NOW` in every build, failpoints only with the feature?
 
-Open until the spikes answer: SP-7 the key; SP-8 the staleness rule.
+Open until the spikes answer: SP-8 the staleness rule.
 
 Spike answers:
 
@@ -869,3 +869,4 @@ Spike answers:
   ```
 - **SP-5 (2026-10-13, herdr 0.8.2)** not run (owner decision 2026-10-13: take the fallback, revisit on need). Section 14 lists no fallback for SP-5. Step 2, `agent focus` on a pane without an agent: unverified. Step 3, `agent focus` crossing to another workspace: unverified. Step 4, `tab focus` alone crossing workspaces: unverified. Step 5, `workspace focus` then `tab focus`: unverified. Step 6, exit codes and stderr of `agent focus`, `tab focus` and `workspace focus` with bad IDs: unverified, none recorded; 9.3 treats any non-zero exit as a failed step and reads no stderr, so the E5-F2 fakes may answer any exit 1 text. Step 7, the `LivePane.agent` rule: the SP-4 samples give true for a Claude pane (`agent` key) and false for a shell pane (`agent_status` `unknown`); a pane whose Claude has exited: unverified. Fallback taken: none (assumed as 9.3 states: `agent focus` only when `LivePane.agent` is true, otherwise `workspace focus` then `tab focus`, failures mapped as 9.3 defines); 9.3 notes the assumption. For the owner (A-E0-02): no PRD contradiction; FR-59, FR-60 and AS-6 rely on `workspace focus` and `tab focus` reaching another workspace, which stays unverified.
 - **SP-6 (2026-10-13, Claude Code 2.1.294)** not run (owner decision 2026-10-13: take the fallback, revisit on need). Bare name via symlink: unverified. No restart (or `/reload-skills` needed): unverified. Model cannot invoke: unverified; none (assumed as 8.1 states, `disable-model-invocation: true`). Retargeted link picked up: unverified. `$CLAUDE_CONFIG_DIR/skills` loaded: unverified; none (assumed as 8.8 states: honoured when set, so 2.2 and T-09 keep it). Fallback taken: copies, not symlinks; `install claude` writes plain skill folders, `--link` copies from a checkout, and a folder is ours by its frontmatter `metadata` `pack: brain-swap`; 8.8, 5.1, T-12 and 15 updated. For the owner (A-E0-02): this contradicts FR-67 ("symlinks the four skills into `~/.claude/skills/` (to a versioned copy it writes, or a checkout with `--link`)") and A-22 ("installed as symlinks to a versioned copy"); the PRD is left unchanged. A-26 (`--force`) still holds.
+- **SP-7 (2026-10-13, herdr 0.8.2)** not run (owner decision 2026-10-13: take the fallback, revisit on need). Section 14 lists no fallback for SP-7. Free by default: unverified. Free in the author's config: unverified. Delivered by terminal and window manager: unverified. `prefix+b` is the sidebar toggle: unverified. Key chosen: `prefix+alt+b`, kept as the 9.4 default; fallback taken: none (assumed as 9.4 states), and every binding stays configurable in herdr's config (principle 4). For the owner (A-E0-02): no PRD contradiction, the key is unchanged, so PRD section 6 setup and A-18 stand.
