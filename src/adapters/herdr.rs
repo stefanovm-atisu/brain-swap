@@ -2,7 +2,7 @@
 
 use crate::adapters::runner::{RunOutcome, Runner};
 use crate::core::env::Env;
-use crate::core::model::HerdrPlace;
+use crate::core::model::{HerdrPlace, Place};
 use serde_json::Value;
 use std::time::Duration;
 
@@ -88,6 +88,79 @@ impl<'a> PaneJson<'a> {
 pub fn error_code(stderr: &str) -> Option<String> {
     let v: Value = serde_json::from_str(stderr).ok()?;
     Some(v.pointer("/error/code")?.as_str()?.to_string())
+}
+
+/// A pane herdr answered for, with live IDs (TECHSPEC 3, 9.3).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LivePane {
+    pub pane: String,
+    pub tab: String,
+    pub workspace: String,
+    pub agent: bool,
+}
+
+/// What `locate` found for a note's place (TECHSPEC 3).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PaneStatus {
+    Live(LivePane),
+    Moved(LivePane),
+    Closed,
+    OutsideHerdr,
+    NoPane,
+    NotResponding,
+    HerdrError(String),
+}
+
+impl PaneStatus {
+    /// The `status` name of the `locate` and `jump` objects (6.7).
+    pub fn json_status(&self) -> &'static str {
+        match self {
+            PaneStatus::Live(_) => "live",
+            PaneStatus::Moved(_) => "moved",
+            PaneStatus::Closed => "closed",
+            PaneStatus::OutsideHerdr => "outside",
+            PaneStatus::NoPane => "none",
+            PaneStatus::NotResponding => "not_responding",
+            PaneStatus::HerdrError(_) => "herdr_error",
+        }
+    }
+}
+
+/// Turns a note's place into a `PaneStatus` (9.3).
+pub fn locate(place: &Place, env: &Env, runner: &dyn Runner) -> PaneStatus {
+    if !env.herdr_active() {
+        return PaneStatus::OutsideHerdr;
+    }
+    let Some(h) = &place.herdr else {
+        return PaneStatus::NoPane;
+    };
+    let r = runner.run(&["pane", "get", &h.pane], CALL_TIMEOUT);
+    let RunOutcome::Exited {
+        code: Some(0),
+        stdout,
+        ..
+    } = r.outcome
+    else {
+        // ponytail: failures are E5-F2-T2's (Closed, NotResponding, HerdrError by code).
+        return PaneStatus::HerdrError("pane get failed".into());
+    };
+    let v: Value = serde_json::from_str(&stdout).unwrap_or_default();
+    let Some(p) = PaneJson::from_response(&v) else {
+        return PaneStatus::HerdrError("pane get: unreadable answer".into());
+    };
+    let or = |live: Option<&str>, stored: &Option<String>| {
+        live.or(stored.as_deref()).unwrap_or_default().to_string()
+    };
+    let live = LivePane {
+        pane: or(p.id(), &Some(h.pane.clone())),
+        tab: or(p.tab(), &h.tab),
+        workspace: or(p.workspace(), &h.workspace),
+        agent: p.has_agent(),
+    };
+    match live.pane == h.pane {
+        true => PaneStatus::Live(live),
+        false => PaneStatus::Moved(live),
+    }
 }
 
 #[cfg(test)]
@@ -185,5 +258,37 @@ mod tests {
     fn ts9_3_error_code_none_for_plain_text() {
         assert_eq!(error_code("herdr: cannot connect"), None);
         assert_eq!(error_code(""), None);
+    }
+
+    #[test]
+    fn ts6_7_status_json_names() {
+        let p = LivePane {
+            pane: "w4V:p9".into(),
+            tab: "w4V:t1".into(),
+            workspace: "w4V".into(),
+            agent: true,
+        };
+        let all = [
+            PaneStatus::Live(p.clone()),
+            PaneStatus::Moved(p),
+            PaneStatus::Closed,
+            PaneStatus::OutsideHerdr,
+            PaneStatus::NoPane,
+            PaneStatus::NotResponding,
+            PaneStatus::HerdrError("x".into()),
+        ];
+        let names: Vec<_> = all.iter().map(PaneStatus::json_status).collect();
+        assert_eq!(
+            names,
+            [
+                "live",
+                "moved",
+                "closed",
+                "outside",
+                "none",
+                "not_responding",
+                "herdr_error"
+            ]
+        );
     }
 }
