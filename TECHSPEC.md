@@ -31,7 +31,7 @@ templates/{feature,bug,research,chore}.md
 ### 2.2 Layering and the public CLI rule
 
 - `core` imports neither `cli`, `tui` nor `adapters`, and uses neither `std::process` nor `std::env` (only `failpoint.rs` may): the environment arrives as an `Env` value, so core code is deterministic; `tests/layering.rs` enforces this. `adapters` import only `core`. The core stores a place as opaque strings (T-02).
-- The pack calls only section 6 subcommands; the herdr key runs only `brain-swap`; the herdr adapter runs only `herdr pane get`, `pane list`, `workspace list`, `agent focus`, `workspace focus` and `tab focus`, never `pane current` (SP-4) and never the socket. Nothing reads Claude transcripts, settings, hooks or `CLAUDE_*` variables (bar `CLAUDE_CONFIG_DIR` in `install claude`, SP-6).
+- The pack calls only section 6 subcommands; the herdr key runs only `brain-swap`; the herdr adapter runs only `herdr pane get`, `pane list`, `workspace list`, `agent focus`, `workspace focus` and `tab focus`, never `pane current` (SP-4) and never the socket. Nothing reads Claude transcripts, settings, hooks or `CLAUDE_*` variables (bar `CLAUDE_CONFIG_DIR` in `install claude`, honoured as an unverified assumption, SP-6).
 - Board data lives in board folders; references, pane hints, locks and editor copies in `$XDG_STATE_HOME/brain-swap/`; the log only where `BRAIN_SWAP_LOG` points (section 11).
 
 ## 3. Domain model
@@ -240,7 +240,7 @@ Enter on W-12 targets pane `w4V:p9`; on W-9, inside herdr, it shows `no pane rec
 
 ### 5.1 Locations
 
-XDG variables with the usual defaults, also on macOS (T-08): config `~/.config/brain-swap/config.toml`; custom templates `~/.config/brain-swap/templates/*.md`; default boards `~/.local/share/brain-swap/<name>`; installed pack `~/.local/share/brain-swap/pack/<version>/`; state `~/.local/state/brain-swap/` with `sessions/`, `panes/`, `locks/`, `edit/`.
+XDG variables with the usual defaults, also on macOS (T-08): config `~/.config/brain-swap/config.toml`; custom templates `~/.config/brain-swap/templates/*.md`; default boards `~/.local/share/brain-swap/<name>`; the pack is copied into Claude Code's skills folder (8.8); state `~/.local/state/brain-swap/` with `sessions/`, `panes/`, `locks/`, `edit/`.
 
 ### 5.2 Full file with defaults
 
@@ -584,7 +584,7 @@ Set by `/bs-card`, every park, `/bs-link` and the `/bs-back` pick; read through 
 
 ### 8.8 Install
 
-`brain-swap install claude` writes the embedded skills to `$XDG_DATA_HOME/brain-swap/pack/<version>/skills/<name>/` and symlinks `~/.claude/skills/<name>` (or `$CLAUDE_CONFIG_DIR/skills`, SP-6) to each, atomically: no checkout is needed, and the links follow the verified skills-dir install (T-12). `--link <repo>` links a checkout's `pack/claude/skills/<name>` instead. A path is ours when it is a symlink whose target is `$XDG_DATA_HOME/brain-swap/pack/<any version>/skills/<name>` or ends in `pack/claude/skills/<name>`. Anything at those paths that is not ours is refused (exit 1) unless `--force`; `--remove` deletes only our links, then `$XDG_DATA_HOME/brain-swap/pack/`. SP-3 was not run (16), so both its fallbacks hold. Absolute paths: the copies get the binary's canonical path (`Env.exe`) in every command and in `allowed-tools: Bash(<absolute path>:*)`, as `brain-swap` may be off the inline shell's `PATH`; with `--link`, install warns that the checkout's skills need `brain-swap` on the inline shell's `PATH`. Allow rule: it prints `run /reload-skills in sessions already open` when it created `~/.claude/skills/`, and suggests the allow rule for the program the skills call, `Bash(<absolute path>:*)` (`Bash(brain-swap:*)` with `--link`), which the README documents, so moves need no prompt; it never edits settings or hooks (FR-67).
+`brain-swap install claude` writes the embedded skills as copies, not symlinks (SP-6 not run, its fallback taken, 16): each skill becomes a plain folder `<skills>/<name>/` holding one `SKILL.md`, written as a temp file renamed into place (10), so no checkout and no versioned copy elsewhere is needed (T-12). `<skills>` is `$CLAUDE_CONFIG_DIR/skills` when `CLAUDE_CONFIG_DIR` is set and non-empty (an unverified assumption, SP-6), else `~/.claude/skills`. `--link <repo>` copies a checkout's `pack/claude/skills/<name>/SKILL.md` instead of the embedded skills; it is run again after editing them. A path is ours when it is a folder whose `SKILL.md` frontmatter carries `metadata` with `pack: brain-swap` (8.2). Anything at those paths that is not ours (another folder, a file, any symlink) is refused (exit 1) unless `--force`; `--remove` deletes only our folders. In 6.7, `linked` lists the folders written. SP-3 was not run (16), so both its fallbacks hold. Absolute paths: every copy, embedded or from a checkout, gets the binary's canonical path (`Env.exe`) in every command and in `allowed-tools: Bash(<absolute path>:*)`, as `brain-swap` may be off the inline shell's `PATH`. Allow rule: it prints `run /reload-skills in sessions already open` when it created the skills folder, and suggests the allow rule `Bash(<absolute path>:*)` for the program the copies call, which the README documents, so moves need no prompt; it never edits settings or hooks (FR-67).
 
 ## 9. herdr adapter
 
@@ -761,8 +761,8 @@ Each feature: scope; Covers; Dep; DoD beyond 12.2.
 
 ### E3 Claude pack (M2)
 
-- **E3-F1 Skills.** Section 8 files, embedding, pack tests. Covers FR-46 to FR-57. Dep: E2-F3, E0-F1. DoD: manual AS-1 (steps 1, 3, 4, 8), AS-2, AS-3 recorded; for the manual run, `pack/claude/skills/*` is symlinked into `~/.claude/skills/` by hand.
-- **E3-F2 install claude.** Versioned copy, symlinks, `--link`, `--force`, `--remove`. Covers FR-67. Dep: E3-F1. DoD: temp `HOME` tests: install, upgrade, foreign folder refused without `--force` and replaced with it, removal.
+- **E3-F1 Skills.** Section 8 files, embedding, pack tests. Covers FR-46 to FR-57. Dep: E2-F3, E0-F1. DoD: manual AS-1 (steps 1, 3, 4, 8), AS-2, AS-3 recorded; for the manual run, `pack/claude/skills/*` is copied into `~/.claude/skills/` by hand.
+- **E3-F2 install claude.** Copies (SP-6 fallback), `--link`, `--force`, `--remove`. Covers FR-67. Dep: E3-F1. DoD: temp `HOME` tests: install, upgrade, foreign folder refused without `--force` and replaced with it, removal.
 
 ### E4 TUI (M3)
 
@@ -820,10 +820,10 @@ Choices made where the PRD and the environment leave room, as yes/no questions f
 - **T-06** One-second polling, no file watcher?
 - **T-07** One std file lock per board per transaction, in the state folder?
 - **T-08** Hand-computed XDG paths, also on macOS?
-- **T-09** Session from `--session`, `BRAIN_SWAP_SESSION` or herdr; never `CLAUDE_*`, except `CLAUDE_CONFIG_DIR` in `install claude` (SP-6)?
+- **T-09** Session from `--session`, `BRAIN_SWAP_SESSION` or herdr; never `CLAUDE_*`, except `CLAUDE_CONFIG_DIR` in `install claude`, honoured though SP-6 did not verify it?
 - **T-10** Staleness judged by the model, scored by SP-8, no transcripts?
 - **T-11** Notes and bodies via a quoted heredoc?
-- **T-12** Skills as symlinks to a versioned copy, or a checkout with `--link`?
+- **T-12** Skills as copies written into the skills folder, from the embedded pack or a checkout with `--link`, recognised by `metadata` `pack: brain-swap` (SP-6 fallback)?
 - **T-13** No network filesystems?
 - **T-14** One hand-written error enum, no anyhow or thiserror?
 - **T-15** 2 second herdr timeout, and no herdr call when parking with a valid session?
@@ -866,3 +866,4 @@ Spike answers:
   ```json
   {"id":"cli:pane:get","result":{"type":"pane_info","pane":{"agent":"claude","agent_session":{"agent":"claude","kind":"id","source":"herdr:claude","value":"f44711a9-e3ac-46ab-8f30-509b93a87dbb"},"agent_status":"idle","pane_id":"w5R:p1","tab_id":"w5R:t1","workspace_id":"w5R"}}}
   ```
+- **SP-6 (2026-10-13, Claude Code 2.1.294)** not run (owner decision 2026-10-13: take the fallback, revisit on need). Bare name via symlink: unverified. No restart (or `/reload-skills` needed): unverified. Model cannot invoke: unverified; none (assumed as 8.1 states, `disable-model-invocation: true`). Retargeted link picked up: unverified. `$CLAUDE_CONFIG_DIR/skills` loaded: unverified; none (assumed as 8.8 states: honoured when set, so 2.2 and T-09 keep it). Fallback taken: copies, not symlinks; `install claude` writes plain skill folders, `--link` copies from a checkout, and a folder is ours by its frontmatter `metadata` `pack: brain-swap`; 8.8, 5.1, T-12 and 15 updated. For the owner (A-E0-02): this contradicts FR-67 ("symlinks the four skills into `~/.claude/skills/` (to a versioned copy it writes, or a checkout with `--link`)") and A-22 ("installed as symlinks to a versioned copy"); the PRD is left unchanged. A-26 (`--force`) still holds.

@@ -22,7 +22,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
   - [x] SP-1 answered in TECHSPEC 16; 6.4 and the `--session` rule of 8.1 updated if the fallback is taken (E0-F1-T1).
   - [x] SP-3 answered in TECHSPEC 16; 8.1 and 8.8 updated if a fallback is taken (E0-F1-T2).
   - [x] SP-4 answered in TECHSPEC 16 with the JSON samples; 9.1 and the `pane current` clause of 2.2 updated (E0-F1-T3).
-  - [ ] SP-6 answered in TECHSPEC 16; 8.8 updated if the fallback is taken (E0-F1-T4).
+  - [x] SP-6 answered in TECHSPEC 16; 8.8 updated if the fallback is taken (E0-F1-T4).
 
 ### E0-F1-T1 SP-1 session ID in skills
 
@@ -93,7 +93,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 
 ### E0-F1-T4 SP-6 skill install by symlink
 
-- Status: todo
+- Status: done
 - Depends on: none
 - Covers: FR-46, FR-67; TECHSPEC 14 SP-6, 2.2, 8.1, 8.8, 16
 - Size: S
@@ -107,9 +107,9 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
   5. Decide: no fallback when step 1 works; otherwise copies (8.8 writes directories instead of links and its rule for "ours" says how a copy is recognised). If step 4 says no, `CLAUDE_CONFIG_DIR` is dropped from 2.2, 8.8 and T-09 (A-E0-07).
   6. Remove the links, the scratch copies and `<scratch>/ccd`.
 - DoD:
-  - [ ] TECHSPEC 16 gains the line `SP-6 (<date>, Claude Code 2.1.294)` with a yes or no for: bare name via symlink, no restart (or `/reload-skills` needed), model cannot invoke, retargeted link picked up, `$CLAUDE_CONFIG_DIR/skills` loaded.
-  - [ ] If a fallback is taken, 8.8 (and 2.2, T-09, T-12 as affected) updated in the same commit; a contradiction with FR-67, A-22 or A-26 is named for the owner (A-E0-02).
-  - [ ] Probe links and copies removed; no product file changed; one commit with no AI attribution.
+  - [x] TECHSPEC 16 gains the line `SP-6 (<date>, Claude Code 2.1.294)` with a yes or no for: bare name via symlink, no restart (or `/reload-skills` needed), model cannot invoke, retargeted link picked up, `$CLAUDE_CONFIG_DIR/skills` loaded.
+  - [x] If a fallback is taken, 8.8 (and 2.2, T-09, T-12 as affected) updated in the same commit; a contradiction with FR-67, A-22 or A-26 is named for the owner (A-E0-02).
+  - [x] Probe links and copies removed; no product file changed; one commit with no AI attribution.
 
 ## E0-F2 herdr spike
 
