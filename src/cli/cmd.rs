@@ -14,7 +14,7 @@ use crate::core::store::{self, CreateRequest};
 use crate::core::template::{self, Template};
 use std::ffi::OsString;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// A clap failure: help and version print and exit 0, anything else is
 /// `Error::Usage` (exit 2), followed in text mode by clap's usage lines.
@@ -397,12 +397,33 @@ pub fn install_herdr(env: &Env, out: &mut Out) -> i32 {
             "cannot determine the brain-swap binary path".into(),
         ));
     };
-    let snippet = herdr::key_snippet(&exe.display().to_string());
+    let snippet = herdr::key_snippet(&herdr_command(env, exe));
     out.result(
         &format!("{snippet}\nthen run: herdr server reload-config\n"),
         out::SnippetJson { snippet: &snippet },
     );
     0
+}
+
+/// The popup command of 9.4: the SP-2 fallback `env` prefix before the binary path.
+/// A path outside a plain character set is single-quoted, since herdr may run the command
+/// through a shell (SP-2 not run).
+pub fn herdr_command(env: &Env, exe: &Path) -> String {
+    let word = |p: &Path| {
+        let s = p.display().to_string();
+        if s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"/._-+,:@%".contains(&b))
+        {
+            s
+        } else {
+            format!("'{}'", s.replace('\'', r"'\''"))
+        }
+    };
+    let herdr = match &env.herdr_bin_path {
+        Some(p) if !p.as_os_str().is_empty() => word(p),
+        _ => "herdr".to_string(),
+    };
+    format!("env HERDR_ENV=1 HERDR_BIN_PATH={herdr} {}", word(exe))
 }
 
 /// The note `locate` and `jump` target (6.3): the jump note, or note `n` counted from the
@@ -808,8 +829,11 @@ pub fn templates(ts: &[Template]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_note, read_note};
+    use super::{herdr_command, parse_note, read_note};
+    use crate::core::env::Env;
     use crate::core::error::Error;
+    use jiff::tz::TimeZone;
+    use std::path::Path;
 
     fn parts(text: &str) -> [String; 3] {
         let n = parse_note(text);
@@ -906,5 +930,31 @@ mod tests {
         let (n, prompts) = read("Next: b\n", false);
         assert_eq!(prompts, "");
         assert_eq!(n.unwrap(), ["", "b", ""]);
+    }
+
+    #[test]
+    fn ts9_4_env_prefix_without_herdr_bin_path_uses_herdr() {
+        let vars = [("HOME".to_string(), "/h".to_string())];
+        let now = jiff::Timestamp::UNIX_EPOCH.to_zoned(TimeZone::UTC);
+        let env = Env::from_vars(vars, "/cwd".into(), 1, TimeZone::UTC, now).unwrap();
+        assert_eq!(env.herdr_bin_path, None);
+        assert_eq!(
+            herdr_command(&env, Path::new("/x/brain-swap")),
+            "env HERDR_ENV=1 HERDR_BIN_PATH=herdr /x/brain-swap"
+        );
+    }
+
+    #[test]
+    fn ts9_4_env_prefix_quotes_a_path_with_spaces() {
+        let vars = [
+            ("HOME".to_string(), "/h".to_string()),
+            ("HERDR_BIN_PATH".to_string(), "/a b/herdr".to_string()),
+        ];
+        let now = jiff::Timestamp::UNIX_EPOCH.to_zoned(TimeZone::UTC);
+        let env = Env::from_vars(vars, "/cwd".into(), 1, TimeZone::UTC, now).unwrap();
+        assert_eq!(
+            herdr_command(&env, Path::new("/x/it's/brain-swap")),
+            r"env HERDR_ENV=1 HERDR_BIN_PATH='/a b/herdr' '/x/it'\''s/brain-swap'"
+        );
     }
 }

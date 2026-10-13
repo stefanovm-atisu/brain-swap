@@ -6,7 +6,7 @@ expression: s.redact(&text)
 [[keys.command]]
 key = "prefix+alt+b"
 type = "popup"
-command = "<brain-swap>"
+command = "env HERDR_ENV=1 HERDR_BIN_PATH=<fake herdr> <brain-swap>"
 width = "90%"
 height = "90%"
 

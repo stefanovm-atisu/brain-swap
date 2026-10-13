@@ -609,7 +609,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F4-T2 SP-2 environment prefix
 
-- Status: doing
+- Status: done
 - Depends on: E5-F4-T1, E0-F2-T1
 - Covers: FR-64; TECHSPEC 9.4, 14 (SP-2 fallback for missing `HERDR_*`)
 - Size: S

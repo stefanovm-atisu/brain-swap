@@ -4,7 +4,7 @@ mod common;
 
 use brain_swap::adapters::herdr::key_snippet;
 use common::cli::Sandbox;
-use common::spawn::command;
+use common::spawn::{FAKE_HERDR, command};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -39,7 +39,9 @@ fn files(dir: &Path) -> Vec<PathBuf> {
 #[test]
 fn fr64_install_herdr_prints_the_snippet() {
     let s = Sandbox::new();
-    let text = stdout(&s, &["install", "herdr"]).replace(&canonical(), "<brain-swap>");
+    let text = stdout(&s, &["install", "herdr"])
+        .replace(FAKE_HERDR, "<fake herdr>")
+        .replace(&canonical(), "<brain-swap>");
     insta::assert_snapshot!("install_herdr", s.redact(&text));
 }
 
@@ -79,7 +81,11 @@ fn ts6_7_install_herdr_json_returns_the_snippet() {
     assert_eq!(text.lines().count(), 1, "{text}");
     let v: Value = serde_json::from_str(&text).unwrap();
     assert_eq!(v["v"], 1);
-    assert_eq!(v["snippet"], key_snippet(&canonical()));
+    let command = format!(
+        "env HERDR_ENV=1 HERDR_BIN_PATH={FAKE_HERDR} {}",
+        canonical()
+    );
+    assert_eq!(v["snippet"], key_snippet(&command));
     assert!(!text.contains("reload-config"), "{text}");
 }
 
@@ -91,4 +97,17 @@ fn ts6_3_install_herdr_ignores_a_broken_config() {
     fs::write(&config, "default_board = \n").unwrap();
     stdout(&s, &["install", "herdr"]);
     assert_eq!(fs::read(&config).unwrap(), b"default_board = \n");
+}
+
+#[test]
+fn ts9_4_env_prefix_names_herdr_bin_path() {
+    let s = Sandbox::new();
+    let text = stdout(&s, &["install", "herdr"])
+        .replace(FAKE_HERDR, "<fake herdr>")
+        .replace(&canonical(), "<brain-swap>");
+    let line = text.lines().find(|l| l.starts_with("command = ")).unwrap();
+    assert_eq!(
+        line,
+        r#"command = "env HERDR_ENV=1 HERDR_BIN_PATH=<fake herdr> <brain-swap>""#
+    );
 }
