@@ -1,4 +1,4 @@
-//! TECHSPEC 6.3 `context` with a reference (FR-37) and its 6.7 JSON.
+//! TECHSPEC 6.3 `context` with a reference (FR-37), its picker without one (FR-56, FR-57) and its 6.7 JSON.
 
 mod common;
 
@@ -174,4 +174,112 @@ fn ts6_7_context_json_note_without_session_is_null() {
         v["card"]["latest_note"]["by_this_session"].is_null(),
         "{out}"
     );
+}
+
+#[test]
+fn fr56_context_without_reference_lists_picker() {
+    let s = sandbox();
+    let out = context(&s, &["context", "--session", "s9"]);
+    let ls = context(&s, &["ls", "--open", "--guess"]);
+    assert_eq!(
+        out,
+        format!("brain-swap context v1\nsession: s9\nreference: none\n{ls}")
+    );
+    assert_eq!(line(&out, 8), "o. other board: home, personal");
+    insta::assert_snapshot!(s.redact(&out));
+}
+
+#[test]
+fn fr56_context_deleted_card_reference() {
+    let mut s = sandbox();
+    refer(&mut s, "s1", "W-12", "work");
+    fs::remove_file(s.root().join("boards/work/W-12.md")).unwrap();
+    let out = context(&s, &["context", "--session", "s1"]);
+    assert_eq!(line(&out, 3), "reference: none (W-12 not found)");
+    assert!(line(&out, 5).starts_with("1. W-7 "), "{out}");
+    assert!(line(&out, 6).starts_with("2. W-11 "), "{out}");
+}
+
+#[test]
+fn fr56_context_reference_to_unconfigured_board() {
+    let mut s = sandbox();
+    refer(&mut s, "s1", "H-1", "home");
+    let config = fs::read_to_string(s.config_file()).unwrap();
+    let config: String = config
+        .lines()
+        .filter(|l| !l.starts_with("home "))
+        .map(|l| format!("{l}\n"))
+        .collect();
+    fs::write(s.config_file(), config).unwrap();
+    let out = context(&s, &["context", "--session", "s1"]);
+    assert_eq!(line(&out, 3), "reference: none (H-1 not found)");
+}
+
+#[test]
+fn fr57_new_session_in_same_pane_sees_linked_here() {
+    let mut s = sandbox();
+    let scenario = s.scenario_mut();
+    *scenario = scenario.clone().herdr("w4V:p11", "w4V:t1", "w4V");
+    s.cmd(&["link", "W-11", "--session", "old"])
+        .assert()
+        .code(0);
+    let out = context(&s, &["context", "--session", "new"]);
+    assert_eq!(
+        line(&out, 5),
+        "1. W-11 invoice PDF shows the wrong VAT [Todo] no note, linked here"
+    );
+}
+
+#[test]
+fn fr56_context_board_flag_lists_named_board() {
+    let s = sandbox();
+    let home = s.root().join("boards/home");
+    fs::create_dir_all(&home).unwrap();
+    let board = "---\nletter: H\ncolumns: Todo, Doing, Done\nnext: 2\n---\n# home\n";
+    fs::write(home.join("board.md"), board).unwrap();
+    let card = "---\ncolumn: Todo\n---\n# water the plants\n\n## Timeline\n";
+    fs::write(home.join("H-1.md"), card).unwrap();
+    let out = context(&s, &["--board", "home", "context", "--session", "s9"]);
+    assert_eq!(line(&out, 4), "open cards on home, best guess first:");
+    assert_eq!(out.lines().last(), Some("o. other board: work, personal"));
+}
+
+#[test]
+fn fr56_context_no_session_lists_picker_without_warning() {
+    let s = sandbox();
+    let out = s.cmd(&["context"]).assert().code(0).get_output().clone();
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    assert_eq!(line(&stdout, 2), "session: none");
+    assert_eq!(line(&stdout, 3), "reference: none");
+    assert!(
+        !stdout.lines().any(|l| l.starts_with("warning:")),
+        "{stdout}"
+    );
+    assert!(
+        out.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn ts6_7_context_json_candidates() {
+    let mut s = sandbox();
+    refer(&mut s, "s1", "W-12", "work");
+    fs::remove_file(s.root().join("boards/work/W-12.md")).unwrap();
+    let out = context(&s, &["--json", "context", "--session", "s1"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert!(v["reference"].is_null(), "{out}");
+    assert!(v["card"].is_null(), "{out}");
+    let c = v["candidates"].as_array().unwrap();
+    let got: Vec<_> = c
+        .iter()
+        .map(|c| (c["id"].clone(), c["rank"].clone(), c["reason"].clone()))
+        .collect();
+    let want = serde_json::json!([["W-7", 1, "middle_column"], ["W-11", 2, "other"]]);
+    assert_eq!(serde_json::json!(got), want, "{out}");
+    assert_eq!(v["other_boards"], serde_json::json!(["home", "personal"]));
+    assert!(v["problem"].is_null(), "{out}");
+    assert_eq!(v["warnings"], serde_json::json!(["W-12 not found"]));
+    insta::assert_snapshot!(s.redact(&out));
 }

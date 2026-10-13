@@ -248,32 +248,18 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             match ctx.board(cli.board.as_deref()) {
                 Ok(board) if guess => {
                     board.warnings.iter().for_each(|w| out.warn(w));
-                    let cands = guess::best_guess(&board, &guess::GuessInput::from_env(env));
-                    let mut text = format!("open cards on {}, best guess first:\n", board.name);
-                    for (i, c) in cands.iter().enumerate() {
-                        text += &out::picker_line(i + 1, c.card, c.tier.label(), &env.now);
-                        text.push('\n');
-                    }
-                    if let Some(l) = out::other_boards_line(&ctx, &board.name) {
-                        text += &l;
-                        text.push('\n');
-                    }
+                    let (text, cards) = picker(env, &ctx, &board);
                     #[derive(serde::Serialize)]
                     struct Body<'a> {
                         board: &'a str,
                         cards: Vec<out::CandidateJson<'a>>,
                         other_boards: Vec<&'a str>,
                     }
-                    let cards = cands.iter().enumerate().map(|(i, c)| out::CandidateJson {
-                        card: out::card_json(c.card, &board, &env.now),
-                        rank: i + 1,
-                        reason: c.tier.reason(),
-                    });
                     out.result(
                         &text,
                         Body {
                             board: &board.name,
-                            cards: cards.collect(),
+                            cards,
                             other_boards: out::other_boards(&ctx, &board.name),
                         },
                     );
@@ -382,7 +368,9 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
                 Err(e) => out.error(&e),
             }
         }
-        Some(Command::Context { session }) => context(env, session.as_deref(), &mut out),
+        Some(Command::Context { session }) => {
+            context(env, (cli.board.as_deref(), session.as_deref()), &mut out)
+        }
         Some(Command::Link { id, session }) => link(
             env,
             &ctx.expect("loaded above"),
@@ -412,20 +400,57 @@ pub fn locate(env: &Env, ctx: &Ctx, id: CardId, out: &mut Out) -> i32 {
 
 /// `context` (6.3, 6.7) with a reference that resolves (I9): the header lines and the
 /// card block; exit 0.
-fn context(env: &mut Env, flag: Option<&str>, out: &mut Out) -> i32 {
+fn context(env: &mut Env, (board, flag): (Option<&str>, Option<&str>), out: &mut Out) -> i32 {
     let ctx = Ctx::load(env).expect("problem lines: E2-F3-T10");
     let runner = ProcessRunner::new(env);
-    let (session, warnings) = resolve_session(env, flag, &runner);
-    let found = session
-        .as_deref()
-        .and_then(|s| read_reference(env, s))
-        .and_then(|r| {
-            let board = ctx.board(Some(&r.board)).ok()?;
-            let card = board.card(r.card)?.clone();
-            Some((board, card))
-        });
+    let (session, mut warnings) = resolve_session(env, flag, &runner);
+    let reference = session.as_deref().and_then(|s| read_reference(env, s));
+    let found = reference.as_ref().and_then(|r| {
+        let board = ctx.board(Some(&r.board)).ok()?;
+        let card = board.card(r.card)?.clone();
+        Some((board, card))
+    });
+    #[derive(serde::Serialize)]
+    struct Body<'a> {
+        session: Option<&'a str>,
+        reference: Option<String>,
+        card: Option<out::CardJson<'a>>,
+        candidates: Vec<out::CandidateJson<'a>>,
+        other_boards: Vec<&'a str>,
+        problem: Option<()>,
+        warnings: Vec<String>,
+    }
     let Some((board, card)) = found else {
-        todo!("the picker: E2-F3-T9")
+        let reference = match reference {
+            Some(r) => {
+                warnings.push(format!("{} not found", r.card));
+                format!("none ({} not found)", r.card)
+            }
+            None => "none".to_string(),
+        };
+        let board = ctx.board(board).expect("problem lines: E2-F3-T10");
+        let (lines, mut candidates) = picker(env, &ctx, &board);
+        for n in candidates
+            .iter_mut()
+            .filter_map(|c| c.card.latest_note.as_mut())
+        {
+            n.by_this_session = n.place.session.map(|s| Some(s) == session.as_deref());
+        }
+        let text = format!(
+            "brain-swap context v1\nsession: {}\nreference: {reference}\n{lines}",
+            session.as_deref().unwrap_or("none")
+        );
+        let body = Body {
+            session: session.as_deref(),
+            reference: None,
+            card: None,
+            candidates,
+            other_boards: out::other_boards(&ctx, &board.name),
+            problem: None,
+            warnings,
+        };
+        out.result(&text, body);
+        return 0;
     };
     let view = out::SessionView::Resolved(session.clone());
     let text = format!(
@@ -438,16 +463,6 @@ fn context(env: &mut Env, flag: Option<&str>, out: &mut Out) -> i32 {
     if let Some(n) = &mut card_json.latest_note {
         n.by_this_session = n.place.session.map(|s| Some(s) == session.as_deref());
     }
-    #[derive(serde::Serialize)]
-    struct Body<'a> {
-        session: Option<&'a str>,
-        reference: Option<String>,
-        card: Option<out::CardJson<'a>>,
-        candidates: Vec<out::CandidateJson<'a>>,
-        other_boards: Vec<&'a str>,
-        problem: Option<()>,
-        warnings: Vec<String>,
-    }
     let body = Body {
         session: session.as_deref(),
         reference: Some(card.id.to_string()),
@@ -459,6 +474,27 @@ fn context(env: &mut Env, flag: Option<&str>, out: &mut Out) -> i32 {
     };
     out.result(&text, body);
     0
+}
+
+/// `open cards on <board>, best guess first:`, the 6.6 picker lines and the other boards
+/// line (6.3) with their 6.7 Candidates; shared by `ls --guess` and `context`.
+fn picker<'a>(env: &Env, ctx: &'a Ctx, board: &'a Board) -> (String, Vec<out::CandidateJson<'a>>) {
+    let cands = guess::best_guess(board, &guess::GuessInput::from_env(env));
+    let mut text = format!("open cards on {}, best guess first:\n", board.name);
+    for (i, c) in cands.iter().enumerate() {
+        text += &out::picker_line(i + 1, c.card, c.tier.label(), &env.now);
+        text.push('\n');
+    }
+    if let Some(l) = out::other_boards_line(ctx, &board.name) {
+        text += &l;
+        text.push('\n');
+    }
+    let json = cands.iter().enumerate().map(|(i, c)| out::CandidateJson {
+        card: out::card_json(c.card, board, &env.now),
+        rank: i + 1,
+        reason: c.tier.reason(),
+    });
+    (text, json.collect())
 }
 
 /// `link` (6.3): an unknown card or no session changes nothing; otherwise the reference

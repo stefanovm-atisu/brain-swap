@@ -1,0 +1,5 @@
+---
+source: tests/cli_context.rs
+expression: s.redact(&out)
+---
+{"v":1,"session":"s1","reference":null,"card":null,"candidates":[{"id":"W-7","board":"work","title":"fix rounding in act export","column":"Doing","open":true,"path":"<sandbox>/boards/work/W-7.md","latest_note":{"at":"2026-10-08T09:40:00+03:00","age_min":132,"auto":true,"doing":"rounding fix drafted","next":"check the 0.005 case","watch_out":"nothing","by_this_session":false,"place":{"cwd":"<sandbox>/acts","session":"7c0ffee0-0000-4000-8000-000000000007","herdr":null}},"rank":1,"reason":"middle_column"},{"id":"W-11","board":"work","title":"invoice PDF shows the wrong VAT","column":"Todo","open":true,"path":"<sandbox>/boards/work/W-11.md","latest_note":null,"rank":2,"reason":"other"}],"other_boards":["home","personal"],"problem":null,"warnings":["W-12 not found"]}
