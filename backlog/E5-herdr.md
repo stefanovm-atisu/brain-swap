@@ -105,7 +105,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F1-T5 Fake herdr script
 
-- Status: todo
+- Status: doing
 - Depends on: E1-F1-T9, E0-F1-T3
 - Covers: TECHSPEC 12.1 (herdr: fake script, `FAKE_HERDR_SCENARIO`, argv log)
 - Size: M
