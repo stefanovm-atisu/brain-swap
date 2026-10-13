@@ -121,7 +121,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 - Requires: none
 - Feature DoD:
   - [x] SP-2 answered in TECHSPEC 16; 7.7 and the 9.4 snippet updated (focus before or after exit, an `env` prefix if `HERDR_*` is missing) (E0-F2-T1).
-  - [ ] SP-5 answered in TECHSPEC 16; `focus` in 9.3 updated (E0-F2-T2).
+  - [x] SP-5 answered in TECHSPEC 16; `focus` in 9.3 updated (E0-F2-T2).
   - [ ] SP-7 answered in TECHSPEC 16; the 9.4 key confirmed or replaced (E0-F2-T3).
 
 ### E0-F2-T1 SP-2 jump from a popup
@@ -149,7 +149,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 
 ### E0-F2-T2 SP-5 focus across workspaces
 
-- Status: todo
+- Status: done
 - Depends on: none
 - Covers: FR-59, FR-60; TECHSPEC 14 SP-5, 9.3, 16
 - Size: S
@@ -165,9 +165,9 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
   7. Record `herdr pane get` for the Claude pane, the shell pane, and the Claude pane after quitting Claude in it; check that the `LivePane.agent` rule gives true, false, and the value 9.3 needs for the exited pane.
   8. Decide what `focus` in 9.3 needs: keep or drop `workspace focus` before `tab focus`, and whether the agent rule changes.
 - DoD:
-  - [ ] TECHSPEC 16 gains the line `SP-5 (<date>, herdr 0.8.2)` with the answers of steps 2 to 7, including the failure exit codes and stderr of step 6.
-  - [ ] 9.3 updated in the same commit where a step contradicts it; a contradiction with FR-59, FR-60 or AS-6 (tab focus) is named for the owner (A-E0-02).
-  - [ ] No product file changed; one commit with no AI attribution.
+  - [ ] TECHSPEC 16 gains the line `SP-5 (<date>, herdr 0.8.2)` with the answers of steps 2 to 7, including the failure exit codes and stderr of step 6. Not met: the line exists but records every step as unverified; no exit code or stderr exists without running the probe (owner decision 2026-10-13), so E5-F2-T9 fakes a generic failure text.
+  - [x] 9.3 updated in the same commit where a step contradicts it; a contradiction with FR-59, FR-60 or AS-6 (tab focus) is named for the owner (A-E0-02).
+  - [x] No product file changed; one commit with no AI attribution.
 
 ### E0-F2-T3 SP-7 board key
 
