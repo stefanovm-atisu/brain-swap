@@ -11,4 +11,5 @@ pub mod pack_env;
 pub mod skill_md;
 pub mod sound;
 pub mod spawn;
+pub mod timing;
 pub mod tui;
