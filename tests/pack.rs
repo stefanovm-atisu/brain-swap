@@ -4,6 +4,7 @@ mod common;
 
 use brain_swap::cli::args::{Cli, Command};
 use clap::Parser;
+use common::pack_env::PackEnv;
 use common::skill_md::*;
 use std::collections::BTreeMap;
 
@@ -95,5 +96,83 @@ fn fr47_bs_link_ends_with_move_line() {
         Some(
             "If the user later asks to move this card, run `brain-swap move <ID> <column>` and reply with its output line."
         )
+    );
+}
+
+/// The first bs-link command starting with `prefix` (step 1 is `link`, step 2 is `ls`).
+fn bs_link_command(prefix: &str) -> String {
+    commands(&read_skill("bs-link"))
+        .into_iter()
+        .find(|c| c.starts_with(prefix))
+        .unwrap()
+}
+
+#[test]
+fn fr54_bs_link_command_links_and_prints_latest_note() {
+    let env = PackEnv::new().with_w12();
+    let cmd = substitute(&bs_link_command("brain-swap link "), SESSION_A);
+    let (code, out, err) = env.run_sh(&cmd, "");
+    assert_eq!(code, 0, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines[0], "linked to W-12: migrate invoices to v13");
+    assert_eq!(lines[1], "card: W-12 migrate invoices to v13");
+    assert!(lines.iter().any(|l| l.starts_with("latest note:")), "{out}");
+    for l in [
+        "Doing: invoice reads switched to v13",
+        "Next: run the migration test on staging",
+        "Watch out: v13 needs a 10 s timeout",
+    ] {
+        assert!(lines.contains(&l), "{l}: {out}");
+    }
+    let (_, ctx, _) = env.run_sh(&format!("brain-swap context --session {SESSION_A}"), "");
+    assert!(ctx.lines().any(|l| l == "reference: W-12"), "{ctx}");
+}
+
+#[test]
+fn fr54_bs_link_unknown_id_prints_one_error_line_and_changes_nothing() {
+    let env = PackEnv::new().with_w12();
+    let cmd = substitute(&bs_link_command("brain-swap link "), SESSION_A).replace("W-12", "W-99");
+    let (code, out, err) = env.run_sh(&cmd, "");
+    assert_eq!(code, 3, "{err}");
+    assert_eq!(out, "");
+    assert_eq!(err.lines().count(), 1, "{err}");
+    assert!(err.starts_with("brain-swap: "), "{err}");
+    let (_, ctx, _) = env.run_sh(&format!("brain-swap context --session {SESSION_A}"), "");
+    assert!(ctx.lines().any(|l| l == "reference: none"), "{ctx}");
+}
+
+#[test]
+fn fr55_bs_link_without_id_lists_open_cards_by_best_guess() {
+    let env = PackEnv::new().with_w12();
+    let (code, out, err) = env.run_sh(&bs_link_command("brain-swap ls "), "");
+    assert_eq!(code, 0, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), 5, "{out}");
+    assert_eq!(lines[0], "open cards on work, best guess first:");
+    for (line, start) in lines[1..4].iter().zip([
+        "1. W-12 migrate invoices to v13 [Doing]",
+        "2. W-7 fix rounding in act export [Doing]",
+        "3. W-11 invoice PDF shows the wrong VAT [Todo] no note",
+    ]) {
+        assert!(line.starts_with(start), "{start}: {out}");
+    }
+    assert_eq!(lines[4], "o. other board: home, personal");
+}
+
+#[test]
+fn fr55_bs_link_other_board_lists_that_board() {
+    let env = PackEnv::new().with_w12();
+    let cmd = format!("{} --board home", bs_link_command("brain-swap ls "));
+    let (code, out, err) = env.run_sh(&cmd, "");
+    assert_eq!(code, 0, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines[0], "open cards on home, best guess first:");
+    assert!(
+        lines.contains(&"1. H-3 renew car insurance [Todo] no note"),
+        "{out}"
+    );
+    assert!(
+        lines.last().unwrap().starts_with("o. other board:"),
+        "{out}"
     );
 }
