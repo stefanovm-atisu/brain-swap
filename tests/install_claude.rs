@@ -677,3 +677,49 @@ fn ts8_8_tip_names_the_absolute_allow_rule() {
     assert!(tip.contains(&format!("Bash({}:*)", exe())), "{tip}");
     assert!(!tip.contains("Bash(brain-swap:*)"), "{tip}");
 }
+
+/// A sandbox whose `CLAUDE_CONFIG_DIR` is `value`.
+fn with_config_dir(value: &str) -> Sandbox {
+    let mut s = Sandbox::new();
+    let sc = s.scenario_mut();
+    *sc = sc.clone().claude_config_dir(value);
+    s
+}
+
+#[test]
+fn ts8_8_claude_config_dir_receives_the_copies() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cc = tmp.path().join("cc");
+    let s = with_config_dir(cc.to_str().unwrap());
+    let (out, _) = run(&s, &["install", "claude"]);
+    for skill in &SKILLS {
+        let body = fs::read_to_string(cc.join("skills").join(skill.name).join("SKILL.md")).unwrap();
+        assert!(is_ours(&body), "{}", skill.name);
+    }
+    assert!(!s.root().join("home/.claude").exists());
+    assert!(out.lines().any(|l| l == RELOAD), "{out}");
+}
+
+#[test]
+fn ts8_8_empty_claude_config_dir_falls_back_to_home() {
+    let s = with_config_dir("");
+    run(&s, &["install", "claude"]);
+    for skill in &SKILLS {
+        let body = fs::read_to_string(skills(&s).join(skill.name).join("SKILL.md")).unwrap();
+        assert!(is_ours(&body), "{}", skill.name);
+    }
+}
+
+#[test]
+fn ts8_8_remove_follows_claude_config_dir() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cc = tmp.path().join("cc");
+    let s = with_config_dir(cc.to_str().unwrap());
+    run(&s, &["install", "claude"]);
+    assert!(cc.join("skills/bs-card/SKILL.md").exists());
+    run(&s, &["install", "claude", "--remove"]);
+    for skill in &SKILLS {
+        let dir = cc.join("skills").join(skill.name);
+        assert!(fs::symlink_metadata(&dir).is_err(), "{}", skill.name);
+    }
+}

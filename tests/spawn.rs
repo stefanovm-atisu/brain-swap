@@ -94,6 +94,7 @@ fn ts12_1_optional_variables_only_when_set() {
         (new().log(&log), "BRAIN_SWAP_LOG", log.to_str().unwrap()),
         (new().visual("vi"), "VISUAL", "vi"),
         (new().editor("nano"), "EDITOR", "nano"),
+        (new().claude_config_dir("/cc"), "CLAUDE_CONFIG_DIR", "/cc"),
     ];
     for (s, k, v) in cases {
         let mut want = defaults(t);

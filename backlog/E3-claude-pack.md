@@ -363,7 +363,7 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 
 ### E3-F2-T6 $CLAUDE_CONFIG_DIR skills folder
 
-- Status: doing
+- Status: done
 - Depends on: E3-F2-T5, E0-F1
 - Covers: FR-67; TECHSPEC 2.2, 6.1, 8.8 (SP-6)
 - Size: S

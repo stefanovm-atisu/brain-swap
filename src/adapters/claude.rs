@@ -44,9 +44,13 @@ pub struct InstallReport {
     pub warnings: Vec<String>,
 }
 
-/// Claude Code's skills folder: `$HOME/.claude/skills`.
+/// Claude Code's skills folder: `$CLAUDE_CONFIG_DIR/skills` when set and non-empty
+/// (unverified assumption, SP-6), else `$HOME/.claude/skills` (8.8).
 pub fn skills_dir(env: &Env) -> PathBuf {
-    env.home.join(".claude/skills")
+    match &env.claude_config_dir {
+        Some(dir) if !dir.as_os_str().is_empty() => dir.join("skills"),
+        _ => env.home.join(".claude/skills"),
+    }
 }
 
 /// True when the frontmatter of `skill_md` holds `metadata:` with an indented

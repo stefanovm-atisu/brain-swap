@@ -75,6 +75,10 @@ impl Scenario {
         self.set("EDITOR", cmd)
     }
 
+    pub fn claude_config_dir(self, dir: &str) -> Scenario {
+        self.set("CLAUDE_CONFIG_DIR", dir)
+    }
+
     pub fn now(self, stamp: &str) -> Scenario {
         self.set("BRAIN_SWAP_NOW", stamp)
     }
