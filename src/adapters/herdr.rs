@@ -290,7 +290,7 @@ pub fn key_snippet(command: &str) -> String {
     format!(
         "# brain-swap: open the board in a popup (change the key if it collides)\n\
          [[keys.command]]\n\
-         key = \"prefix+alt+b\"\n\
+         key = \"prefix+shift+b\"\n\
          type = \"popup\"\n\
          command = \"{command}\"\n\
          width = \"90%\"\n\

@@ -94,7 +94,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T4 hyperfine runs for NFR-01 and NFR-02
 
-- Status: done (dropped 2026-10-14 with NFR-01, NFR-02 and SM-5: the owner set no speed target)
+- Status: done
 - Depends on: E6-F1-T2, E6-F1-T3
 - Covers: NFR-01, NFR-02; PRD SM-5; TECHSPEC 12.1 (Performance)
 - Size: S
@@ -238,7 +238,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 - Depends on: E6-F1-T4, E6-F1-T7
 - Covers: PRD 9 (SM-1, SM-2, SM-3, SM-4); TECHSPEC 15 (E6-F1 DoD)
 - Size: S
-- Scope: Write `docs/metrics.md`: for each of SM-1 to SM-4 (SM-5 dropped 2026-10-14), the PRD definition quoted, the instrument, how one sample is taken, the record (a results table with its columns) and the pass rule, using only what exists (A-E6-19). SM-1: a stopwatch from the first key of the herdr board key to the first character typed in the target pane, and a key count (A-E6-16), over 10 timed returns, median of each. SM-2 and SM-3: counts from the Claude Code transcripts under `~/.claude/projects/` (the author reads them; brain-swap never does, P3, T-09): per day, `/bs-park` invocations against `Park to which card?` questions, and over the two weeks, `/bs-back` invocations against replies starting `no note since` or `no note yet` (A-E6-17). SM-4: a yes or no noted right after each sampled return (A-E6-18). Each instrument is tried once on data the release runs produced, and the exact search patterns that worked go into the file. No product code, flag or log event is added.
+- Scope: Write `docs/metrics.md`: for each of SM-1 to SM-4, the PRD definition quoted, the instrument, how one sample is taken, the record (a results table with its columns) and the pass rule, using only what exists (A-E6-19). SM-1: a stopwatch from the first key of the herdr board key to the first character typed in the target pane, and a key count (A-E6-16), over 10 timed returns, median of each. SM-2 and SM-3: counts from the Claude Code transcripts under `~/.claude/projects/` (the author reads them; brain-swap never does, P3, T-09): per day, `/bs-park` invocations against `Park to which card?` questions, and over the two weeks, `/bs-back` invocations against replies starting `no note since` or `no note yet` (A-E6-17). SM-4: a yes or no noted right after each sampled return (A-E6-18). Each instrument is tried once on data the release runs produced, and the exact search patterns that worked go into the file. No product code, flag or log event is added.
 - Not in scope: the two weeks of measurement after v0.1 and their results (the author fills the tables later); the hyperfine procedure itself (E6-F1-T4).
 - Procedure:
   1. Write `docs/metrics.md` with one `## SM-n` section per metric holding `Definition`, `Instrument`, `Sample`, `Record` and `Pass when` lines, and one empty results table per metric.

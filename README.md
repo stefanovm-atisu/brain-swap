@@ -99,7 +99,7 @@ It prints a snippet with the absolute path of your `brain-swap` binary (the herd
 ```toml
 # brain-swap: open the board in a popup (change the key if it collides)
 [[keys.command]]
-key = "prefix+alt+b"
+key = "prefix+shift+b"
 type = "popup"
 command = "env HERDR_ENV=1 HERDR_BIN_PATH=herdr /home/you/.cargo/bin/brain-swap"
 width = "90%"
@@ -108,7 +108,7 @@ height = "90%"
 
 Paste it into herdr's config, then run `herdr server reload-config`. `install herdr` never edits herdr's config itself; `--json` returns the snippet as JSON.
 
-The default key is `prefix+alt+b` because `prefix+b` is herdr's sidebar toggle. If it collides with another binding, change `key` to any free one.
+The default key is `prefix+shift+b` because `prefix+b` is herdr's sidebar toggle. If it collides with another binding, change `key` to any free one.
 
 A second binding on another key opens a specific board, here `home`:
 

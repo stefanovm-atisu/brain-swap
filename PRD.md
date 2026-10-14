@@ -70,7 +70,7 @@ Priority disputes are settled by these, in this order.
 
 ## 6. User flows as acceptance scenarios
 
-Setup unless stated: herdr runs, the pack and the herdr key binding (default `prefix+alt+b`; the author's prefix is `ctrl+a`) are installed, the work board holds W-1 to W-11.
+Setup unless stated: herdr runs, the pack and the herdr key binding (default `prefix+shift+b`; the author's prefix is `ctrl+a`) are installed, the work board holds W-1 to W-11.
 
 ### AS-1: start, park, switch, return (Flow 1)
 
@@ -305,7 +305,7 @@ Decisions made where idea.md is silent: yes keeps one, no reopens it.
 - **A-15** Is the Claude picker a numbered text list answered by number or ID? (FR-56)
 - **A-16** Is a TUI note key Later, so TUI-only use parks from the shell? (FR-34, FR-73)
 - **A-17** Do custom templates live in the config folder only, not per board? (FR-12)
-- **A-18** Is the default herdr key `prefix+alt+b`, changeable in herdr's config? (FR-64)
+- **A-18** Is the default herdr key `prefix+shift+b`, changeable in herdr's config? (FR-64)
 - **A-19** Is the preview panel always shown, except under 20 rows? (FR-22)
 - **A-20** Is a moved pane found through the Claude session ID herdr reports per pane? (FR-60)
 - **A-21** Is the recorded working directory that of the parking process (for Claude, its shell's current directory)? (FR-15)
