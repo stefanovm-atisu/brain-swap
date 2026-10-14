@@ -132,7 +132,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T6 Clean cargo install from a fresh checkout
 
-- Status: todo
+- Status: done
 - Depends on: E6-F1-T1, E3-F2, E4-F5, E5-F3, E5-F4
 - Covers: FR-68, NFR-09 (macOS build); TECHSPEC 13 (install, upgrade), 8.8, 9.4
 - Size: S
