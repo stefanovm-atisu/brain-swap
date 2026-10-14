@@ -11,6 +11,16 @@ Each card is a task. When you leave a session, you park a short note on the card
 
 Status: idea stage, no code yet. See [idea.md](idea.md) for the product idea. Written in Rust.
 
+## Claude Code pack
+
+Install the `/bs-card`, `/bs-park`, `/bs-back` and `/bs-link` skills with:
+
+```sh
+brain-swap install claude
+```
+
+It copies each skill as a plain folder `~/.claude/skills/<name>/SKILL.md` and prints one `installed <folder>` line per skill. When it created the skills folder, run `/reload-skills` in Claude Code sessions that are already open. It never edits Claude Code settings or hooks; add the allow rule `Bash(brain-swap:*)` to your settings yourself so moves need no prompt. `--json` returns the written folders as `linked`.
+
 ## herdr key binding
 
 Open the board in a herdr popup with one key. Run:

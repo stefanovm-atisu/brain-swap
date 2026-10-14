@@ -1,5 +1,6 @@
 //! One function per subcommand (TECHSPEC 2.1).
 
+use crate::adapters::claude::{self, InstallOpts};
 use crate::adapters::herdr;
 use crate::adapters::runner::{ProcessRunner, Runner};
 use crate::cli::args::{Cli, Command, InstallTarget};
@@ -378,8 +379,43 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
             jump(env, &ctx.expect("loaded above"), id, note, &mut out)
         }
         Some(Command::Install(InstallTarget::Herdr)) => install_herdr(env, &mut out),
+        Some(Command::Install(InstallTarget::Claude {
+            link,
+            force,
+            remove: false,
+        })) => {
+            let exe = env.exe.clone();
+            install_claude(env, &InstallOpts { link, force, exe }, &mut out)
+        }
         _ => todo!(),
     }
+}
+
+/// `install claude` (8.8): one `installed <folder>` line per skill, then the notices; with
+/// `--json` the 6.7 object on stdout and the notices as warnings on stderr.
+pub fn install_claude(env: &Env, opts: &InstallOpts, out: &mut Out) -> i32 {
+    let report = match claude::install(env, opts) {
+        Ok(r) => r,
+        Err(e) => return out.error(&e),
+    };
+    let mut text = String::new();
+    for p in &report.linked {
+        text += &format!("installed {}\n", p.display());
+    }
+    for n in &report.notices {
+        match out.json {
+            true => out.warn(n),
+            false => text += &format!("{n}\n"),
+        }
+    }
+    #[derive(serde::Serialize)]
+    struct Body<'a> {
+        linked: &'a [PathBuf],
+        removed: &'a [PathBuf],
+    }
+    let (linked, removed) = (&report.linked, &report.removed);
+    out.result(&text, Body { linked, removed });
+    0
 }
 
 /// `install herdr` (9.4): prints the key binding for the canonical binary path; reads no
