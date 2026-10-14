@@ -1,4 +1,4 @@
-//! TECHSPEC 7.4: polling the board folder and reloading it (FR-23, NFR-02, 11).
+//! TECHSPEC 7.4: polling the board folder and reloading it (FR-23, 11).
 
 mod common;
 

@@ -674,7 +674,7 @@ Tests are hermetic: the author runs them inside a herdr pane and a Claude sessio
 - **TUI**: `update` tests per transition; `TestBackend` snapshots at 80x24 and 120x40; runtime tests for polling and for the editor merge, with a scripted `editor` that parks on the card before exiting. The scripted editor starts with `env -i` and the scenario's variables and passes `--session test`; the runtime takes its editor launcher and terminal guard as injectable parts so the test needs no tty.
 - **herdr**: `FakeRunner` tests for every `PaneStatus` and focus path, a failing focus, a hang during the moved search (`NotResponding`) and the 3 second budget; CLI tests with `HERDR_BIN_PATH` pointing at a fake script that answers canned JSON per `FAKE_HERDR_SCENARIO` and logs argv.
 - **Pack** (`tests/pack.rs`): frontmatter checks; each inline command run with `sh -c` in every `context` state (exit 0, header line); every `brain-swap ...` command of each SKILL.md, substituted, parses with `Cli::try_parse_from`; each heredoc command runs with sample text.
-- **Docs**: no U+2014 or U+2013 in any repository markdown file. **Performance**: an `#[ignore]` release test on 300 cards with 20 notes, plus `hyperfine` (NFR-01, NFR-02). **Manual**: AS-1 to AS-11 in real herdr and Claude Code before release.
+- **Docs**: no U+2014 or U+2013 in any repository markdown file. **Manual**: AS-1 to AS-11 in real herdr and Claude Code before release.
 
 ### 12.2 Definition of done
 
@@ -766,7 +766,7 @@ Each feature: scope; Covers; Dep; DoD beyond 12.2.
 
 ### E4 TUI (M3)
 
-- **E4-F1 Shell.** `update`, runtime, terminal, poll, status line, Help, ConfigError. Covers FR-19, FR-23, FR-32, FR-44, FR-45, NFR-02, NFR-10. Dep: E1-F3, E1-F5. DoD: a file change shows after one `Tick`; a snapshot test of the initial selection (newest open card, and the first column with none).
+- **E4-F1 Shell.** `update`, runtime, terminal, poll, status line, Help, ConfigError. Covers FR-19, FR-23, FR-32, FR-44, FR-45, NFR-10. Dep: E1-F3, E1-F5. DoD: a file change shows after one `Tick`; a snapshot test of the initial selection (newest open card, and the first column with none).
 - **E4-F2 Board view.** Columns, cards, preview panel, ages, moves. Covers FR-20 to FR-22, FR-29. Dep: E4-F1, E1-F6. DoD: 4.9 snapshots at both sizes; no panel at 80x19.
 - **E4-F3 Detail view.** Notes, place, body scroll. Covers FR-26, FR-27. Dep: E4-F1. DoD: first, middle, last note snapshots.
 - **E4-F4 Pickers.** Template and board pickers, title input (5.2). Covers FR-24, FR-30. Dep: E4-F1, E1-F6. DoD: AS-6 creation emits one `Create`; `j` and `k` type into a title.
@@ -781,7 +781,7 @@ Each feature: scope; Covers; Dep; DoD beyond 12.2.
 
 ### E6 Release (M5)
 
-- **E6-F1 Release check.** README with a cheat sheet, usage guide `docs/usage.md`, AS-1 to AS-11, `hyperfine`, clean `cargo install`. Covers FR-68, NFR-01, NFR-02, NFR-05. Dep: all Core features. DoD: PRD section 9 measurable.
+- **E6-F1 Release check.** README with a cheat sheet, usage guide `docs/usage.md`, AS-1 to AS-11, clean `cargo install`. Covers FR-68, NFR-05. Dep: all Core features. DoD: PRD section 9 measurable.
 
 ### E7 Later (not scheduled)
 
@@ -805,7 +805,7 @@ Dep lines are authoritative; this list only groups them. Start: E0-F1, E0-F2, E1
 - FR-58 E5-F1; FR-59 E5-F2 E5-F3 E0-F2; FR-60 E5-F2 E5-F3 E0-F2; FR-61 to FR-63 E5-F2 E5-F3; FR-64 E5-F4 E0-F2; FR-65 E7-F1
 - FR-66 E1-F3; FR-67 E3-F2 E0-F1; FR-68 E6-F1
 - FR-69 E7-F2; FR-70 E7-F3; FR-71 E7-F4; FR-72 E7-F5; FR-73 E7-F6; FR-74 E7-F7
-- NFR-01 E6-F1; NFR-02 E4-F1 E6-F1; NFR-03 E1-F1; NFR-04 E1-F1; NFR-05 E5-F2 E6-F1; NFR-06 E1-F2 E1-F6
+- NFR-03 E1-F1; NFR-04 E1-F1; NFR-05 E5-F2 E6-F1; NFR-06 E1-F2 E1-F6
 - NFR-07 E1-F2; NFR-08 E1-F6; NFR-09 E1-F1; NFR-10 E4-F1; NFR-11 E1-F1
 
 ## 16. Assumptions and open questions (technical)

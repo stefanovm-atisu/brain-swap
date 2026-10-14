@@ -41,7 +41,7 @@ Scale, from idea.md:
 - Up to about 10 open cards on the work board.
 - Three boards: work (daily), home and personal (weekly or less).
 
-Consequences: no search, database or index; a board is read in full on every command. Performance targets assume about 300 card files per board after a year (an estimate: a few done cards per week).
+Consequences: no search, database or index; a board is read in full on every command.
 
 ## 4. Principles
 
@@ -257,8 +257,6 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 
 ## 8. Non-functional requirements
 
-- **NFR-01** CLI speed. Every subcommand except `locate`, `jump` and `install` finishes within 50 ms (p95, release build, warm cache, author's machine) on a board of 300 cards with 20 notes each, excluding time waiting for herdr.
-- **NFR-02** TUI speed. First frame within 150 ms on that board; key reaction within 50 ms; idle, one directory scan per second. A jump adds at most 50 ms to its herdr calls (2 seconds each at most).
 - **NFR-03** No daemon. Nothing runs between invocations: no background process, service or installed hook.
 - **NFR-04** No network. The binary opens no network socket; herdr is reached only through its CLI.
 - **NFR-05** Optional adapters. Without herdr and Claude Code, every Core requirement but the pack and the pane switch behaves identically.
@@ -277,7 +275,6 @@ Measured by the author over two weeks of daily use after v0.1.
 - **SM-2** Zero-pick parking: at least 9 of 10 `/bs-park` calls in a day need no pick.
 - **SM-3** Note coverage: at most 1 in 5 `/bs-back` returns needs a catch-up note.
 - **SM-4** Calibration: in at least 8 of 10 sampled returns, the first prompt after the note continues the task without scrolling the transcript.
-- **SM-5** Speed: NFR-01 and NFR-02 hold in the release build, measured with `hyperfine` on a generated 300-card board.
 
 ## 10. Release scope
 

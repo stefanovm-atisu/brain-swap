@@ -11,22 +11,19 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 ## E6-F1 Release check
 
 - Depends on: E0-F3, E1-F1, E1-F2, E1-F3, E1-F4, E1-F5, E1-F6, E1-F7, E1-F8, E2-F1, E2-F2, E2-F3, E3-F1, E3-F2, E4-F1, E4-F2, E4-F3, E4-F4, E4-F5, E5-F1, E5-F2, E5-F3, E5-F4 (TECHSPEC 15: all Core features; E0-F3 added by A-E6-02)
-- Covers: FR-68, NFR-01, NFR-02, NFR-05
+- Covers: FR-68, NFR-05
 - Spec: TECHSPEC 12.1 (Performance, Manual), 12.2, 13, 15 (E6-F1), 15.2; PRD 6 (AS-1 to AS-11), 8 (NFR-01, NFR-02, NFR-05), 9 (SM-1 to SM-5), 10
 - Scope: The README gains its final shape: what brain-swap is, install with `cargo install`, the three install steps of TECHSPEC 13 (binary, `brain-swap install claude`, `brain-swap install herdr` with paste and `herdr server reload-config`), the pack, the herdr key and upgrade, checked by `tests/readme.rs`. E4-F1-T10's `write_big_board` generates the board of 300 cards with 20 notes each, changed in place to the A-E6-03 layout; `#[ignore]` release tests in `tests/perf.rs` time every NFR-01 subcommand and the NFR-02 Detail keys, move key and jump overhead, E4-F1-T10's `#[ignore]` first frame and key reaction tests in `tests/tui_perf.rs` are rerun on the finished screens, and the author records `hyperfine` numbers on the same board. A parity test runs the Core CLI flow inside and outside a fake herdr pane (NFR-05). The release build is installed from a fresh clone (FR-68), AS-1 to AS-11 are run by hand on it in three grouped runs, and `docs/metrics.md` states how each of SM-1 to SM-5 is measured with the product as built, the transcripts Claude Code already keeps and a stopwatch, adding no product feature.
 - Provides: `README.md` sections `## Install`, `## Claude Code pack`, `## herdr key binding` (E5-F4-T3's section, kept as written), `## Upgrade` (A-E6-14); `tests/readme.rs` with `readme_section(text: &str, heading: &str) -> Option<String>`; the A-E6-03 layout of E4-F1-T10's `write_big_board(dir: &Path, cards: usize, notes: usize)` (changed in place, signature kept); `tests/common/timing.rs` with `p95_ms(samples: &mut [f64]) -> f64`, `time_runs(warmup: usize, runs: usize, f: impl FnMut()) -> Vec<f64>` and `herdr_ms(log: &str) -> f64`; `tests/perf.rs` (`#[ignore]` tests run with `cargo test --release --test perf -- --ignored --nocapture`); `<CARGO_TARGET_TMPDIR>/perf-board/` (written by `sm5_write_hyperfine_board`: `config/`, `data/work/`, `data/work.pristine/`, `state/`, `note.txt`, `env.sh`) (A-E6-20); `tests/nfr05_parity.rs`; `docs/metrics.md` (A-E6-19); `docs/usage.md` and the README `## Cheat sheet` section (E6-F1-T11)
 - Requires: E1-F1 `tests/common/spawn.rs` (`Scenario`, `brain_swap(&Scenario)`, `Scenario::herdr`, `Scenario::fake_scenario`, `Scenario::log`, `Scenario::session`), `tests/common/env.rs` `core_env(home, now)`, `tests/docs.rs`, `core::log::event` line format; E1-F2 `core::card_file::render_new`, `core::card_file::render_note`, `core::model::{NewCard, NewNote}`; E1-F3 `core::config::load`; E1-F5 `core::board::load`; E1-F6 `core::store::move_card`; E2-F1 `cli::args::Cli` (`Cli::try_parse_from`) and `tests/common/cli.rs` (`Sandbox::new()`, `write_config()`, `copy_board`, `cmd`, `scenario_mut`, `redact`); E2-F2 `tests/fixtures/boards/work/`; E2-F3 `park`, `link`, `context`; E3-F1 `tests/common/skill_md.rs` (`commands`, `substitute`, `shell_words`) and the procedures of E3-F1-T8, E3-F1-T9, E3-F1-T10; E3-F2 `install claude` (`--link`, `--force`, `--remove`) and its README paragraphs; E4-F1 `tui::prepare` (the start path `tui::run` uses), `tui::app::update`, `Input`, `Effect`, `Outcome`, `tui::view_frame::draw` (A-E6-07), and from E4-F1-T10 `tests/common/big_board.rs` `write_big_board` and the `#[ignore]` tests `nfr02_first_frame_within_150_ms` and `nfr02_key_reaction_within_50_ms` in `tests/tui_perf.rs`; E4-F2 and E4-F3 the board and detail views; E5-F1 the fake herdr script (`HERDR_BIN_PATH`, `FAKE_HERDR_SCENARIO`, argv log) and its scenario `pane-session`, and the `herdr` log lines (argv, exit, ms); E5-F2 `locate`, `jump` and the fake herdr scenario `live-agent`; E5-F3 the TUI jump; E5-F4 `install herdr` and its README section; E0-F3 the final step 3 of `bs-back/SKILL.md`
 - Feature DoD:
   - [ ] README covers install, the three install steps, the pack, the herdr key and upgrade, and every `brain-swap` command in it parses (E6-F1-T1).
-  - [ ] The `#[ignore]` release test on 300 cards with 20 notes passes for every NFR-01 subcommand at p95 50 ms or less (E6-F1-T2).
-  - [ ] The `#[ignore]` NFR-02 tests pass: E4-F1-T10's first frame (150 ms) and key reaction (50 ms) tests rerun on the finished screens, and the Detail keys, move key and jump overhead tests of `tests/perf.rs` at p95 50 ms or less (E6-F1-T3).
-  - [ ] `hyperfine` numbers for NFR-01 and NFR-02 (SM-5), plus the idle scan count, are recorded with the machine and versions (E6-F1-T4).
   - [ ] Without herdr, the Core CLI flow gives the same exit codes and output as inside a herdr pane, and calls no herdr command (E6-F1-T5).
   - [ ] `cargo install` from a fresh checkout yields the whole product; nothing else is needed at runtime; the same checkout type-checks for macOS (E6-F1-T6).
   - [ ] Manual AS-1, AS-2, AS-3 recorded on the installed build with the installed pack and herdr key (E6-F1-T7).
   - [ ] Manual AS-4, AS-5, AS-10, AS-11 recorded (E6-F1-T8).
   - [ ] Manual AS-6, AS-7, AS-8, AS-9 recorded (E6-F1-T9).
-  - [ ] PRD section 9 measurable: `docs/metrics.md` gives each of SM-1 to SM-5 an instrument, a record and a pass rule, and each instrument was tried once (E6-F1-T10).
+  - [ ] PRD section 9 measurable: `docs/metrics.md` gives each of SM-1 to SM-4 an instrument, a record and a pass rule, and each instrument was tried once (E6-F1-T10).
   - [ ] `docs/usage.md` explains the daily loop and every pack command with examples, and the README carries a short cheat sheet linking it (E6-F1-T11).
 
 ### E6-F1-T1 README: install, pack, herdr key and upgrade
@@ -97,7 +94,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T4 hyperfine runs for NFR-01 and NFR-02
 
-- Status: todo
+- Status: done (dropped 2026-10-14 with NFR-01, NFR-02 and SM-5: the owner set no speed target)
 - Depends on: E6-F1-T2, E6-F1-T3
 - Covers: NFR-01, NFR-02; PRD SM-5; TECHSPEC 12.1 (Performance)
 - Size: S
@@ -239,12 +236,12 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 - Status: todo
 - Depends on: E6-F1-T4, E6-F1-T7
-- Covers: PRD 9 (SM-1, SM-2, SM-3, SM-4, SM-5); TECHSPEC 15 (E6-F1 DoD)
+- Covers: PRD 9 (SM-1, SM-2, SM-3, SM-4); TECHSPEC 15 (E6-F1 DoD)
 - Size: S
-- Scope: Write `docs/metrics.md`: for each of SM-1 to SM-5, the PRD definition quoted, the instrument, how one sample is taken, the record (a results table with its columns) and the pass rule, using only what exists (A-E6-19). SM-1: a stopwatch from the first key of the herdr board key to the first character typed in the target pane, and a key count (A-E6-16), over 10 timed returns, median of each. SM-2 and SM-3: counts from the Claude Code transcripts under `~/.claude/projects/` (the author reads them; brain-swap never does, P3, T-09): per day, `/bs-park` invocations against `Park to which card?` questions, and over the two weeks, `/bs-back` invocations against replies starting `no note since` or `no note yet` (A-E6-17). SM-4: a yes or no noted right after each sampled return (A-E6-18). SM-5: rerun the E6-F1-T4 procedure on the build in use. Each instrument is tried once on data the release runs produced, and the exact search patterns that worked go into the file. No product code, flag or log event is added.
+- Scope: Write `docs/metrics.md`: for each of SM-1 to SM-4 (SM-5 dropped 2026-10-14), the PRD definition quoted, the instrument, how one sample is taken, the record (a results table with its columns) and the pass rule, using only what exists (A-E6-19). SM-1: a stopwatch from the first key of the herdr board key to the first character typed in the target pane, and a key count (A-E6-16), over 10 timed returns, median of each. SM-2 and SM-3: counts from the Claude Code transcripts under `~/.claude/projects/` (the author reads them; brain-swap never does, P3, T-09): per day, `/bs-park` invocations against `Park to which card?` questions, and over the two weeks, `/bs-back` invocations against replies starting `no note since` or `no note yet` (A-E6-17). SM-4: a yes or no noted right after each sampled return (A-E6-18). Each instrument is tried once on data the release runs produced, and the exact search patterns that worked go into the file. No product code, flag or log event is added.
 - Not in scope: the two weeks of measurement after v0.1 and their results (the author fills the tables later); the hyperfine procedure itself (E6-F1-T4).
 - Procedure:
-  1. Write `docs/metrics.md` with one `## SM-n` section per metric holding `Definition`, `Instrument`, `Sample`, `Record` and `Pass when` lines, and one empty results table per metric; the SM-5 table gets the release baseline from the E6-F1-T4 commit as its first row.
+  1. Write `docs/metrics.md` with one `## SM-n` section per metric holding `Definition`, `Instrument`, `Sample`, `Record` and `Pass when` lines, and one empty results table per metric.
   2. SM-1 dry run: do one timed return on the author's real board with the installed key; record seconds and key presses.
   3. SM-2 and SM-3 dry run: in the transcripts of the E6-F1-T7 sessions, count `/bs-park` and `/bs-back` invocations, picker questions and catch-up replies with the patterns written in step 1; pass when the counts equal what the E6-F1-T7 commit message says happened (for example, the AS-3 picks), else correct the patterns and repeat.
   4. SM-4 dry run: take one sample after a real return and record it.

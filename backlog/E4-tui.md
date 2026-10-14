@@ -31,7 +31,6 @@ Milestone: M3. E4 delivers the ratatui board that `brain-swap` opens without a s
   - [ ] A bare invocation with an unknown `--board` exits 3 and one without a terminal exits 2, both before the alternate screen (E4-F1-T8).
   - [ ] Every action is reachable by default without a modifier beyond Shift, scrolling aside, and no shell screen uses colour (E4-F1-T9).
   - [ ] An idle runtime scans the board folder once per second (E4-F1-T7).
-  - [ ] First frame and key reaction meet NFR-02 in the `#[ignore]` release test (E4-F1-T10).
 
 ### E4-F1-T1 App state and initial selection
 
