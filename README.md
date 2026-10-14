@@ -11,6 +11,29 @@ Each card is a task. When you leave a session, you park a short note on the card
 
 Status: v0.1. Written in Rust, one binary that is both the board (run `brain-swap` with no arguments) and the CLI. The product idea is in [idea.md](idea.md), the requirements in [PRD.md](PRD.md) and the design in [TECHSPEC.md](TECHSPEC.md).
 
+## Cheat sheet
+
+In Claude Code:
+
+- `/bs-card fix the login redirect` creates a card and links this session (`feature: ...` picks the template, `on home` the board).
+- `/bs-park` saves a switch note before you leave (`/bs-park next: rerun the test` keeps your words).
+- `/bs-back` prints the note when you return, or saves a catch-up note if it is missing or stale.
+- `/bs-link W-12` links this session to an existing card.
+
+In a shell:
+
+- `brain-swap` opens the board.
+- `brain-swap new Fix login redirect` creates a card.
+- `brain-swap park --card W-1` saves a note read from standard input.
+- `brain-swap show W-1` prints the card and its latest note.
+- `brain-swap ls` lists the cards.
+- `brain-swap move W-1 Done` moves a card.
+- `brain-swap link W-1 --session <id>` links a session to a card.
+
+Board keys: `hjkl` move, `H` `L` move card, `o` open, `enter` jump, `n` new, `e` edit, `b` board, `?` help, `q` quit.
+
+The full guide with examples is [docs/usage.md](docs/usage.md).
+
 ## Install
 
 You need Rust 1.89 or later and Linux. macOS should build as well.

@@ -256,7 +256,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T11 Usage guide and README cheat sheet
 
-- Status: doing
+- Status: done
 - Depends on: E6-F1-T1
 - Covers: FR-67, FR-68; TECHSPEC 12.2 item 5 (owner request 2026-10-14)
 - Size: S

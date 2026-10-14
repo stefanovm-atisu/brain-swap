@@ -103,3 +103,49 @@ fn fr67_readme_pack_section_names_commands_and_hints() {
         assert!(pack.contains(word), "pack section lacks {word}");
     }
 }
+
+fn usage() -> String {
+    std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/usage.md"))
+        .expect("docs/usage.md")
+}
+
+#[test]
+fn ts12_2_usage_guide_names_every_pack_command() {
+    let guide = usage();
+    for word in [
+        "/bs-card",
+        "/bs-park",
+        "/bs-back",
+        "/bs-link",
+        "/bs-card feature: ",
+        "/bs-park next: ",
+    ] {
+        assert!(guide.contains(word), "usage guide lacks {word}");
+    }
+}
+
+#[test]
+fn ts12_2_usage_guide_commands_parse() {
+    let cmds = commands(&usage());
+    assert!(!cmds.is_empty());
+    for c in cmds {
+        Cli::try_parse_from(shell_words(&substitute(&c, SESSION_A)))
+            .unwrap_or_else(|e| panic!("{c}: {e}"));
+    }
+}
+
+#[test]
+fn ts12_2_readme_cheat_sheet_links_usage_guide() {
+    let sheet = section("## Cheat sheet");
+    for word in [
+        "/bs-card",
+        "/bs-park",
+        "/bs-back",
+        "/bs-link",
+        "docs/usage.md",
+    ] {
+        assert!(sheet.contains(word), "cheat sheet lacks {word}");
+    }
+    let lines = sheet.lines().filter(|l| !l.trim().is_empty()).count();
+    assert!(lines <= 25, "cheat sheet has {lines} non-empty lines");
+}
