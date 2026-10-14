@@ -203,7 +203,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 
 ### E0-F3-T1 SP-8 session scripts
 
-- Status: doing
+- Status: done
 - Depends on: E3-F1-T4
 - Covers: FR-53; TECHSPEC 14 SP-8, 8.4, 8.6
 - Size: S
