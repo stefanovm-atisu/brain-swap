@@ -555,7 +555,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F3-T7 Manual jumps that fall back (AS-4, AS-5, AS-11)
 
-- Status: todo
+- Status: done
 - Depends on: E5-F3-T3, E5-F3-T4
 - Covers: FR-61, FR-62, FR-63; AS-4, AS-5, AS-11; TECHSPEC 7.7, 12.1 (manual)
 - Size: M
