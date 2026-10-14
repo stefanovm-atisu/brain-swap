@@ -431,7 +431,7 @@ mod tests {
     fn ts9_4_snippet_parses_as_a_herdr_key_command() {
         let v: toml::Value = toml::from_str(&key_snippet("/x/brain-swap")).unwrap();
         let k = &v["keys"]["command"][0];
-        assert_eq!(k["key"].as_str(), Some("prefix+alt+b"));
+        assert_eq!(k["key"].as_str(), Some("prefix+shift+b"));
         assert_eq!(k["type"].as_str(), Some("popup"));
         assert_eq!(k["command"].as_str(), Some("/x/brain-swap"));
         assert_eq!(k["width"].as_str(), Some("90%"));
