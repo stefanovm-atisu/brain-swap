@@ -248,7 +248,7 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 
 ### E3-F1-T11 /bs-back wording for ages under a minute, verbatim first lines, no code fence
 
-- Status: todo
+- Status: doing
 - Depends on: E3-F1-T4
 - Covers: FR-51, FR-52; TECHSPEC 8.4
 - Size: S
