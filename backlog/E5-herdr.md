@@ -534,7 +534,7 @@ Milestone: M1 (E5-F1), M4 (E5-F2 to E5-F4). This epic delivers the optional herd
 
 ### E5-F3-T6 Manual jumps that land (AS-1 step 7, AS-10)
 
-- Status: todo
+- Status: done
 - Depends on: E5-F3-T3, E5-F3-T4
 - Covers: FR-25, FR-28, FR-59, FR-60; AS-1 (step 7), AS-10; TECHSPEC 7.7, 12.1 (manual)
 - Size: M
