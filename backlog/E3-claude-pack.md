@@ -263,6 +263,22 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
   - [ ] TECHSPEC 8.4 and the shipped SKILL.md carry the same new wording; `tests/pack.rs` and `tests/docs.rs` pass.
   - [ ] The owner reruns S2 and S7 of `docs/spikes/sp8-staleness.md` once after installing the new skill and sees the exact forms.
 
+### E3-F1-T12 Pack replies verbatim and plain: bs-card line, bs-link output, picker heading
+
+- Status: doing
+- Depends on: E3-F1-T11
+- Covers: FR-48, FR-54, FR-55, FR-56; TECHSPEC 8.2, 8.3, 8.4, 8.5
+- Size: S
+- Scope: Wording deviations seen in the E6-F1-T7 run (every step passed): `/bs-card` replied `Created W-12: ...` with a capital C instead of the output line as printed; `/bs-link <ID>` wrapped its output in a code block in 3 of 4 runs; the pickers of `/bs-park`, `/bs-back` and `/bs-link` dropped or capitalised the list's heading line `open cards on <board>, best guess first:` and once replaced it with the skill label `Card state for this session:`. Change the skill texts and the same text in TECHSPEC 8.2 to 8.5 so that: `/bs-card` replies with its output line exactly as printed, never re-cased or reworded; `/bs-link` prints the `link` output exactly as printed as plain text, not in a code block; every picker shows the list exactly as printed from its first line (the `open cards on <board>, best guess first:` heading) to the `o.` line, as plain text, and never shows the skill's own labels. Prompt text only, no Rust code.
+- Not in scope: `/bs-back` steps 4 and 5 (E3-F1-T11); drafted note content.
+- Tests first: in `tests/pack.rs`, static checks of the skill texts.
+  1. `fr48_bs_card_reply_is_the_output_line_verbatim`: the bs-card SKILL.md says the output line is replied exactly as printed, unchanged in case and wording.
+  2. `fr54_bs_link_prints_plain_output`: the bs-link SKILL.md says the `link` output is printed exactly as printed, as plain text with no code block.
+  3. `fr56_pickers_show_the_list_from_its_heading`: the bs-park, bs-back and bs-link SKILL.md files each say the list is shown exactly as printed from its heading line, as plain text, without the skill's own labels.
+- DoD:
+  - [ ] The tests above pass; the first test was committed red (12.2 item 1).
+  - [ ] TECHSPEC 8.2 to 8.5 and the shipped SKILL.md files carry the same new wording; `tests/pack.rs` and `tests/docs.rs` pass.
+
 ## E3-F2 install claude
 
 - Depends on: E3-F1
