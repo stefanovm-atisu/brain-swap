@@ -23,6 +23,6 @@ brain-swap new --template <template> --session "${CLAUDE_SESSION_ID}" --body - <
 BS_EOF
 ```
 
-Reply with its output line only, or on failure its first error line.
+Reply with its output line only, exactly as printed and never re-cased or reworded, or on failure its first error line.
 
 If the user later asks to move this card, run `brain-swap move <ID> <column>` and reply with its output line.

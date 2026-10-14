@@ -470,7 +470,7 @@ brain-swap new --template <template> --session "${CLAUDE_SESSION_ID}" --body - <
 BS_EOF
 ```
 
-Reply with its output line only, or on failure its first error line.
+Reply with its output line only, exactly as printed and never re-cased or reworded, or on failure its first error line.
 
 If the user later asks to move this card, run `brain-swap move <ID> <column>` and reply with its output line.
 ````
@@ -494,7 +494,7 @@ Card state for this session:
 The user's own words (may be empty): $ARGUMENTS
 
 1. If the state has an `error:` line, reply with it and its `hint:` line, and stop.
-2. The card is the `reference:` ID. If that is `none`, show the numbered list exactly as printed and ask "Park to which card?". Accept a number, an ID, or `o` (then ask which board and show `brain-swap ls --open --guess --board <name>` the same way). Ask nothing else.
+2. The card is the `reference:` ID. If that is `none`, show the list exactly as printed, from its `open cards on <board>, best guess first:` heading line to its last line, as plain text and without this skill's own labels, and ask "Park to which card?". Accept a number, an ID, or `o` (then ask which board and show `brain-swap ls --open --guess --board <name>` the same way). Ask nothing else.
 3. Write the note for yourself returning cold in an hour, one short concrete line per part: Doing (in progress now), Next (the very next action), Watch out (the trap, or "nothing"). Use the user's words verbatim for the parts they gave. The labels are `doing`, `next`, `watch` and `watch out`. A label followed by a colon starts a part anywhere. A label word without a colon starts a part only at the start of the text or right after a comma. A part runs to the next part's start (drop the comma before it). Unlabelled leading words are Doing. Draft the rest from this conversation. Example: `next: rerun migration test, watch timeout` gives Next `rerun migration test` and Watch out `timeout`, and Doing is drafted from this conversation; `rerun the next test` is all Doing.
 4. Save it with one command; drop `--auto` only if all three parts are the user's words:
 
@@ -527,7 +527,7 @@ Card state for this session:
 !`brain-swap context --session "${CLAUDE_SESSION_ID}"`
 
 1. If the state has an `error:` line, reply with it and its `hint:` line, and stop.
-2. If it says `reference: none`, show the numbered list exactly as printed and ask "Back to which card?" (for `o`, ask which board and show `brain-swap ls --open --guess --board <name>`). Run `brain-swap link <ID> --session "${CLAUDE_SESSION_ID}"`; its output is the state from now on. If `link` fails for an unknown card, reply with its first error line and stop. If it fails because no session resolves, run `brain-swap show <ID>` and use its output as the state.
+2. If it says `reference: none`, show the list exactly as printed, from its `open cards on <board>, best guess first:` heading line to its last line, as plain text and without this skill's own labels, and ask "Back to which card?" (for `o`, ask which board and show `brain-swap ls --open --guess --board <name>` the same way). Run `brain-swap link <ID> --session "${CLAUDE_SESSION_ID}"`; its output is the state from now on. If `link` fails for an unknown card, reply with its first error line and stop. If it fails because no session resolves, run `brain-swap show <ID>` and use its output as the state.
 3. The latest note is missing if the state says `latest note: none`, and stale if this conversation shows work on this card that the note does not reflect (for a note `by this session` whose park is visible here: exactly when a user prompt about the work came after that park). Otherwise, also in an empty or fresh conversation, it is current. When unsure, it is stale.
 4. If current, run nothing and print only these lines, as plain text and not in a code block. Write the first line exactly in the given form, never paraphrased, with `<age>` copied from the age `context` prints without its trailing `ago` (`39 min ago` gives `(note 39 min old)`), except that an age of `now` gives `(note just now)`:
 
@@ -566,8 +566,8 @@ metadata:
 ---
 Card to link: $ARGUMENTS
 
-1. If a card ID is given, run `brain-swap link <ID> --session "${CLAUDE_SESSION_ID}"` and print its output as is, or on failure its first error line.
-2. If none is given, run `brain-swap ls --open --guess`, show the numbered list exactly as printed and ask "Which card?". Accept a number, an ID, or `o` (then ask which board and add `--board <name>`). Then do step 1.
+1. If a card ID is given, run `brain-swap link <ID> --session "${CLAUDE_SESSION_ID}"` and print its output exactly as printed, as plain text and not in a code block, or on failure its first error line.
+2. If none is given, run `brain-swap ls --open --guess`, show the list exactly as printed, from its `open cards on <board>, best guess first:` heading line to its last line, as plain text and without this skill's own labels, and ask "Which card?". Accept a number, an ID, or `o` (then ask which board and add `--board <name>`). Then do step 1.
 
 If the user later asks to move this card, run `brain-swap move <ID> <column>` and reply with its output line.
 ````

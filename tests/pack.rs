@@ -910,6 +910,37 @@ fn fr47_move_line_command_moves_the_card() {
     assert_ne!(after, before);
 }
 
+// ---- verbatim, plain replies (E3-F1-T12) ----
+
+#[test]
+fn fr48_bs_card_reply_is_the_output_line_verbatim() {
+    let text = read_skill("bs-card");
+    assert!(text.contains(
+        "Reply with its output line only, exactly as printed and never re-cased or reworded"
+    ));
+}
+
+#[test]
+fn fr54_bs_link_prints_plain_output() {
+    let text = read_skill("bs-link");
+    assert!(
+        text.contains("print its output exactly as printed, as plain text and not in a code block")
+    );
+}
+
+#[test]
+fn fr56_pickers_show_the_list_from_its_heading() {
+    for name in ["bs-park", "bs-back", "bs-link"] {
+        let text = read_skill(name);
+        assert!(
+            text.contains(
+                "show the list exactly as printed, from its `open cards on <board>, best guess first:` heading line to its last line, as plain text and without this skill's own labels"
+            ),
+            "{name}"
+        );
+    }
+}
+
 // ---- AS-1, AS-2, AS-3 command replay (E3-F1-T7) ----
 
 const P9: (&str, &str, &str) = ("w4V:p9", "w4V:t1", "w4V");
