@@ -34,6 +34,8 @@ Board keys: `hjkl` move, `H` `L` move card, `o` open, `enter` jump, `n` new, `e`
 
 The full guide with examples is [docs/usage.md](docs/usage.md).
 
+How the success metrics are measured: [docs/metrics.md](docs/metrics.md).
+
 ## Install
 
 You need Rust 1.89 or later and Linux. macOS should build as well.

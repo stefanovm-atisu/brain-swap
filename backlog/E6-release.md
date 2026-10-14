@@ -234,7 +234,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T10 Success metrics made measurable
 
-- Status: todo
+- Status: done
 - Depends on: E6-F1-T4, E6-F1-T7
 - Covers: PRD 9 (SM-1, SM-2, SM-3, SM-4); TECHSPEC 15 (E6-F1 DoD)
 - Size: S
