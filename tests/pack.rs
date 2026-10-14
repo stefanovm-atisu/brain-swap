@@ -668,6 +668,25 @@ fn fr52_bs_back_catch_up_heredoc_saves_auto_note() {
     assert!(notes.last().unwrap().0.ends_with(" auto"), "{notes:?}");
 }
 
+#[test]
+fn fr51_bs_back_names_the_just_now_form() {
+    let text = read_skill("bs-back");
+    assert!(text.contains("an age of `now` gives `(note just now)`"));
+    assert!(text.contains("an age of `now` gives `no note since just now on <ID>`"));
+}
+
+#[test]
+fn fr52_bs_back_first_line_is_verbatim() {
+    let text = read_skill("bs-back");
+    assert!(text.contains("Write the first line exactly in the given form, never paraphrased"));
+}
+
+#[test]
+fn fr51_bs_back_prints_plain_lines() {
+    let text = read_skill("bs-back");
+    assert!(text.contains("as plain text and not in a code block"));
+}
+
 // ---- bs-card (E3-F1-T5) ----
 
 #[test]
