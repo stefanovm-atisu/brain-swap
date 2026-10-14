@@ -393,21 +393,28 @@ Expected: fresh form, no tool call, first line `<ID> sp8 s10 newsletter draft (n
 
 ## Score: the 8.4 rule
 
-Run: date, Claude Code version, herdr version, brain-swap commit.
+Run: 2026-10-14, Claude Code 2.1.296 (launched through mise), herdr 0.8.2, brain-swap installed from main 139c57e (`/bs-back` unchanged since E3-F1), skills copied by hand into `~/.claude/skills`, scratch board `~/bs-test`. Each script ran in a fresh Claude Code session in one herdr pane; the lead scored each reply from the session transcript and made the S8 stamp edit.
 
 In "tool calls" list every tool call of the `/bs-back` reply (S4 also lists its `link`); in "output lines" copy the reply's lines verbatim.
 
 | Script | Ground truth | Verdict | Right | Tool calls | Output lines | Remarks |
 |---|---|---|---|---|---|---|
-| S1 | stale | | | | | |
-| S2 | fresh | | | | | |
-| S3 | fresh | | | | | |
-| S4 | fresh | | | | | |
-| S5 | fresh | | | | | |
-| S6 | stale | | | | | |
-| S7 | stale | | | | | |
-| S8 | stale | | | | | |
-| S9 | stale | | | | | |
-| S10 | fresh | | | | | |
+| S1 | stale | stale | right | 1: park --card W-16 --auto | "The last note was saved just now, but it was out of date, so I saved a new one." / "W-16 sp8 s1 release checklist (note just saved)" + 3 parts in a code block | deviation: first line not `no note since <age> ago on W-16` (note under a minute old; Claude paraphrased); reply wrapped in a code fence |
+| S2 | fresh | fresh | right | 0 | "W-17 sp8 s2 shopping list (note under a minute old)" + 3 parts | deviation: age printed as "under a minute old" instead of the CLI age form |
+| S3 | fresh | fresh | right | 0 | "W-18 sp8 s3 meeting agenda (note less than a minute old)" + 3 parts | deviation: age as "less than a minute old" |
+| S4 | fresh | fresh | right | 1: link W-19 (the pick), no park | picker verbatim with "Back to which card?"; after `1`: "W-19 sp8 s4 packing list (note under a minute old)" + 3 parts | /clear changed the session ID (picker shown, W-19 first `linked here`); age wording "under a minute old" |
+| S5 | fresh | fresh | right | 0 (session B; its only call was the /bs-link link) | "W-20 sp8 s5 reading list (note now old)" + 3 parts, in a code fence | deviation: "note now old" (the `now` age form under a minute); code fence |
+| S6 | stale | stale | right | 1 Bash call: `date -Iseconds; brain-swap park --card W-21 ... --auto` (one park) | "The last note on W-21 was saved under a minute ago, but it didn't include the Steps section I just filled in, so I saved a catch-up note." / "W-21 sp8 s6 bug report (note just saved)" + 3 parts in a code fence | deviation: first line paraphrased, not `no note since <age> ago on W-21`; an extra `date` chained before the park; code fence |
+| S7 | stale | stale | right | 1: park --card W-22 --auto | "no note since now ago on W-22" / then the just-saved note | user-worded park saved without auto (12:36:16), catch-up auto (12:36:35); deviation: "now ago" wording (age under a minute) |
+| S8 | stale | stale | right | 1: park --card W-23 --auto | "no note since 40 min ago on W-23" / "W-23 sp8 s8 trip budget (note just saved)" + 3 parts | exact FR-52 form; stamp aged by the lead with the script snippet |
+| S9 | stale | stale | right | 1: park --card W-24 --auto | "no note since just now on W-24" / "W-24 sp8 s9 workshop plan (note just saved)" + 3 parts in a code fence | deviation: "just now" instead of `<age> ago`; code fence; the note mentions Room: B2 |
+| S10 | fresh | fresh | right | 0 | "W-25 sp8 s10 newsletter draft (note less than a minute old)" + the 3 user-worded parts | user note without auto; deviation: "less than a minute old" |
 
-Right: __ of 10.
+Right: 10 of 10.
+
+Wording deviations from FR-51 and FR-52 (they do not change the score; filed as E3-F1-T11):
+
+- Age under a minute: the CLI prints the age `now`, and the replies improvised around it: `(note now old)` (S5), `(note under a minute old)` (S2, S4), `(note less than a minute old)` (S3, S10), `no note since now ago` (S7), `no note since just now` (S9).
+- Stale first line paraphrased instead of `no note since <age> ago on <ID>`: S1 ("The last note was saved just now, but it was out of date, so I saved a new one.") and S6.
+- The printed note wrapped in a code fence: S1, S5, S6, S9.
+- S6 chained a `date -Iseconds` before the one park in the same Bash call.

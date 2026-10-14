@@ -6,7 +6,7 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 
 | ID | Title | Depends on | Tasks | Size |
 |---|---|---|---|---|
-| E3-F1 | Skills | E2-F3, E0-F1 | 10 | L |
+| E3-F1 | Skills | E2-F3, E0-F1 | 11 | L |
 | E3-F2 | install claude | E3-F1 | 7 | M |
 
 ## E3-F1 Skills
@@ -245,6 +245,23 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 - DoD:
   - [ ] One commit (empty when no file changed) whose message records the date, the Claude Code and herdr versions, the pane ID, each procedure step as passed or failed with the observed reply, every question Claude asked beyond the picker, and whether `linked here` appeared (it needs `HERDR_*` in the inline shell, SP-4); this replaces 12.2 items 1 and 3.
   - [ ] A failed step is fixed in the skill text with its pack tests kept green, and the run repeated before this task closes.
+
+### E3-F1-T11 /bs-back wording for ages under a minute, verbatim first lines, no code fence
+
+- Status: todo
+- Depends on: E3-F1-T4
+- Covers: FR-51, FR-52; TECHSPEC 8.4
+- Size: S
+- Scope: Bug from the SP-8 run (E0-F3-T2, 2026-10-14, every verdict right): the replies of `/bs-back` deviated in wording. When the note is under a minute old the CLI prints the age `now`, and Claude improvised `(note now old)`, `(note under a minute old)`, `no note since now ago`, `no note since just now`; twice the stale first line was paraphrased instead of `no note since <age> ago on <ID>`; four replies wrapped the note in a code fence. Change step 4 and step 5 of `pack/claude/skills/bs-back/SKILL.md` and the same text in TECHSPEC 8.4 so that: the age is copied exactly as `context` prints it, except that an age of `now` gives `(note just now)` and `no note since just now on <ID>`; the first line is written exactly in the given form, never paraphrased; and the lines are printed as plain text, not in a code block. Prompt text only, no Rust code.
+- Not in scope: the staleness rule itself (SP-8 scored 10 of 10); the CLI age format.
+- Tests first: in `tests/pack.rs`, static checks of the bs-back skill text.
+  1. `fr51_bs_back_names_the_just_now_form`: the bs-back SKILL.md holds `(note just now)` and `no note since just now on <ID>` and the instruction to use them when the age is `now`.
+  2. `fr52_bs_back_first_line_is_verbatim`: the bs-back SKILL.md says the first line is written exactly in the given form.
+  3. `fr51_bs_back_prints_plain_lines`: the bs-back SKILL.md says the reply is plain text with no code block.
+- DoD:
+  - [ ] The tests above pass; the first test was committed red (12.2 item 1).
+  - [ ] TECHSPEC 8.4 and the shipped SKILL.md carry the same new wording; `tests/pack.rs` and `tests/docs.rs` pass.
+  - [ ] The owner reruns S2 and S7 of `docs/spikes/sp8-staleness.md` once after installing the new skill and sees the exact forms.
 
 ## E3-F2 install claude
 

@@ -219,7 +219,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 
 ### E0-F3-T2 SP-8 run and score
 
-- Status: doing
+- Status: done
 - Depends on: E0-F3-T1
 - Covers: FR-52, FR-53; TECHSPEC 14 SP-8, 8.4, 16
 - Size: S
@@ -238,7 +238,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 
 ### E0-F3-T3 SP-8 fallback rule
 
-- Status: todo
+- Status: done
 - Depends on: E0-F3-T2
 - Covers: FR-53; TECHSPEC 8.4, 8.6, 16
 - Size: S
