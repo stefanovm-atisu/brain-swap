@@ -206,7 +206,7 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 
 ### E3-F1-T9 Manual AS-2 run
 
-- Status: todo
+- Status: done
 - Depends on: E3-F1-T1, E3-F1-T3, E3-F1-T4
 - Covers: FR-52, FR-53; AS-2 (manual)
 - Size: S
