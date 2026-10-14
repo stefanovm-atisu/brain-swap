@@ -219,7 +219,7 @@ Milestone: M0 (E0-F1, E0-F2), M2 (E0-F3). The spikes answer, on the author's mac
 
 ### E0-F3-T2 SP-8 run and score
 
-- Status: todo
+- Status: doing
 - Depends on: E0-F3-T1
 - Covers: FR-52, FR-53; TECHSPEC 14 SP-8, 8.4, 16
 - Size: S
