@@ -243,7 +243,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 ### 7.12 First run and installation
 
 - **FR-66** Core. Without a config file, any invocation writes the default config, says so in one line, and continues. (AS-9, P2)
-- **FR-67** Core. `brain-swap install claude` symlinks the four skills into `~/.claude/skills/` (to a versioned copy it writes, or a checkout with `--link`), never replaces what it did not create unless `--force` is given, has `--remove`, and never edits Claude settings. (P3)
+- **FR-67** Core. `brain-swap install claude` copies the four skills into `~/.claude/skills/` (the built-in ones, or a checkout's with `--link`), never replaces what it did not create unless `--force` is given, has `--remove`, and never edits Claude settings. (P3)
 - **FR-68** Core. `cargo install` yields the whole product; nothing else is needed at runtime. (Stack)
 
 ### 7.13 Deferred
@@ -300,7 +300,7 @@ Decisions made where idea.md is silent: yes keeps one, no reopens it.
 - **A-10** Is there no delete or archive command, so a card is removed by deleting its file and the done column keeps growing? (FR-06, FR-71)
 - **A-11** Does `/bs-link` print the latest note, making linking a return? (FR-54)
 - **A-12** Can only the user, never Claude on its own, invoke the pack commands? (FR-46)
-- **A-13** Is staleness judged by Claude, unsure meaning stale, with its accuracy measured in a spike? (FR-53)
+- **A-13** Is staleness judged by Claude, unsure meaning stale? (FR-53)
 - **A-14** Is the reference keyed by the Claude session ID, so `/clear` loses it and one pick, with the pane's last card on top, restores it? (FR-38, FR-57)
 - **A-15** Is the Claude picker a numbered text list answered by number or ID? (FR-56)
 - **A-16** Is a TUI note key Later, so TUI-only use parks from the shell? (FR-34, FR-73)
@@ -309,7 +309,7 @@ Decisions made where idea.md is silent: yes keeps one, no reopens it.
 - **A-19** Is the preview panel always shown, except under 20 rows? (FR-22)
 - **A-20** Is a moved pane found through the Claude session ID herdr reports per pane? (FR-60)
 - **A-21** Is the recorded working directory that of the parking process (for Claude, its shell's current directory)? (FR-15)
-- **A-22** Is the pack installed as symlinks to a versioned copy the binary writes, needing no checkout? (FR-67)
+- **A-22** Is the pack installed as copies the binary writes, needing no checkout? (FR-67)
 - **A-23** Does a broken config stop the TUI with the error, rather than run on defaults that may write to wrong folders? (FR-45)
 - **A-24** Do `doctor`, `check`, an event log with `stats`, delete, rename and column commands stay out of v0.1? (section 10)
 - **A-25** Does a card created in the TUI enter the focused column, while `/bs-card` uses the first? (FR-30, FR-48)

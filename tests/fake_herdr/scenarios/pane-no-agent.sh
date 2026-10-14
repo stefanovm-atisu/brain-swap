@@ -1,4 +1,4 @@
-# A plain shell pane: no agent, no agent_session (SP-4 sample shape).
+# A plain shell pane: no agent, no agent_session.
 case "$*" in
   "pane get w4V:p9") out '{"id":"cli:pane:get","result":{"type":"pane_info","pane":{"agent_status":"unknown","pane_id":"w4V:p9","tab_id":"w4V:t1","workspace_id":"w4V"}}}' ;;
 esac

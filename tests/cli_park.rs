@@ -309,7 +309,7 @@ fn fr15_park_inside_herdr_records_pane_tab_workspace() {
         i6_place_line(&s),
         "<!-- where: cwd=<sandbox>/elsewhere pane=w4V:p9 tab=w4V:t1 workspace=w4V session=s1 -->"
     );
-    // TECHSPEC 16 SP-4: no moved-pane check, so park calls no herdr.
+    // TECHSPEC 9.1: no moved-pane check, so park calls no herdr.
     assert!(common::fake_herdr::calls(&s.root().join("home")).is_empty());
 }
 
@@ -398,7 +398,7 @@ fn fr41_inside_herdr_falls_back_to_pane_session() {
     in_herdr(&mut s, "pane-session");
     let (_, place) = park_session(&s, &["--session", ""]);
     assert!(place.ends_with(" session=herdr-s1 -->"), "{place}");
-    // TECHSPEC 16 SP-4: no moved-pane check, so only step 3 calls herdr.
+    // TECHSPEC 9.1: no moved-pane check, so only step 3 calls herdr.
     assert_eq!(herdr_calls(&s), ["pane get w4V:p9"]);
 }
 

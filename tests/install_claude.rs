@@ -20,7 +20,7 @@ fn skills(s: &Sandbox) -> PathBuf {
 }
 
 /// `body` as install writes it: the canonical binary at command positions and in the
-/// allow rule (SP-3 fallback).
+/// allow rule.
 fn rewritten(body: &str) -> String {
     let exe = exe();
     body.replace("`brain-swap ", &format!("`{exe} "))

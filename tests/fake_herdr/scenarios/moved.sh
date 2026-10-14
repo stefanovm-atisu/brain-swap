@@ -1,4 +1,4 @@
-# W-12's pane w4V:p9 is gone; its session now runs in w7Q:p2 (SP-4 sample shapes).
+# W-12's pane w4V:p9 is gone; its session now runs in w7Q:p2.
 case "$*" in
   "pane get w4V:p9") fail 1 '{"error":{"code":"pane_not_found","message":"pane w4V:p9 not found"},"id":"cli:pane:get"}' ;;
   "workspace list") out '{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"active_tab_id":"w4V:t1","workspace_id":"w4V"},{"active_tab_id":"w7Q:t1","workspace_id":"w7Q"}]}}' ;;

@@ -45,7 +45,7 @@ pub struct InstallReport {
 }
 
 /// Claude Code's skills folder: `$CLAUDE_CONFIG_DIR/skills` when set and non-empty
-/// (unverified assumption, SP-6), else `$HOME/.claude/skills` (8.8).
+/// else `$HOME/.claude/skills` (8.8).
 pub fn skills_dir(env: &Env) -> PathBuf {
     match &env.claude_config_dir {
         Some(dir) if !dir.as_os_str().is_empty() => dir.join("skills"),
@@ -72,8 +72,8 @@ pub fn is_ours(skill_md: &str) -> bool {
 }
 
 /// Writes each embedded skill (or, with `--link`, the checkout's copy) as a plain folder
-/// `<skills>/<name>/SKILL.md` through a temp file renamed into place (SP-6 fallback:
-/// copies, not symlinks); edits no settings.
+/// `<skills>/<name>/SKILL.md` through a temp file renamed into place (copies,
+/// not symlinks); edits no settings.
 pub fn install(env: &Env, opts: &InstallOpts) -> Result<InstallReport, Error> {
     let dir = skills_dir(env);
     let mut bodies: Vec<Vec<u8>> = SKILLS.iter().map(|s| s.body.into()).collect();
@@ -146,7 +146,7 @@ fn is_our_folder(f: &Path) -> bool {
 
 /// `body` with `brain-swap ` at each command position (start of a code span, inline
 /// command included, or of a fenced line) and the `allowed-tools` value naming `exe`
-/// (SP-3 fallback, 8.8).
+/// (8.8).
 fn with_exe(body: &str, exe: &str) -> String {
     let mut fenced = false;
     let mut out = String::new();

@@ -442,9 +442,9 @@ pub fn install_herdr(env: &Env, out: &mut Out) -> i32 {
     0
 }
 
-/// The popup command of 9.4: the SP-2 fallback `env` prefix before the binary path.
+/// The popup command of 9.4: the `env` prefix before the binary path.
 /// A path outside a plain character set is single-quoted, since herdr may run the command
-/// through a shell (SP-2 not run).
+/// through a shell.
 pub fn herdr_command(env: &Env, exe: &Path) -> String {
     let word = |p: &Path| {
         let s = p.display().to_string();
