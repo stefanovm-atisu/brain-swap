@@ -3,7 +3,7 @@
 
 mod common;
 
-use brain_swap::adapters::claude::SKILLS;
+use brain_swap::adapters::claude::{SKILLS, is_ours};
 use common::cli::Sandbox;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -157,4 +157,64 @@ fn ts8_8_install_leaves_no_temp_entries() {
             .all(|p| !p.to_string_lossy().contains(".bs-tmp-")),
         "{names:?}"
     );
+}
+
+/// `body` with its `metadata` version set to `0.0.9`.
+fn older(body: &str) -> String {
+    let lines = body
+        .lines()
+        .map(|l| match l.trim_start().starts_with("version:") {
+            true => "  version: 0.0.9",
+            false => l,
+        });
+    lines.map(|l| format!("{l}\n")).collect()
+}
+
+#[test]
+fn ts8_8_is_ours_accepts_our_frontmatter() {
+    for skill in &SKILLS {
+        assert!(is_ours(skill.body), "{}", skill.name);
+        let old = older(skill.body);
+        assert!(old.contains("version: 0.0.9"), "{}", skill.name);
+        assert!(is_ours(&old), "{}", skill.name);
+    }
+}
+
+#[test]
+fn ts8_8_is_ours_rejects_other_text() {
+    let texts = [
+        "mine",
+        "---\nname: bs-card\npack: brain-swap\n---\nbody\n",
+        "---\nname: bs-card\nmetadata:\n  pack: other\n---\nbody\n",
+        "---\nname: bs-card\n---\nmetadata:\n  pack: brain-swap\n",
+    ];
+    for text in texts {
+        assert!(!is_ours(text), "{text}");
+    }
+}
+
+#[test]
+fn fr67_reinstall_of_the_same_version_is_idempotent() {
+    let s = Sandbox::new();
+    run(&s, &["install", "claude"]);
+    run(&s, &["install", "claude"]);
+    for skill in &SKILLS {
+        let body = fs::read(skills(&s).join(skill.name).join("SKILL.md")).unwrap();
+        assert_eq!(body, skill.body.as_bytes(), "{}", skill.name);
+    }
+}
+
+#[test]
+fn fr67_upgrade_rewrites_our_older_copies() {
+    let s = Sandbox::new();
+    for skill in &SKILLS {
+        let dir = skills(&s).join(skill.name);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("SKILL.md"), older(skill.body)).unwrap();
+    }
+    run(&s, &["install", "claude"]);
+    for skill in &SKILLS {
+        let body = fs::read_to_string(skills(&s).join(skill.name).join("SKILL.md")).unwrap();
+        assert_eq!(body, skill.body, "{}", skill.name);
+    }
 }

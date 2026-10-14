@@ -49,6 +49,24 @@ pub fn skills_dir(env: &Env) -> PathBuf {
     env.home.join(".claude/skills")
 }
 
+/// True when the frontmatter of `skill_md` holds `metadata:` with an indented
+/// `pack: brain-swap` (8.8 ours rule).
+pub fn is_ours(skill_md: &str) -> bool {
+    let mut lines = skill_md.lines();
+    if lines.next() != Some("---") {
+        return false;
+    }
+    let mut in_metadata = false;
+    for line in lines.take_while(|l| *l != "---") {
+        if !line.starts_with([' ', '\t']) {
+            in_metadata = line.trim_end() == "metadata:";
+        } else if in_metadata && line.trim() == "pack: brain-swap" {
+            return true;
+        }
+    }
+    false
+}
+
 /// Writes each embedded skill as a plain folder `<skills>/<name>/SKILL.md` through a temp
 /// file renamed into place (SP-6 fallback: copies, not symlinks); edits no settings.
 pub fn install(env: &Env, _opts: &InstallOpts) -> Result<InstallReport, Error> {
