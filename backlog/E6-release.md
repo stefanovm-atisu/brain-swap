@@ -6,7 +6,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 | ID | Title | Depends on | Tasks | Size |
 |---|---|---|---|---|
-| E6-F1 | Release check | E0-F3, E1-F1, E1-F2, E1-F3, E1-F4, E1-F5, E1-F6, E1-F7, E1-F8, E2-F1, E2-F2, E2-F3, E3-F1, E3-F2, E4-F1, E4-F2, E4-F3, E4-F4, E4-F5, E5-F1, E5-F2, E5-F3, E5-F4 | 10 | L |
+| E6-F1 | Release check | E0-F3, E1-F1, E1-F2, E1-F3, E1-F4, E1-F5, E1-F6, E1-F7, E1-F8, E2-F1, E2-F2, E2-F3, E3-F1, E3-F2, E4-F1, E4-F2, E4-F3, E4-F4, E4-F5, E5-F1, E5-F2, E5-F3, E5-F4 | 11 | L |
 
 ## E6-F1 Release check
 
@@ -14,7 +14,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 - Covers: FR-68, NFR-01, NFR-02, NFR-05
 - Spec: TECHSPEC 12.1 (Performance, Manual), 12.2, 13, 15 (E6-F1), 15.2; PRD 6 (AS-1 to AS-11), 8 (NFR-01, NFR-02, NFR-05), 9 (SM-1 to SM-5), 10
 - Scope: The README gains its final shape: what brain-swap is, install with `cargo install`, the three install steps of TECHSPEC 13 (binary, `brain-swap install claude`, `brain-swap install herdr` with paste and `herdr server reload-config`), the pack, the herdr key and upgrade, checked by `tests/readme.rs`. E4-F1-T10's `write_big_board` generates the board of 300 cards with 20 notes each, changed in place to the A-E6-03 layout; `#[ignore]` release tests in `tests/perf.rs` time every NFR-01 subcommand and the NFR-02 Detail keys, move key and jump overhead, E4-F1-T10's `#[ignore]` first frame and key reaction tests in `tests/tui_perf.rs` are rerun on the finished screens, and the author records `hyperfine` numbers on the same board. A parity test runs the Core CLI flow inside and outside a fake herdr pane (NFR-05). The release build is installed from a fresh clone (FR-68), AS-1 to AS-11 are run by hand on it in three grouped runs, and `docs/metrics.md` states how each of SM-1 to SM-5 is measured with the product as built, the transcripts Claude Code already keeps and a stopwatch, adding no product feature.
-- Provides: `README.md` sections `## Install`, `## Claude Code pack`, `## herdr key binding` (E5-F4-T3's section, kept as written), `## Upgrade` (A-E6-14); `tests/readme.rs` with `readme_section(text: &str, heading: &str) -> Option<String>`; the A-E6-03 layout of E4-F1-T10's `write_big_board(dir: &Path, cards: usize, notes: usize)` (changed in place, signature kept); `tests/common/timing.rs` with `p95_ms(samples: &mut [f64]) -> f64`, `time_runs(warmup: usize, runs: usize, f: impl FnMut()) -> Vec<f64>` and `herdr_ms(log: &str) -> f64`; `tests/perf.rs` (`#[ignore]` tests run with `cargo test --release --test perf -- --ignored --nocapture`); `<CARGO_TARGET_TMPDIR>/perf-board/` (written by `sm5_write_hyperfine_board`: `config/`, `data/work/`, `data/work.pristine/`, `state/`, `note.txt`, `env.sh`) (A-E6-20); `tests/nfr05_parity.rs`; `docs/metrics.md` (A-E6-19)
+- Provides: `README.md` sections `## Install`, `## Claude Code pack`, `## herdr key binding` (E5-F4-T3's section, kept as written), `## Upgrade` (A-E6-14); `tests/readme.rs` with `readme_section(text: &str, heading: &str) -> Option<String>`; the A-E6-03 layout of E4-F1-T10's `write_big_board(dir: &Path, cards: usize, notes: usize)` (changed in place, signature kept); `tests/common/timing.rs` with `p95_ms(samples: &mut [f64]) -> f64`, `time_runs(warmup: usize, runs: usize, f: impl FnMut()) -> Vec<f64>` and `herdr_ms(log: &str) -> f64`; `tests/perf.rs` (`#[ignore]` tests run with `cargo test --release --test perf -- --ignored --nocapture`); `<CARGO_TARGET_TMPDIR>/perf-board/` (written by `sm5_write_hyperfine_board`: `config/`, `data/work/`, `data/work.pristine/`, `state/`, `note.txt`, `env.sh`) (A-E6-20); `tests/nfr05_parity.rs`; `docs/metrics.md` (A-E6-19); `docs/usage.md` and the README `## Cheat sheet` section (E6-F1-T11)
 - Requires: E1-F1 `tests/common/spawn.rs` (`Scenario`, `brain_swap(&Scenario)`, `Scenario::herdr`, `Scenario::fake_scenario`, `Scenario::log`, `Scenario::session`), `tests/common/env.rs` `core_env(home, now)`, `tests/docs.rs`, `core::log::event` line format; E1-F2 `core::card_file::render_new`, `core::card_file::render_note`, `core::model::{NewCard, NewNote}`; E1-F3 `core::config::load`; E1-F5 `core::board::load`; E1-F6 `core::store::move_card`; E2-F1 `cli::args::Cli` (`Cli::try_parse_from`) and `tests/common/cli.rs` (`Sandbox::new()`, `write_config()`, `copy_board`, `cmd`, `scenario_mut`, `redact`); E2-F2 `tests/fixtures/boards/work/`; E2-F3 `park`, `link`, `context`; E3-F1 `tests/common/skill_md.rs` (`commands`, `substitute`, `shell_words`) and the procedures of E3-F1-T8, E3-F1-T9, E3-F1-T10; E3-F2 `install claude` (`--link`, `--force`, `--remove`) and its README paragraphs; E4-F1 `tui::prepare` (the start path `tui::run` uses), `tui::app::update`, `Input`, `Effect`, `Outcome`, `tui::view_frame::draw` (A-E6-07), and from E4-F1-T10 `tests/common/big_board.rs` `write_big_board` and the `#[ignore]` tests `nfr02_first_frame_within_150_ms` and `nfr02_key_reaction_within_50_ms` in `tests/tui_perf.rs`; E4-F2 and E4-F3 the board and detail views; E5-F1 the fake herdr script (`HERDR_BIN_PATH`, `FAKE_HERDR_SCENARIO`, argv log) and its scenario `pane-session`, and the `herdr` log lines (argv, exit, ms); E5-F2 `locate`, `jump` and the fake herdr scenario `live-agent`; E5-F3 the TUI jump; E5-F4 `install herdr` and its README section; E0-F3 the final step 3 of `bs-back/SKILL.md`
 - Feature DoD:
   - [ ] README covers install, the three install steps, the pack, the herdr key and upgrade, and every `brain-swap` command in it parses (E6-F1-T1).
@@ -27,6 +27,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
   - [ ] Manual AS-4, AS-5, AS-10, AS-11 recorded (E6-F1-T8).
   - [ ] Manual AS-6, AS-7, AS-8, AS-9 recorded (E6-F1-T9).
   - [ ] PRD section 9 measurable: `docs/metrics.md` gives each of SM-1 to SM-5 an instrument, a record and a pass rule, and each instrument was tried once (E6-F1-T10).
+  - [ ] `docs/usage.md` explains the daily loop and every pack command with examples, and the README carries a short cheat sheet linking it (E6-F1-T11).
 
 ### E6-F1-T1 README: install, pack, herdr key and upgrade
 
@@ -252,6 +253,23 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
   - [ ] `docs/metrics.md` is committed with one section per SM, each naming instrument, sample, record and pass rule, and the README links it.
   - [ ] The commit message records the date and the dry-run values of steps 2 to 4; this replaces 12.2 items 1 and 3.
   - [ ] `git diff` shows no change under `src/`, `pack/` or `templates/` from this task.
+
+### E6-F1-T11 Usage guide and README cheat sheet
+
+- Status: todo
+- Depends on: E6-F1-T1
+- Covers: FR-67, FR-68; TECHSPEC 12.2 item 5 (owner request 2026-10-14)
+- Size: S
+- Scope: Write `docs/usage.md`, a short guide for a user who installed the product: the daily loop (create a card, park on leaving a session, return, the board, jump to the pane); each of `/bs-card`, `/bs-park`, `/bs-back` and `/bs-link` with one or two examples (the optional `feature:` template label, `on home`, the `doing:`, `next:` and `watch out:` labels of a park, the picker after `/clear`); the same loop with the CLI alone, without Claude Code or herdr (`new`, `park --card`, `show`, `ls`, `move`, `link`); the default TUI keys of TECHSPEC 5.2 and where `config.toml` lives. Add `## Cheat sheet` to `README.md`, placed after the opening paragraph: one line per pack command and per main CLI command, the TUI keys on one line, and a link to `docs/usage.md`. The guide describes the behaviour as built; the open questions of E3-F1-T8 (board label, other languages) are not decided here.
+- Not in scope: install and upgrade steps (E6-F1-T1); the metrics (E6-F1-T10); any change to the skills or the CLI.
+- Tests first: docs layer, in `tests/readme.rs`.
+  1. `ts12_2_usage_guide_names_every_pack_command`: given `docs/usage.md`, then it names `/bs-card`, `/bs-park`, `/bs-back`, `/bs-link`, holds a `/bs-card feature: ` example and a `/bs-park next: ` example.
+  2. `ts12_2_usage_guide_commands_parse`: given every command `commands` finds in `docs/usage.md`, when each goes through `substitute` with a fixed session and `shell_words`, then `Cli::try_parse_from` accepts every one.
+  3. `ts12_2_readme_cheat_sheet_links_usage_guide`: given the `## Cheat sheet` section of `README.md`, then it names the four pack commands, links `docs/usage.md`, and has at most 25 non-empty lines.
+- DoD:
+  - [ ] The tests above pass; the first test was committed red before the guide turned it green (12.2 item 1).
+  - [ ] `tests/docs.rs` passes on `docs/usage.md` and the README (no U+2014 or U+2013).
+  - [ ] The owner read the guide and the cheat sheet once and found them short enough.
 
 ## Assumptions
 

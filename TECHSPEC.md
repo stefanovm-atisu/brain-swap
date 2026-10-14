@@ -781,7 +781,7 @@ Each feature: scope; Covers; Dep; DoD beyond 12.2.
 
 ### E6 Release (M5)
 
-- **E6-F1 Release check.** README, AS-1 to AS-11, `hyperfine`, clean `cargo install`. Covers FR-68, NFR-01, NFR-02, NFR-05. Dep: all Core features. DoD: PRD section 9 measurable.
+- **E6-F1 Release check.** README with a cheat sheet, usage guide `docs/usage.md`, AS-1 to AS-11, `hyperfine`, clean `cargo install`. Covers FR-68, NFR-01, NFR-02, NFR-05. Dep: all Core features. DoD: PRD section 9 measurable.
 
 ### E7 Later (not scheduled)
 
