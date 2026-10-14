@@ -156,7 +156,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T7 Manual release run: AS-1, AS-2, AS-3
 
-- Status: todo
+- Status: done
 - Depends on: E6-F1-T6, E0-F3
 - Covers: FR-19, FR-20, FR-22, FR-26, FR-29, FR-59; AS-1 (all steps), AS-2, AS-3 (manual, installed build)
 - Size: M
