@@ -31,7 +31,7 @@ Milestone: M5. This epic is the release check of v0.1: it does not add behaviour
 
 ### E6-F1-T1 README: install, pack, herdr key and upgrade
 
-- Status: doing
+- Status: done
 - Depends on: E2-F1, E3-F2, E5-F4
 - Covers: FR-68; TECHSPEC 13 (install, upgrade), 12.2 item 5 (README for FR-64 and FR-67)
 - Size: M
