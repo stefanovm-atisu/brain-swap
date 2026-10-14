@@ -4,7 +4,7 @@ use crate::core::env::Env;
 use crate::core::error::Error;
 use crate::core::store;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct Skill {
     pub name: &'static str,
@@ -69,14 +69,18 @@ pub fn is_ours(skill_md: &str) -> bool {
 
 /// Writes each embedded skill as a plain folder `<skills>/<name>/SKILL.md` through a temp
 /// file renamed into place (SP-6 fallback: copies, not symlinks); edits no settings.
-pub fn install(env: &Env, _opts: &InstallOpts) -> Result<InstallReport, Error> {
+pub fn install(env: &Env, opts: &InstallOpts) -> Result<InstallReport, Error> {
     let dir = skills_dir(env);
-    let io = |e: std::io::Error| Error::Io(format!("{}: {e}", dir.display()));
     let created = !dir.is_dir();
-    let mut report = InstallReport::default();
+    let folders: Vec<PathBuf> = SKILLS.iter().map(|s| dir.join(s.name)).collect();
+    let mut report = InstallReport {
+        removed: clear_foreign(&folders, opts.force)?,
+        ..Default::default()
+    };
     for skill in &SKILLS {
         let folder = dir.join(skill.name);
-        fs::create_dir_all(&folder).map_err(io)?;
+        // No symlink is left at `folder` here, so this cannot write through one.
+        fs::create_dir_all(&folder).map_err(|e| io(&folder, e))?;
         let body = skill.body.as_bytes();
         store::write_atomic(env, &folder.join("SKILL.md"), body, &|_| true, None)?;
         report.linked.push(folder);
@@ -90,4 +94,36 @@ pub fn install(env: &Env, _opts: &InstallOpts) -> Result<InstallReport, Error> {
         "tip: allow Bash(brain-swap:*) in your Claude Code settings so moves need no prompt".into(),
     );
     Ok(report)
+}
+
+fn io(path: &Path, e: std::io::Error) -> Error {
+    Error::Io(format!("{}: {e}", path.display()))
+}
+
+/// The 8.8 foreign check: refuses the first of `folders` that exists and is not ours (a
+/// folder without our `SKILL.md`, a file, any symlink) unless `force`, which deletes them
+/// all and returns them; on refusal nothing is touched.
+fn clear_foreign(folders: &[PathBuf], force: bool) -> Result<Vec<PathBuf>, Error> {
+    let ours = |f: &Path| match fs::symlink_metadata(f) {
+        Err(_) => true,
+        Ok(m) => m.is_dir() && fs::read_to_string(f.join("SKILL.md")).is_ok_and(|t| is_ours(&t)),
+    };
+    let foreign: Vec<PathBuf> = folders.iter().filter(|f| !ours(f)).cloned().collect();
+    match foreign.first() {
+        Some(f) if !force => Err(Error::InvalidInput(format!(
+            "{} exists and was not created by brain-swap (use --force)",
+            f.display()
+        ))),
+        _ => {
+            for f in &foreign {
+                let is_dir = fs::symlink_metadata(f).is_ok_and(|m| m.is_dir());
+                match is_dir {
+                    true => fs::remove_dir_all(f),
+                    false => fs::remove_file(f),
+                }
+                .map_err(|e| io(f, e))?;
+            }
+            Ok(foreign)
+        }
+    }
 }

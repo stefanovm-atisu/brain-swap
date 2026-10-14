@@ -19,7 +19,7 @@ Install the `/bs-card`, `/bs-park`, `/bs-back` and `/bs-link` skills with:
 brain-swap install claude
 ```
 
-It copies each skill as a plain folder `~/.claude/skills/<name>/SKILL.md` and prints one `installed <folder>` line per skill. When it created the skills folder, run `/reload-skills` in Claude Code sessions that are already open. It never edits Claude Code settings or hooks; add the allow rule `Bash(brain-swap:*)` to your settings yourself so moves need no prompt. `--json` returns the written folders as `linked`.
+It copies each skill as a plain folder `~/.claude/skills/<name>/SKILL.md` and prints one `installed <folder>` line per skill. When it created the skills folder, run `/reload-skills` in Claude Code sessions that are already open. It never edits Claude Code settings or hooks; add the allow rule `Bash(brain-swap:*)` to your settings yourself so moves need no prompt. `--json` returns the written folders as `linked`. If a skill path already holds something brain-swap did not create (another folder, a file or a symlink), install refuses and writes nothing; `--force` replaces those entries and lists them as `removed`.
 
 ## herdr key binding
 

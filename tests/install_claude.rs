@@ -21,13 +21,13 @@ fn run(s: &Sandbox, args: &[&str]) -> (String, String) {
     (text(out.stdout), text(out.stderr))
 }
 
-/// Every entry under `dir`, relative to it, sorted.
+/// Every entry under `dir`, relative to it, sorted; symlinks are listed, not followed.
 fn tree(dir: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     for e in fs::read_dir(dir).unwrap() {
         let p = e.unwrap().path();
         out.push(p.strip_prefix(dir).unwrap().to_path_buf());
-        if p.is_dir() {
+        if fs::symlink_metadata(&p).unwrap().is_dir() {
             out.extend(
                 tree(&p)
                     .into_iter()
@@ -217,4 +217,143 @@ fn fr67_upgrade_rewrites_our_older_copies() {
         let body = fs::read_to_string(skills(&s).join(skill.name).join("SKILL.md")).unwrap();
         assert_eq!(body, skill.body, "{}", skill.name);
     }
+}
+
+/// Runs `args` expecting exit 1: stdout, stderr.
+fn fail(s: &Sandbox, args: &[&str]) -> (String, String) {
+    let out = s.cmd(args).assert().code(1).get_output().clone();
+    let text = |b: Vec<u8>| String::from_utf8(b).unwrap();
+    (text(out.stdout), text(out.stderr))
+}
+
+/// A real folder `bs-park` holding a `SKILL.md` with the text `mine`; returns the folder.
+fn foreign_park(s: &Sandbox) -> PathBuf {
+    let dir = skills(s).join("bs-park");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("SKILL.md"), "mine").unwrap();
+    dir
+}
+
+fn refusal(path: &Path) -> String {
+    format!(
+        "{} exists and was not created by brain-swap (use --force)",
+        path.display()
+    )
+}
+
+/// `<skills>/bs-back` as a symlink to `<sandbox>/elsewhere/bs-back`, a folder holding our copy.
+fn foreign_link(s: &Sandbox) -> PathBuf {
+    let target = s.root().join("elsewhere/bs-back");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("SKILL.md"), SKILLS[2].body).unwrap();
+    let link = skills(s).join("bs-back");
+    fs::create_dir_all(skills(s)).unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    link
+}
+
+fn assert_our_copy(s: &Sandbox, name: &str) {
+    let dir = skills(s).join(name);
+    assert!(
+        fs::symlink_metadata(&dir).unwrap().file_type().is_dir(),
+        "{name}"
+    );
+    let body = fs::read_to_string(dir.join("SKILL.md")).unwrap();
+    let skill = SKILLS.iter().find(|k| k.name == name).unwrap();
+    assert_eq!(body, skill.body, "{name}");
+}
+
+#[test]
+fn fr67_foreign_directory_is_refused_without_force() {
+    let s = Sandbox::new();
+    let dir = foreign_park(&s);
+    let (_, err) = fail(&s, &["install", "claude"]);
+    assert_eq!(err, format!("brain-swap: {}\n", refusal(&dir)));
+    assert_eq!(tree(&dir), [PathBuf::from("SKILL.md")]);
+    assert_eq!(fs::read_to_string(dir.join("SKILL.md")).unwrap(), "mine");
+}
+
+#[test]
+fn fr67_a_refusal_writes_nothing() {
+    let s = Sandbox::new();
+    foreign_park(&s);
+    fail(&s, &["install", "claude"]);
+    assert_eq!(
+        tree(&skills(&s)),
+        [Path::new("bs-park"), Path::new("bs-park/SKILL.md")]
+    );
+}
+
+#[test]
+fn fr67_foreign_file_and_symlinks_are_refused_without_force() {
+    let s = Sandbox::new();
+    let file = skills(&s).join("bs-card");
+    fs::create_dir_all(skills(&s)).unwrap();
+    fs::write(&file, "mine").unwrap();
+    let (_, err) = fail(&s, &["install", "claude"]);
+    assert_eq!(err, format!("brain-swap: {}\n", refusal(&file)));
+    assert_eq!(fs::read_to_string(&file).unwrap(), "mine");
+    assert_eq!(tree(&skills(&s)), [PathBuf::from("bs-card")]);
+
+    let s = Sandbox::new();
+    let link = foreign_link(&s);
+    let target = s.root().join("elsewhere/bs-back");
+    let (_, err) = fail(&s, &["install", "claude"]);
+    assert_eq!(err, format!("brain-swap: {}\n", refusal(&link)));
+    assert_eq!(fs::read_link(&link).unwrap(), target);
+    assert_eq!(tree(&target), [PathBuf::from("SKILL.md")]);
+    assert_eq!(
+        fs::read_to_string(target.join("SKILL.md")).unwrap(),
+        SKILLS[2].body
+    );
+    assert_eq!(tree(&skills(&s)), [PathBuf::from("bs-back")]);
+
+    let s = Sandbox::new();
+    let dangling = skills(&s).join("bs-link");
+    fs::create_dir_all(skills(&s)).unwrap();
+    std::os::unix::fs::symlink("/nowhere/bs-link", &dangling).unwrap();
+    let (_, err) = fail(&s, &["install", "claude"]);
+    assert_eq!(err, format!("brain-swap: {}\n", refusal(&dangling)));
+    assert_eq!(
+        fs::read_link(&dangling).unwrap(),
+        Path::new("/nowhere/bs-link")
+    );
+    assert_eq!(tree(&skills(&s)), [PathBuf::from("bs-link")]);
+}
+
+#[test]
+fn ts6_2_a_refusal_under_json_is_the_error_envelope() {
+    let s = Sandbox::new();
+    let dir = foreign_park(&s);
+    let (out, _) = fail(&s, &["--json", "install", "claude"]);
+    assert_eq!(out.lines().count(), 1, "{out}");
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let expected = serde_json::json!({
+        "v": 1,
+        "error": {"code": "invalid_input", "message": refusal(&dir)},
+    });
+    assert_eq!(v, expected);
+}
+
+#[test]
+fn fr67_force_replaces_a_foreign_directory() {
+    let s = Sandbox::new();
+    let dir = foreign_park(&s);
+    let (out, _) = run(&s, &["--json", "install", "claude", "--force"]);
+    assert_our_copy(&s, "bs-park");
+    assert_eq!(tree(&dir), [PathBuf::from("SKILL.md")]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["removed"], serde_json::json!([dir]));
+}
+
+#[test]
+fn fr67_force_replaces_a_foreign_file_and_symlink() {
+    let s = Sandbox::new();
+    fs::create_dir_all(skills(&s)).unwrap();
+    fs::write(skills(&s).join("bs-card"), "mine").unwrap();
+    foreign_link(&s);
+    run(&s, &["install", "claude", "--force"]);
+    assert_our_copy(&s, "bs-card");
+    assert_our_copy(&s, "bs-back");
+    assert!(s.root().join("elsewhere/bs-back/SKILL.md").exists());
 }

@@ -120,6 +120,7 @@ pub enum InstallTarget {
     Claude {
         #[arg(long)]
         link: Option<PathBuf>,
+        /// Replace entries at the skill paths that brain-swap did not create
         #[arg(long)]
         force: bool,
         #[arg(long)]
