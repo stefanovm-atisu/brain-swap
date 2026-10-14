@@ -21,6 +21,8 @@ brain-swap install claude
 
 It copies each skill as a plain folder `~/.claude/skills/<name>/SKILL.md` and prints one `installed <folder>` line per skill. When it created the skills folder, run `/reload-skills` in Claude Code sessions that are already open. It never edits Claude Code settings or hooks; add the allow rule `Bash(brain-swap:*)` to your settings yourself so moves need no prompt. `--json` returns the written folders as `linked`. If a skill path already holds something brain-swap did not create (another folder, a file or a symlink), install refuses and writes nothing; `--force` replaces those entries and lists them as `removed`.
 
+To work on the skills from a checkout of this repository, run `brain-swap install claude --link <repo>`: it copies `<repo>/pack/claude/skills/<name>/SKILL.md` instead of the embedded skills, so run it again after each edit. A plain `brain-swap install claude` switches back to the embedded skills.
+
 ## herdr key binding
 
 Open the board in a herdr popup with one key. Run:

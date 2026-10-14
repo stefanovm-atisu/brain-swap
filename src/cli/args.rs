@@ -118,7 +118,8 @@ pub enum Command {
 pub enum InstallTarget {
     /// Install the Claude Code pack
     Claude {
-        #[arg(long)]
+        /// Copy the skills from a brain-swap checkout instead; rerun after each edit
+        #[arg(long, value_name = "REPO")]
         link: Option<PathBuf>,
         /// Replace entries at the skill paths that brain-swap did not create
         #[arg(long)]

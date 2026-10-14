@@ -357,3 +357,115 @@ fn fr67_force_replaces_a_foreign_file_and_symlink() {
     assert_our_copy(&s, "bs-back");
     assert!(s.root().join("elsewhere/bs-back/SKILL.md").exists());
 }
+
+/// `<T>/repo` holding a copy of the repository's `pack/claude/skills/`, `bs-park` marked.
+fn checkout(s: &Sandbox) -> PathBuf {
+    let repo = s.root().join("repo");
+    let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("pack/claude/skills");
+    for skill in &SKILLS {
+        let dir = repo.join("pack/claude/skills").join(skill.name);
+        fs::create_dir_all(&dir).unwrap();
+        fs::copy(from.join(skill.name).join("SKILL.md"), dir.join("SKILL.md")).unwrap();
+    }
+    let park = repo.join("pack/claude/skills/bs-park/SKILL.md");
+    let text = fs::read_to_string(&park).unwrap() + "checkout marker\n";
+    fs::write(park, text).unwrap();
+    repo
+}
+
+/// Each installed `SKILL.md` equals the checkout's file of that name.
+fn assert_checkout_copies(s: &Sandbox, repo: &Path) {
+    for skill in &SKILLS {
+        let dir = skills(s).join(skill.name);
+        assert!(fs::symlink_metadata(&dir).unwrap().file_type().is_dir());
+        let want = fs::read(
+            repo.join("pack/claude/skills")
+                .join(skill.name)
+                .join("SKILL.md"),
+        );
+        assert_eq!(
+            fs::read(dir.join("SKILL.md")).unwrap(),
+            want.unwrap(),
+            "{}",
+            skill.name
+        );
+    }
+    let park = fs::read_to_string(skills(s).join("bs-park/SKILL.md")).unwrap();
+    assert!(park.contains("checkout marker"), "{park}");
+}
+
+#[test]
+fn fr67_link_copies_the_checkout_skills() {
+    let s = Sandbox::new();
+    let repo = checkout(&s);
+    run(&s, &["install", "claude", "--link", repo.to_str().unwrap()]);
+    assert_checkout_copies(&s, &repo);
+}
+
+#[test]
+fn fr67_link_with_a_relative_repo_reads_the_checkout() {
+    let s = Sandbox::new();
+    let repo = checkout(&s);
+    let mut cmd = s.cmd(&["install", "claude", "--link", "."]);
+    cmd.current_dir(&repo).assert().code(0);
+    let park = fs::read_to_string(skills(&s).join("bs-park/SKILL.md")).unwrap();
+    assert!(park.contains("checkout marker"), "{park}");
+}
+
+#[test]
+fn fr67_link_to_a_folder_without_the_skills_fails_and_changes_nothing() {
+    let s = Sandbox::new();
+    let repo = checkout(&s);
+    let missing = repo.join("pack/claude/skills/bs-back/SKILL.md");
+    fs::remove_file(&missing).unwrap();
+    let args = ["install", "claude", "--link", repo.to_str().unwrap()];
+    let out = s.cmd(&args).assert().code(1).get_output().clone();
+    let err = String::from_utf8(out.stderr).unwrap();
+    let canonical = fs::canonicalize(&repo)
+        .unwrap()
+        .join("pack/claude/skills/bs-back/SKILL.md");
+    assert!(err.contains(&canonical.display().to_string()), "{err}");
+    for skill in &SKILLS {
+        assert!(!skills(&s).join(skill.name).exists(), "{}", skill.name);
+    }
+}
+
+#[test]
+fn fr67_link_refuses_a_foreign_entry_without_force() {
+    let s = Sandbox::new();
+    let repo = checkout(&s);
+    let park = skills(&s).join("bs-park");
+    fs::create_dir_all(&park).unwrap();
+    fs::write(park.join("notes.txt"), "mine\n").unwrap();
+    let before = tree(&park);
+    s.cmd(&["install", "claude", "--link", repo.to_str().unwrap()])
+        .assert()
+        .code(1);
+    assert_eq!(tree(&park), before);
+    assert_eq!(
+        fs::read_to_string(park.join("notes.txt")).unwrap(),
+        "mine\n"
+    );
+}
+
+#[test]
+fn fr67_install_after_link_switches_to_the_embedded_skills() {
+    let s = Sandbox::new();
+    let repo = checkout(&s);
+    run(&s, &["install", "claude", "--link", repo.to_str().unwrap()]);
+    run(&s, &["install", "claude"]);
+    for skill in &SKILLS {
+        let body = fs::read_to_string(skills(&s).join(skill.name).join("SKILL.md")).unwrap();
+        assert_eq!(body, skill.body, "{}", skill.name);
+        assert!(!body.contains("checkout marker"), "{}", skill.name);
+    }
+}
+
+#[test]
+fn fr67_link_after_install_switches_to_the_checkout() {
+    let s = Sandbox::new();
+    let repo = checkout(&s);
+    run(&s, &["install", "claude"]);
+    run(&s, &["install", "claude", "--link", repo.to_str().unwrap()]);
+    assert_checkout_copies(&s, &repo);
+}

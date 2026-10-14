@@ -67,21 +67,35 @@ pub fn is_ours(skill_md: &str) -> bool {
     false
 }
 
-/// Writes each embedded skill as a plain folder `<skills>/<name>/SKILL.md` through a temp
-/// file renamed into place (SP-6 fallback: copies, not symlinks); edits no settings.
+/// Writes each embedded skill (or, with `--link`, the checkout's copy) as a plain folder
+/// `<skills>/<name>/SKILL.md` through a temp file renamed into place (SP-6 fallback:
+/// copies, not symlinks); edits no settings.
 pub fn install(env: &Env, opts: &InstallOpts) -> Result<InstallReport, Error> {
     let dir = skills_dir(env);
+    let mut bodies: Vec<Vec<u8>> = SKILLS.iter().map(|s| s.body.into()).collect();
+    if let Some(repo) = &opts.link {
+        let repo = fs::canonicalize(repo).unwrap_or_else(|_| repo.clone());
+        for (skill, body) in SKILLS.iter().zip(&mut bodies) {
+            let path = repo
+                .join("pack/claude/skills")
+                .join(skill.name)
+                .join("SKILL.md");
+            if !path.is_file() {
+                let msg = format!("not a brain-swap checkout: {} missing", path.display());
+                return Err(Error::InvalidInput(msg));
+            }
+            *body = fs::read(&path).map_err(|e| io(&path, e))?;
+        }
+    }
     let created = !dir.is_dir();
     let folders: Vec<PathBuf> = SKILLS.iter().map(|s| dir.join(s.name)).collect();
     let mut report = InstallReport {
         removed: clear_foreign(&folders, opts.force)?,
         ..Default::default()
     };
-    for skill in &SKILLS {
-        let folder = dir.join(skill.name);
+    for (folder, body) in folders.into_iter().zip(&bodies) {
         // No symlink is left at `folder` here, so this cannot write through one.
         fs::create_dir_all(&folder).map_err(|e| io(&folder, e))?;
-        let body = skill.body.as_bytes();
         store::write_atomic(env, &folder.join("SKILL.md"), body, &|_| true, None)?;
         report.linked.push(folder);
     }
