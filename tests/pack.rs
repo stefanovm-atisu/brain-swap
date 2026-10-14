@@ -677,7 +677,7 @@ fn ts8_1_bs_card_frontmatter_names_and_version() {
     assert!(matches!(&fm["description"], Value::Text(d) if !d.is_empty()));
     assert_eq!(
         fm["argument-hint"],
-        Value::Text("<task in a few words> [on home|personal]".into())
+        Value::Text("[<template>:] <task in a few words> [on home|personal]".into())
     );
     assert_eq!(
         fm["metadata"],

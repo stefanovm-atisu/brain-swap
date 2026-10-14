@@ -74,7 +74,7 @@ Setup unless stated: herdr runs, the pack and the herdr key binding (default `pr
 
 ### AS-1: start, park, switch, return (Flow 1)
 
-1. (F1.1) In pane `w4V:p9` the user types `/bs-card migrate invoices to v13`. Claude asks nothing, picks Feature, fills its fields and runs one `brain-swap new`. `W-12.md` appears in Todo; Claude replies `created W-12: migrate invoices to v13 (Todo, work)`. The session references W-12.
+1. (F1.1) In pane `w4V:p9` the user types `/bs-card migrate invoices to v13`. Claude asks nothing, picks a fitting template (Feature with `/bs-card feature: migrate invoices to v13`), fills its fields and runs one `brain-swap new`. `W-12.md` appears in Todo; Claude replies `created W-12: migrate invoices to v13 (Todo, work)`. The session references W-12.
 2. (F1.2) The user presses `L` on W-12 in the TUI, or asks Claude, which runs `brain-swap move W-12 Doing`. Only the `column:` line of `W-12.md` changes. Earlier in the session the user already ran `/bs-park` once, so W-12's timeline holds one older note.
 3. (F1.3) The user types `/bs-park`, or `/bs-park next: rerun migration test, watch timeout`. Claude asks nothing and runs one `brain-swap park`. W-12's timeline gains a note (three parts, time, `auto`, place); the column is unchanged. Claude replies exactly `parked to W-12: migrate invoices to v13`.
 4. (F1.4) In pane `w4V:p11`, session B runs `/bs-card ...` or `/bs-link W-7` (replies `linked to W-7: <title>` and W-7's latest note). Session A's reference is untouched.
@@ -206,7 +206,7 @@ The herdr server hangs. Enter on W-12 shows `herdr not responding` and the note'
 
 #### 7.10.2 `/bs-card`
 
-- **FR-48** Core. `/bs-card <words>` asks nothing, picks a template, fills its fields from the words and conversation, creates the card in the first column of the default (or named) board, links the session, and replies with one line. The title is the user's words when they are short (at most 8 words). (F1.1)
+- **FR-48** Core. `/bs-card <words>` asks nothing, picks a template (the one the user names with a leading `<template>:` or a trailing `as a <template>`, else the best fit), fills its fields from the words and conversation, creates the card in the first column of the default (or named) board, links the session, and replies with one line. The title is the user's words when they are short (at most 8 words). (F1.1)
 
 #### 7.10.3 `/bs-park`
 

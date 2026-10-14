@@ -1,7 +1,7 @@
 ---
 name: bs-card
 description: Create a brain-swap card for a task from a template and link this session to it.
-argument-hint: "<task in a few words> [on home|personal]"
+argument-hint: "[<template>:] <task in a few words> [on home|personal]"
 disable-model-invocation: true
 allowed-tools: Bash(brain-swap:*)
 metadata:
@@ -13,7 +13,7 @@ Create a brain-swap card for this task: $ARGUMENTS
 Templates:
 !`brain-swap templates`
 
-Ask nothing. If no task is given above, take it from this conversation. Pick the template that fits best. Title: the task words above as typed, without a board phrase such as `on home`, when they are at most 8 words; otherwise a title of at most 8 words in the user's wording and casing. Never include a card ID. Fill each `##` field of its skeleton from the task and this conversation; leave a field empty rather than invent facts. Run this one command, adding `--board <name>` only if the user named a board:
+Ask nothing. If no task is given above, take it from this conversation. If the task starts with a template name and a colon (`feature: ...`) or ends with `as a <template>`, in any case, use that template and leave the label out of the title; otherwise pick the template that fits best. Pass the template's name, never its key. Title: the task words above as typed, without a board phrase such as `on home`, when they are at most 8 words; otherwise a title of at most 8 words in the user's wording and casing. Never include a card ID. Fill each `##` field of its skeleton from the task and this conversation; leave a field empty rather than invent facts. Run this one command, adding `--board <name>` only if the user named a board:
 
 ```
 brain-swap new --template <template> --session "${CLAUDE_SESSION_ID}" --body - <<'BS_EOF'

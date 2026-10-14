@@ -182,7 +182,7 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 
 ### E3-F1-T8 Manual AS-1 run (steps 1, 3, 4, 8)
 
-- Status: todo
+- Status: done
 - Depends on: E3-F1-T1, E3-F1-T3, E3-F1-T4, E3-F1-T5
 - Covers: FR-46, FR-47, FR-48, FR-49, FR-50, FR-51, FR-54; AS-1 (manual)
 - Size: S
@@ -191,7 +191,7 @@ Milestone: M2. This epic ships the Claude Code pack: the four skills `/bs-card`,
 - Procedure:
   1. Install the build (`cargo install --path .`), check `brain-swap` is on `PATH`, and for each of bs-card, bs-park, bs-back and bs-link run `cp -R "$PWD/pack/claude/skills/<name>" ~/.claude/skills/<name>`, and copy again after fixing a skill.
   2. Pick an empty folder `$S` and export `XDG_CONFIG_HOME=$S/config`, `XDG_DATA_HOME=$S/data` and `XDG_STATE_HOME=$S/state`; with them set, create W-1 to W-11 with `brain-swap new` and park one note on W-7 with `brain-swap park --card W-7`.
-  3. In herdr pane A (record its ID; AS-1 calls it `w4V:p9`) start Claude Code in that environment and type `/bs-card migrate invoices to v13`. Pass when Claude asks nothing, runs exactly one `brain-swap new --template Feature ...`, replies `created W-12: migrate invoices to v13 (Todo, work)`, and `W-12.md` sits in Todo with the Feature fields filled from the words and the conversation, inventing no facts.
+  3. In herdr pane A (record its ID; AS-1 calls it `w4V:p9`) start Claude Code in that environment and type `/bs-card migrate invoices to v13`. Pass when Claude asks nothing, runs exactly one `brain-swap new --template <name> ...` with a template name that fits (not a key), replies `created W-12: migrate invoices to v13 (Todo, work)`, and `W-12.md` sits in Todo with that template's fields filled; then, in a fresh session, `/bs-card feature: migrate invoices to v13` passes the same way with `--template Feature` and the label left out of the title from the words and the conversation, inventing no facts.
   4. Copy `W-12.md` aside, then ask Claude in pane A to move the card to Doing. Pass when it runs `brain-swap move W-12 Doing`, replies with `moved W-12 to Doing`, and `diff` against the copy shows only the `column:` line changed.
   5. Type `/bs-park`. Pass when Claude asks nothing, runs one `brain-swap park --card W-12 --session ... --auto`, replies exactly `parked to W-12: migrate invoices to v13`, and W-12's timeline gains a note with three parts, a stamp, `auto` and a place line naming pane A, the column unchanged.
   6. Type `/bs-park next: rerun migration test, watch timeout`. Pass when the new note has Next `rerun migration test`, Watch out `timeout`, a drafted Doing and `auto`. Type `/bs-park rerun the next test`: pass when Doing is `rerun the next test`. Type `/bs-park doing: tests green, next: open the MR, watch out: nothing`: pass when all three parts are verbatim and the heading has no `auto`.
