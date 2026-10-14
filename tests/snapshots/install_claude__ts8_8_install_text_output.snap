@@ -1,10 +1,10 @@
 ---
 source: tests/install_claude.rs
-expression: "out.replace(&root, \"<sandbox>\")"
+expression: "out.replace(&root, \"<sandbox>\").replace(&exe(), \"<brain-swap>\")"
 ---
 installed <sandbox>/home/.claude/skills/bs-card
 installed <sandbox>/home/.claude/skills/bs-park
 installed <sandbox>/home/.claude/skills/bs-back
 installed <sandbox>/home/.claude/skills/bs-link
 run /reload-skills in sessions already open
-tip: allow Bash(brain-swap:*) in your Claude Code settings so moves need no prompt
+tip: allow Bash(<brain-swap>:*) in your Claude Code settings so moves need no prompt

@@ -87,6 +87,12 @@ pub fn install(env: &Env, opts: &InstallOpts) -> Result<InstallReport, Error> {
             *body = fs::read(&path).map_err(|e| io(&path, e))?;
         }
     }
+    if let Some(exe) = &opts.exe {
+        let exe = exe.display().to_string();
+        for body in &mut bodies {
+            *body = with_exe(&String::from_utf8_lossy(body), &exe).into_bytes();
+        }
+    }
     let created = !dir.is_dir();
     let folders: Vec<PathBuf> = SKILLS.iter().map(|s| dir.join(s.name)).collect();
     let mut report = InstallReport {
@@ -104,9 +110,13 @@ pub fn install(env: &Env, opts: &InstallOpts) -> Result<InstallReport, Error> {
             .notices
             .push("run /reload-skills in sessions already open".into());
     }
-    report.notices.push(
-        "tip: allow Bash(brain-swap:*) in your Claude Code settings so moves need no prompt".into(),
-    );
+    let program = opts
+        .exe
+        .as_ref()
+        .map_or("brain-swap".into(), |e| e.display().to_string());
+    report.notices.push(format!(
+        "tip: allow Bash({program}:*) in your Claude Code settings so moves need no prompt"
+    ));
     Ok(report)
 }
 
@@ -128,6 +138,26 @@ pub fn remove(env: &Env) -> Result<InstallReport, Error> {
 fn is_our_folder(f: &Path) -> bool {
     fs::symlink_metadata(f).is_ok_and(|m| m.is_dir())
         && fs::read_to_string(f.join("SKILL.md")).is_ok_and(|t| is_ours(&t))
+}
+
+/// `body` with `brain-swap ` at each command position (start of a code span, inline
+/// command included, or of a fenced line) and the `allowed-tools` value naming `exe`
+/// (SP-3 fallback, 8.8).
+fn with_exe(body: &str, exe: &str) -> String {
+    let mut fenced = false;
+    let mut out = String::new();
+    for line in body.split_inclusive('\n') {
+        let mut line = line.replace("`brain-swap ", &format!("`{exe} "));
+        if line.starts_with("allowed-tools:") {
+            line = format!("allowed-tools: Bash({exe}:*)\n");
+        } else if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+        } else if fenced && line.trim_start().starts_with("brain-swap ") {
+            line = line.replacen("brain-swap ", &format!("{exe} "), 1);
+        }
+        out += &line;
+    }
+    out
 }
 
 fn io(path: &Path, e: std::io::Error) -> Error {

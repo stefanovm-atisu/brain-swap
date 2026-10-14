@@ -4,7 +4,12 @@
 mod common;
 
 use brain_swap::adapters::claude::{SKILLS, is_ours};
+use brain_swap::cli::args::Cli;
+use clap::Parser;
 use common::cli::Sandbox;
+use common::skill_md::{
+    SESSION_A, Value, commands, commands_of, frontmatter, shell_words, substitute,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -12,6 +17,15 @@ const RELOAD: &str = "run /reload-skills in sessions already open";
 
 fn skills(s: &Sandbox) -> PathBuf {
     s.root().join("home/.claude/skills")
+}
+
+/// `body` as install writes it: the canonical binary at command positions and in the
+/// allow rule (SP-3 fallback).
+fn rewritten(body: &str) -> String {
+    let exe = exe();
+    body.replace("`brain-swap ", &format!("`{exe} "))
+        .replace("\nbrain-swap ", &format!("\n{exe} "))
+        .replace("Bash(brain-swap:*)", &format!("Bash({exe}:*)"))
 }
 
 /// Runs `args` expecting exit 0: stdout, stderr.
@@ -45,7 +59,7 @@ fn fr67_install_writes_the_copies() {
     run(&s, &["install", "claude"]);
     for skill in &SKILLS {
         let body = fs::read(skills(&s).join(skill.name).join("SKILL.md")).unwrap();
-        assert_eq!(body, skill.body.as_bytes(), "{}", skill.name);
+        assert_eq!(body, rewritten(skill.body).as_bytes(), "{}", skill.name);
     }
     assert!(!s.root().join("data/brain-swap/pack").exists());
 }
@@ -85,7 +99,7 @@ fn ts8_8_install_suggests_the_allow_rule() {
     let (out, _) = run(&s, &["install", "claude"]);
     assert!(
         out.lines()
-            .any(|l| l.starts_with("tip: ") && l.contains("Bash(brain-swap:*)")),
+            .any(|l| l.starts_with("tip: ") && l.contains(&format!("Bash({}:*)", exe()))),
         "{out}"
     );
 }
@@ -95,7 +109,10 @@ fn ts8_8_install_text_output() {
     let s = Sandbox::new();
     let (out, _) = run(&s, &["install", "claude"]);
     let root = s.root().display().to_string();
-    insta::assert_snapshot!(out.replace(&root, "<sandbox>"));
+    insta::assert_snapshot!(
+        out.replace(&root, "<sandbox>")
+            .replace(&exe(), "<brain-swap>")
+    );
 }
 
 #[test]
@@ -110,7 +127,7 @@ fn ts6_7_install_json_lists_linked_paths() {
         err.lines().any(|l| l == format!("warning: {RELOAD}")),
         "{err}"
     );
-    assert!(err.contains("Bash(brain-swap:*)"), "{err}");
+    assert!(err.contains(&format!("Bash({}:*)", exe())), "{err}");
 }
 
 #[test]
@@ -200,7 +217,7 @@ fn fr67_reinstall_of_the_same_version_is_idempotent() {
     run(&s, &["install", "claude"]);
     for skill in &SKILLS {
         let body = fs::read(skills(&s).join(skill.name).join("SKILL.md")).unwrap();
-        assert_eq!(body, skill.body.as_bytes(), "{}", skill.name);
+        assert_eq!(body, rewritten(skill.body).as_bytes(), "{}", skill.name);
     }
 }
 
@@ -215,7 +232,7 @@ fn fr67_upgrade_rewrites_our_older_copies() {
     run(&s, &["install", "claude"]);
     for skill in &SKILLS {
         let body = fs::read_to_string(skills(&s).join(skill.name).join("SKILL.md")).unwrap();
-        assert_eq!(body, skill.body, "{}", skill.name);
+        assert_eq!(body, rewritten(skill.body), "{}", skill.name);
     }
 }
 
@@ -260,7 +277,7 @@ fn assert_our_copy(s: &Sandbox, name: &str) {
     );
     let body = fs::read_to_string(dir.join("SKILL.md")).unwrap();
     let skill = SKILLS.iter().find(|k| k.name == name).unwrap();
-    assert_eq!(body, skill.body, "{name}");
+    assert_eq!(body, rewritten(skill.body), "{name}");
 }
 
 #[test]
@@ -373,19 +390,19 @@ fn checkout(s: &Sandbox) -> PathBuf {
     repo
 }
 
-/// Each installed `SKILL.md` equals the checkout's file of that name.
+/// Each installed `SKILL.md` equals the checkout's file of that name, rewritten.
 fn assert_checkout_copies(s: &Sandbox, repo: &Path) {
     for skill in &SKILLS {
         let dir = skills(s).join(skill.name);
         assert!(fs::symlink_metadata(&dir).unwrap().file_type().is_dir());
-        let want = fs::read(
+        let want = fs::read_to_string(
             repo.join("pack/claude/skills")
                 .join(skill.name)
                 .join("SKILL.md"),
         );
         assert_eq!(
-            fs::read(dir.join("SKILL.md")).unwrap(),
-            want.unwrap(),
+            fs::read_to_string(dir.join("SKILL.md")).unwrap(),
+            rewritten(&want.unwrap()),
             "{}",
             skill.name
         );
@@ -456,7 +473,7 @@ fn fr67_install_after_link_switches_to_the_embedded_skills() {
     run(&s, &["install", "claude"]);
     for skill in &SKILLS {
         let body = fs::read_to_string(skills(&s).join(skill.name).join("SKILL.md")).unwrap();
-        assert_eq!(body, skill.body, "{}", skill.name);
+        assert_eq!(body, rewritten(skill.body), "{}", skill.name);
         assert!(!body.contains("checkout marker"), "{}", skill.name);
     }
 }
@@ -571,4 +588,92 @@ fn fr67_remove_ignores_force_and_link() {
     let (out, _) = run(&s, &args);
     assert_removed(&s, &out);
     assert_eq!(contents(&repo), before);
+}
+
+/// The canonical path of the binary under test, as `Env.exe` holds it.
+fn exe() -> String {
+    let p = fs::canonicalize(env!("CARGO_BIN_EXE_brain-swap")).unwrap();
+    p.display().to_string()
+}
+
+fn allowed_tools(text: &str) -> Value {
+    frontmatter(text).remove("allowed-tools").unwrap()
+}
+
+/// Each installed copy names the absolute binary in `allowed-tools` and every command.
+fn assert_absolute_copies(s: &Sandbox, sources: &[String]) {
+    let rule = Value::Text(format!("Bash({}:*)", exe()));
+    for (skill, source) in SKILLS.iter().zip(sources) {
+        let copy = fs::read_to_string(skills(s).join(skill.name).join("SKILL.md")).unwrap();
+        assert_eq!(allowed_tools(&copy), rule, "{}", skill.name);
+        let found = commands_of(&copy, &exe());
+        assert_eq!(found.len(), commands(source).len(), "{}", skill.name);
+        assert!(found.iter().all(|c| c.starts_with(&format!("{} ", exe()))));
+        assert_eq!(commands(&copy), Vec::<String>::new(), "{}", skill.name);
+    }
+}
+
+#[test]
+fn ts8_8_copies_name_the_absolute_binary() {
+    let s = Sandbox::new();
+    run(&s, &["install", "claude"]);
+    let sources: Vec<String> = SKILLS.iter().map(|k| k.body.to_string()).collect();
+    assert_absolute_copies(&s, &sources);
+}
+
+#[test]
+fn ts8_8_rewritten_commands_still_parse() {
+    let s = Sandbox::new();
+    run(&s, &["install", "claude"]);
+    let expected = [
+        ("bs-card", vec!["templates", "new", "move"]),
+        ("bs-park", vec!["context", "ls", "park", "move"]),
+        (
+            "bs-back",
+            vec!["context", "ls", "link", "show", "park", "move"],
+        ),
+        ("bs-link", vec!["link", "ls", "move"]),
+    ];
+    for (name, subcommands) in expected {
+        let copy = fs::read_to_string(skills(&s).join(name).join("SKILL.md")).unwrap();
+        let found: Vec<String> = commands_of(&copy, &exe())
+            .iter()
+            .map(|c| {
+                let cli = Cli::try_parse_from(shell_words(&substitute(c, SESSION_A)))
+                    .unwrap_or_else(|e| panic!("{c}: {e}"));
+                let debug = format!("{:?}", cli.command.unwrap());
+                let variant = debug.split(|c: char| !c.is_alphanumeric()).next();
+                variant.unwrap().to_lowercase()
+            })
+            .collect();
+        assert_eq!(found, subcommands, "{name}");
+    }
+}
+
+#[test]
+fn ts8_8_link_copies_name_the_absolute_binary() {
+    let s = Sandbox::new();
+    let repo = checkout(&s);
+    let (_, err) = run(&s, &["install", "claude", "--link", repo.to_str().unwrap()]);
+    let sources: Vec<String> = SKILLS
+        .iter()
+        .map(|k| {
+            let path = repo
+                .join("pack/claude/skills")
+                .join(k.name)
+                .join("SKILL.md");
+            fs::read_to_string(path).unwrap()
+        })
+        .collect();
+    assert_absolute_copies(&s, &sources);
+    assert_eq!(err, "");
+}
+
+#[test]
+fn ts8_8_tip_names_the_absolute_allow_rule() {
+    let s = Sandbox::new();
+    let (out, _) = run(&s, &["install", "claude"]);
+    let tip = out.lines().find(|l| l.starts_with("tip: ")).unwrap();
+    assert!(tip.contains(&format!("Bash({}:*)", exe())), "{tip}");
+    assert!(!tip.contains("Bash(brain-swap:*)"), "{tip}");
 }

@@ -69,6 +69,12 @@ pub fn inline_commands(text: &str) -> Vec<String> {
 /// Every fenced line and code span (inline commands included) starting with
 /// `brain-swap `, in file order; a heredoc line is cut before `<<`.
 pub fn commands(text: &str) -> Vec<String> {
+    commands_of(text, "brain-swap")
+}
+
+/// `commands` for the program `program` instead of `brain-swap`.
+pub fn commands_of(text: &str, program: &str) -> Vec<String> {
+    let prefix = format!("{program} ");
     let mut fenced = false;
     let mut found = Vec::new();
     for line in text.lines() {
@@ -82,7 +88,7 @@ pub fn commands(text: &str) -> Vec<String> {
     }
     found
         .into_iter()
-        .filter(|c| c.starts_with("brain-swap "))
+        .filter(|c| c.starts_with(&prefix))
         .map(|c| c.split("<<").next().unwrap().trim().to_string())
         .collect()
 }
