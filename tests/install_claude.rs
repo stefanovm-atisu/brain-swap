@@ -469,3 +469,106 @@ fn fr67_link_after_install_switches_to_the_checkout() {
     run(&s, &["install", "claude", "--link", repo.to_str().unwrap()]);
     assert_checkout_copies(&s, &repo);
 }
+
+/// Every entry under `dir` with the bytes of each file (`None` for folders).
+fn contents(dir: &Path) -> Vec<(PathBuf, Option<Vec<u8>>)> {
+    let read = |p: PathBuf| {
+        let bytes = fs::read(dir.join(&p)).ok();
+        (p, bytes)
+    };
+    tree(dir).into_iter().map(read).collect()
+}
+
+/// Asserts each skill folder is gone and `out` holds one `removed <folder>` line for each.
+fn assert_removed(s: &Sandbox, out: &str) {
+    for skill in &SKILLS {
+        let dir = skills(s).join(skill.name);
+        assert!(fs::symlink_metadata(&dir).is_err(), "{}", skill.name);
+        let line = format!("removed {}", dir.display());
+        assert!(out.lines().any(|l| l == line), "{out}");
+    }
+}
+
+#[test]
+fn fr67_remove_deletes_our_copies() {
+    let s = Sandbox::new();
+    run(&s, &["install", "claude"]);
+    let (out, _) = run(&s, &["install", "claude", "--remove"]);
+    assert_removed(&s, &out);
+}
+
+#[test]
+fn fr67_remove_keeps_foreign_entries_and_settings() {
+    let s = Sandbox::new();
+    run(&s, &["install", "claude"]);
+    let claude = s.root().join("home/.claude");
+    fs::write(skills(&s).join("bs-card/SKILL.md"), "mine").unwrap();
+    fs::create_dir_all(skills(&s).join("other")).unwrap();
+    fs::write(skills(&s).join("other/SKILL.md"), "other\n").unwrap();
+    fs::write(claude.join("settings.json"), "{}\n").unwrap();
+    let card = contents(&skills(&s).join("bs-card"));
+    let other = contents(&skills(&s).join("other"));
+    let (out, _) = run(&s, &["install", "claude", "--remove"]);
+    assert_eq!(contents(&skills(&s).join("bs-card")), card);
+    assert_eq!(contents(&skills(&s).join("other")), other);
+    assert_eq!(fs::read(claude.join("settings.json")).unwrap(), b"{}\n");
+    assert!(!out.contains("bs-card"), "{out}");
+}
+
+#[test]
+fn fr67_remove_deletes_checkout_copies_but_not_the_checkout() {
+    let s = Sandbox::new();
+    let repo = checkout(&s);
+    run(&s, &["install", "claude", "--link", repo.to_str().unwrap()]);
+    let before = contents(&repo);
+    let (out, _) = run(&s, &["install", "claude", "--remove"]);
+    assert_removed(&s, &out);
+    assert_eq!(contents(&repo), before);
+}
+
+#[test]
+fn fr67_remove_with_nothing_installed_exits_0() {
+    let s = Sandbox::new();
+    let (out, _) = run(&s, &["--json", "install", "claude", "--remove"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["removed"], serde_json::json!([]));
+}
+
+#[test]
+fn ts6_7_remove_json_lists_removed_paths() {
+    let s = Sandbox::new();
+    run(&s, &["install", "claude"]);
+    let (out, _) = run(&s, &["--json", "install", "claude", "--remove"]);
+    let root = s.root().display().to_string();
+    assert_eq!(out.lines().count(), 1, "{out}");
+    insta::assert_snapshot!(out.replace(&root, "<sandbox>"));
+}
+
+#[test]
+fn fr67_remove_ignores_force_and_link() {
+    let s = Sandbox::new();
+    run(&s, &["install", "claude"]);
+    fs::create_dir_all(skills(&s).join("other")).unwrap();
+    fs::write(skills(&s).join("other/SKILL.md"), "other\n").unwrap();
+    let (out, _) = run(&s, &["install", "claude", "--remove", "--force"]);
+    assert_removed(&s, &out);
+    assert_eq!(
+        fs::read(skills(&s).join("other/SKILL.md")).unwrap(),
+        b"other\n"
+    );
+
+    let s = Sandbox::new();
+    let repo = checkout(&s);
+    run(&s, &["install", "claude"]);
+    let before = contents(&repo);
+    let args = [
+        "install",
+        "claude",
+        "--remove",
+        "--link",
+        repo.to_str().unwrap(),
+    ];
+    let (out, _) = run(&s, &args);
+    assert_removed(&s, &out);
+    assert_eq!(contents(&repo), before);
+}

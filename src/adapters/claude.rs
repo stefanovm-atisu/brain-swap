@@ -110,6 +110,26 @@ pub fn install(env: &Env, opts: &InstallOpts) -> Result<InstallReport, Error> {
     Ok(report)
 }
 
+/// Deletes each `<skills>/<name>` that is ours (8.8), never following a symlink; anything
+/// else there is left alone.
+pub fn remove(env: &Env) -> Result<InstallReport, Error> {
+    let mut report = InstallReport::default();
+    for skill in &SKILLS {
+        let folder = skills_dir(env).join(skill.name);
+        if is_our_folder(&folder) {
+            fs::remove_dir_all(&folder).map_err(|e| io(&folder, e))?;
+            report.removed.push(folder);
+        }
+    }
+    Ok(report)
+}
+
+/// A real folder (not a symlink) whose `SKILL.md` is ours.
+fn is_our_folder(f: &Path) -> bool {
+    fs::symlink_metadata(f).is_ok_and(|m| m.is_dir())
+        && fs::read_to_string(f.join("SKILL.md")).is_ok_and(|t| is_ours(&t))
+}
+
 fn io(path: &Path, e: std::io::Error) -> Error {
     Error::Io(format!("{}: {e}", path.display()))
 }
@@ -118,10 +138,7 @@ fn io(path: &Path, e: std::io::Error) -> Error {
 /// folder without our `SKILL.md`, a file, any symlink) unless `force`, which deletes them
 /// all and returns them; on refusal nothing is touched.
 fn clear_foreign(folders: &[PathBuf], force: bool) -> Result<Vec<PathBuf>, Error> {
-    let ours = |f: &Path| match fs::symlink_metadata(f) {
-        Err(_) => true,
-        Ok(m) => m.is_dir() && fs::read_to_string(f.join("SKILL.md")).is_ok_and(|t| is_ours(&t)),
-    };
+    let ours = |f: &Path| fs::symlink_metadata(f).is_err() || is_our_folder(f);
     let foreign: Vec<PathBuf> = folders.iter().filter(|f| !ours(f)).cloned().collect();
     match foreign.first() {
         Some(f) if !force => Err(Error::InvalidInput(format!(

@@ -124,6 +124,7 @@ pub enum InstallTarget {
         /// Replace entries at the skill paths that brain-swap did not create
         #[arg(long)]
         force: bool,
+        /// Delete the skill folders brain-swap installed; leaves anything else alone
         #[arg(long)]
         remove: bool,
     },

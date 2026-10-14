@@ -23,6 +23,8 @@ It copies each skill as a plain folder `~/.claude/skills/<name>/SKILL.md` and pr
 
 To work on the skills from a checkout of this repository, run `brain-swap install claude --link <repo>`: it copies `<repo>/pack/claude/skills/<name>/SKILL.md` instead of the embedded skills, so run it again after each edit. A plain `brain-swap install claude` switches back to the embedded skills.
 
+`brain-swap install claude --remove` deletes the skill folders brain-swap installed (embedded or from a checkout) and prints one `removed <folder>` line each; anything else in the skills folder, including a skill folder whose `SKILL.md` you replaced, stays. `--json` returns them as `removed`; `--force` and `--link` change nothing here.
+
 ## herdr key binding
 
 Open the board in a herdr popup with one key. Run:

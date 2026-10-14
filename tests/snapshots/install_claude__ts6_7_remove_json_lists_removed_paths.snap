@@ -1,0 +1,5 @@
+---
+source: tests/install_claude.rs
+expression: "out.replace(&root, \"<sandbox>\")"
+---
+{"v":1,"linked":[],"removed":["<sandbox>/home/.claude/skills/bs-card","<sandbox>/home/.claude/skills/bs-park","<sandbox>/home/.claude/skills/bs-back","<sandbox>/home/.claude/skills/bs-link"]}

@@ -382,23 +382,31 @@ pub fn run(env: &mut Env, cli: Cli) -> i32 {
         Some(Command::Install(InstallTarget::Claude {
             link,
             force,
-            remove: false,
+            remove,
         })) => {
             let exe = env.exe.clone();
-            install_claude(env, &InstallOpts { link, force, exe }, &mut out)
+            install_claude(env, &InstallOpts { link, force, exe }, remove, &mut out)
         }
         _ => todo!(),
     }
 }
 
-/// `install claude` (8.8): one `installed <folder>` line per skill, then the notices; with
-/// `--json` the 6.7 object on stdout and the notices as warnings on stderr.
-pub fn install_claude(env: &Env, opts: &InstallOpts, out: &mut Out) -> i32 {
-    let report = match claude::install(env, opts) {
+/// `install claude` (8.8): one `removed <path>` line per deleted entry, one `installed
+/// <folder>` line per skill, then the notices; with `--json` the 6.7 object on stdout and
+/// the notices as warnings on stderr. `remove` runs `claude::remove`, ignoring `opts`.
+pub fn install_claude(env: &Env, opts: &InstallOpts, remove: bool, out: &mut Out) -> i32 {
+    let report = match remove {
+        true => claude::remove(env),
+        false => claude::install(env, opts),
+    };
+    let report = match report {
         Ok(r) => r,
         Err(e) => return out.error(&e),
     };
     let mut text = String::new();
+    for p in &report.removed {
+        text += &format!("removed {}\n", p.display());
+    }
     for p in &report.linked {
         text += &format!("installed {}\n", p.display());
     }
